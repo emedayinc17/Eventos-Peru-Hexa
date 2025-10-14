@@ -1,0 +1,19 @@
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: "VALIDATION_ERROR"
+        message:
+          type: string
+          example: "Campo 'email' es requerido"
+        details:
+          type: object
+          additionalProperties: true
+          example: { field: "email" }
+        correlation_id:
+          type: string
+          example: "a4c2b1..."

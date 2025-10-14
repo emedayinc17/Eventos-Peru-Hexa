@@ -1,0 +1,248 @@
+openapi: 3.0.3
+info:
+  title: Proveedores Service API
+  version: "1.0"
+servers:
+  - url: /v1/proveedores
+security:
+  - bearerAuth: []
+paths:
+
+  # ==============
+  # ADMIN (CRUD)
+  # ==============
+  /admin:
+    post:
+      tags: [admin]
+      summary: Crear proveedor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nombre]
+              properties:
+                nombre: { type: string }
+                email: { type: string }
+                telefono: { type: string }
+                rating_prom: { type: number, format: float, minimum: 0, maximum: 5 }
+                status: { type: integer, enum: [0,1], default: 1 }
+      responses:
+        "201":
+          description: Creado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Proveedor" }
+
+  /admin/{id}:
+    put:
+      tags: [admin]
+      summary: Actualizar proveedor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre: { type: string }
+                email: { type: string }
+                telefono: { type: string }
+                rating_prom: { type: number, format: float }
+                status: { type: integer, enum: [0,1] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Proveedor" }
+
+  /admin/{id}/skills:
+    post:
+      tags: [admin]
+      summary: Agregar skill (servicio soportado) a proveedor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [servicio_id, nivel]
+              properties:
+                servicio_id: { type: string, format: uuid }
+                nivel: { type: integer, minimum: 1, maximum: 5 }
+      responses:
+        "201":
+          description: Creado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HabilidadProveedor" }
+
+  /admin/{id}/agenda:
+    post:
+      tags: [admin]
+      summary: Registrar bloque de agenda (turno/descanso)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [inicio, fin, tipo]
+              properties:
+                inicio: { type: string, format: date-time }
+                fin: { type: string, format: date-time }
+                tipo: { type: integer, enum: [1,2] } # 1=turno,2=descanso
+      responses:
+        "201":
+          description: Creado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CalendarioProveedor" }
+
+  # ======================
+  # CLIENTE / BÚSQUEDA
+  # ======================
+  /:
+    get:
+      tags: [public]
+      summary: Buscar proveedores disponibles por servicio y fecha
+      parameters:
+        - name: servicio_id
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: fecha
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ProveedorDisponibilidad" }
+
+  /reservas:
+    post:
+      tags: [public]
+      summary: Crear reserva temporal (hold con TTL)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [proveedor_id, opcion_servicio_id, inicio, fin]
+              properties:
+                proveedor_id: { type: string, format: uuid }
+                opcion_servicio_id: { type: string, format: uuid }
+                inicio: { type: string, format: date-time }
+                fin: { type: string, format: date-time }
+                correlation_id: { type: string }
+      responses:
+        "201":
+          description: Creado (status=0 hold)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReservaTemporal" }
+        "409":
+          description: Conflicto de agenda
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /reservas/{id}:
+    delete:
+      tags: [public]
+      summary: Liberar reserva temporal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Liberado
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  responses:
+    NotFound:
+      description: No existe
+      content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+
+  schemas:
+    Proveedor:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string }
+        email: { type: string }
+        telefono: { type: string }
+        rating_prom: { type: number, format: float }
+        status: { type: integer }
+
+    HabilidadProveedor:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        proveedor_id: { type: string, format: uuid }
+        servicio_id: { type: string, format: uuid }
+        nivel: { type: integer }
+
+    CalendarioProveedor:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        proveedor_id: { type: string, format: uuid }
+        inicio: { type: string, format: date-time }
+        fin: { type: string, format: date-time }
+        tipo: { type: integer }
+
+    ReservaTemporal:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        proveedor_id: { type: string, format: uuid }
+        opcion_servicio_id: { type: string, format: uuid }
+        inicio: { type: string, format: date-time }
+        fin: { type: string, format: date-time }
+        status: { type: integer, description: "0=hold,1=confirmada,2=expirada,3=liberada" }
+        expira_en: { type: string, format: date-time }
+        correlation_id: { type: string }
+
+    ProveedorDisponibilidad:
+      type: object
+      properties:
+        proveedor_id: { type: string, format: uuid }
+        nombre: { type: string }
+        slots_disponibles:
+          type: array
+          items:
+            type: object
+            properties:
+              inicio: { type: string, format: date-time }
+              fin: { type: string, format: date-time }
+
+    ErrorResponse:
+      $ref: "./errors.yaml#/components/schemas/ErrorResponse"

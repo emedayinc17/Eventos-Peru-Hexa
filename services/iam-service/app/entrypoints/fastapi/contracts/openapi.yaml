@@ -1,0 +1,270 @@
+openapi: 3.0.3
+info:
+  title: IAM Service API
+  version: "1.0"
+servers:
+  - url: /iam
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Unauthorized:
+      description: No autenticado
+      content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+    Forbidden:
+      description: Sin permisos
+      content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+    NotFound:
+      description: No existe
+      content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, example: "VALIDATION_ERROR" }
+        message: { type: string, example: "Email o contraseña inválidos" }
+        details: { type: object, additionalProperties: true }
+        correlation_id: { type: string, example: "req-123abc" }
+
+    Credentials:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+
+    TokenResponse:
+      type: object
+      required: [access_token, token_type]
+      properties:
+        access_token: { type: string, example: "eyJhbGciOi..." }
+        token_type: { type: string, example: "bearer" }
+        expires_in: { type: integer, example: 3600 }
+        role: { type: string, enum: ["admin","cliente"] }
+
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+        nombre: { type: string }
+        telefono: { type: string }
+
+    Usuario:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        nombre: { type: string }
+        telefono: { type: string }
+        status: { type: integer, example: 1 }
+
+    CrearUsuarioAdminRequest:
+      allOf:
+        - $ref: "#/components/schemas/RegisterRequest"
+        - type: object
+          properties:
+            role:
+              type: string
+              enum: ["admin","cliente"]
+              default: "cliente"
+
+    ForgotPasswordRequest:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email }
+
+    ResetPasswordRequest:
+      type: object
+      required: [token, new_password]
+      properties:
+        token: { type: string, description: "token enviado por email" }
+        new_password: { type: string, format: password }
+
+security:
+  - bearerAuth: []
+paths:
+
+  # ======= AUTH =======
+  /auth/login:
+    post:
+      tags: [auth]
+      security: []  # público
+      summary: Login (JWT)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Credentials" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TokenResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /auth/register:
+    post:
+      tags: [auth]
+      security: []  # público (auto-registro cliente)
+      summary: Auto-registro de cliente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+      responses:
+        "201":
+          description: Creado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Usuario" }
+        "409":
+          description: Ya existe el email
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /auth/forgot-password:
+    post:
+      tags: [auth]
+      security: []  # público
+      summary: Inicia recuperación de contraseña (envía token)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ForgotPasswordRequest" }
+      responses:
+        "202":
+          description: Aceptado (si email existe, se envía token)
+
+  /auth/reset-password:
+    post:
+      tags: [auth]
+      security: []  # público (con token válido)
+      summary: Resetea contraseña usando token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ResetPasswordRequest" }
+      responses:
+        "204":
+          description: Password actualizado
+
+  # ======= PROFILE =======
+  /me:
+    get:
+      tags: [profile]
+      summary: Perfil del usuario autenticado
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Usuario" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  # ======= ADMIN (CRUD usuarios) =======
+  /admin/users:
+    post:
+      tags: [admin]
+      summary: Crear usuario (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CrearUsuarioAdminRequest" }
+      responses:
+        "201":
+          description: Creado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Usuario" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+    get:
+      tags: [admin]
+      summary: Listar usuarios
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Usuario" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /admin/users/{id}:
+    get:
+      tags: [admin]
+      summary: Obtener usuario por id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Usuario" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+    patch:
+      tags: [admin]
+      summary: Actualizar usuario (campos parciales)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre: { type: string }
+                telefono: { type: string }
+                status: { type: integer, enum: [0,1] }
+                role: { type: string, enum: ["admin","cliente"] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Usuario" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+    delete:
+      tags: [admin]
+      summary: Eliminar (soft-delete) usuario
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204": { description: Eliminado }
+        "403": { $ref: "#/components/responses/Forbidden" }

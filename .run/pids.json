@@ -1,0 +1,30 @@
+﻿[
+    {
+        "out":  "E:\\eventos-peru-hexagonal\\services\\iam-service\\.run\\out.log",
+        "path":  "E:\\eventos-peru-hexagonal\\services\\iam-service",
+        "pid":  21512,
+        "name":  "iam-service",
+        "err":  "E:\\eventos-peru-hexagonal\\services\\iam-service\\.run\\err.log"
+    },
+    {
+        "out":  "E:\\eventos-peru-hexagonal\\services\\catalogo-service\\.run\\out.log",
+        "path":  "E:\\eventos-peru-hexagonal\\services\\catalogo-service",
+        "pid":  9872,
+        "name":  "catalogo-service",
+        "err":  "E:\\eventos-peru-hexagonal\\services\\catalogo-service\\.run\\err.log"
+    },
+    {
+        "out":  "E:\\eventos-peru-hexagonal\\services\\proveedores-service\\.run\\out.log",
+        "path":  "E:\\eventos-peru-hexagonal\\services\\proveedores-service",
+        "pid":  10168,
+        "name":  "proveedores-service",
+        "err":  "E:\\eventos-peru-hexagonal\\services\\proveedores-service\\.run\\err.log"
+    },
+    {
+        "out":  "E:\\eventos-peru-hexagonal\\services\\contratacion-service\\.run\\out.log",
+        "path":  "E:\\eventos-peru-hexagonal\\services\\contratacion-service",
+        "pid":  21404,
+        "name":  "contratacion-service",
+        "err":  "E:\\eventos-peru-hexagonal\\services\\contratacion-service\\.run\\err.log"
+    }
+]

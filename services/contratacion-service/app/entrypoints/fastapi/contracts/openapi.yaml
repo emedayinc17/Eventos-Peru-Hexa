@@ -1,0 +1,307 @@
+openapi: 3.0.3
+info:
+  title: Contratacion Service API
+  version: "1.0"
+servers:
+  - url: /v1/contratacion
+security:
+  - bearerAuth: []
+paths:
+
+  # ===========================
+  # CLIENTE
+  # ===========================
+  /pedidos:
+    post:
+      tags: [cliente]
+      summary: Crear pedido (paquete o custom items)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/CrearPedidoDesdePaquete"
+                - $ref: "#/components/schemas/CrearPedidoCustom"
+      responses:
+        "201":
+          description: Creado (status=DRAFT o COTIZADO según reglas)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PedidoEvento" }
+        "409":
+          description: Idempotencia (request_id) o conflicto
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /pedidos/mios:
+    get:
+      tags: [cliente]
+      summary: Listar mis pedidos
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PedidoEvento" }
+
+  /pedidos/{id}:
+    get:
+      tags: [cliente]
+      summary: Obtener mi pedido por id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/PedidoEvento" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /pedidos/{id}/enviar-resumen:
+    post:
+      tags: [cliente]
+      summary: Enviar resumen de pedido por correo (outbox)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [to_email]
+              properties:
+                to_email: { type: string }
+      responses:
+        "202":
+          description: Aceptado (enqueued en outbox)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  outbox_id: { type: string, format: uuid }
+                  status: { type: string, example: "PEND" }
+
+  # ===========================
+  # ADMIN
+  # ===========================
+  /admin/pedidos:
+    get:
+      tags: [admin]
+      summary: Listar pedidos (admin)
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema: { type: integer, enum: [0,1,2,3,4,5] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PedidoEvento" }
+
+  /admin/pedidos/{id}:
+    patch:
+      tags: [admin]
+      summary: Cambiar estado del pedido
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: integer
+                  description: "0=DRAFT,1=COTIZADO,2=APROBADO,3=ASIGNADO,4=CERRADO,5=CANCELADO"
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/PedidoEvento" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /admin/pedidos/{id}/items:
+    post:
+      tags: [admin]
+      summary: Agregar item a pedido
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgregarItemRequest"
+      responses:
+        "201":
+          description: Agregado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ItemPedidoEvento" }
+
+    delete:
+      tags: [admin]
+      summary: Eliminar item(s) de un pedido (por item_id)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [item_ids]
+              properties:
+                item_ids:
+                  type: array
+                  items: { type: string, format: uuid }
+      responses:
+        "204": { description: Eliminado }
+
+  /admin/pedidos/{id}/asignar-proveedor:
+    post:
+      tags: [admin]
+      summary: Asignar proveedor a un item del pedido
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AsignarProveedorRequest"
+      responses:
+        "201":
+          description: Reserva confirmada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Reserva" }
+
+components:
+  responses:
+    NotFound:
+      description: No existe
+      content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+    BadRequest:
+      description: Regla de negocio violada
+      content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+
+  schemas:
+    CrearPedidoDesdePaquete:
+      type: object
+      required: [paquete_id, fecha_evento, hora_inicio, ubicacion]
+      properties:
+        paquete_id: { type: string, format: uuid }
+        fecha_evento: { type: string, format: date }
+        hora_inicio: { type: string, format: time }
+        hora_fin: { type: string, format: time, nullable: true }
+        ubicacion: { type: string }
+        request_id: { type: string }
+
+    CrearPedidoCustom:
+      type: object
+      required: [tipo_evento_id, items, fecha_evento, hora_inicio, ubicacion]
+      properties:
+        tipo_evento_id: { type: string, format: uuid }
+        items:
+          type: array
+          items:
+            type: object
+            required: [opcion_servicio_id, cantidad]
+            properties:
+              opcion_servicio_id: { type: string, format: uuid }
+              cantidad: { type: integer, minimum: 1 }
+        fecha_evento: { type: string, format: date }
+        hora_inicio: { type: string, format: time }
+        hora_fin: { type: string, format: time, nullable: true }
+        ubicacion: { type: string }
+        request_id: { type: string }
+
+    AgregarItemRequest:
+      type: object
+      required: [tipo_item, referencia_id, cantidad, precio_unit]
+      properties:
+        tipo_item:
+          type: integer
+          description: "1=OPCION_SERVICIO, 2=PAQUETE"
+        referencia_id: { type: string, format: uuid }
+        cantidad: { type: integer, minimum: 1 }
+        precio_unit: { type: number, format: float }
+
+    AsignarProveedorRequest:
+      type: object
+      required: [item_pedido_id, proveedor_id, inicio, fin]
+      properties:
+        item_pedido_id: { type: string, format: uuid }
+        proveedor_id: { type: string, format: uuid }
+        inicio: { type: string, format: date-time }
+        fin: { type: string, format: date-time }
+        hold_id:
+          type: string
+          format: uuid
+          description: "Id de reserva_temporal si la hubo"
+
+    PedidoEvento:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        cliente_id: { type: string, format: uuid }
+        tipo_evento_id: { type: string, format: uuid }
+        fecha_evento: { type: string, format: date }
+        hora_inicio: { type: string, format: time }
+        hora_fin: { type: string, format: time, nullable: true }
+        ubicacion: { type: string }
+        monto_total: { type: number, format: float }
+        moneda: { type: string, example: "PEN" }
+        status:
+          type: integer
+          description: "0=DRAFT,1=COTIZADO,2=APROBADO,3=ASIGNADO,4=CERRADO,5=CANCELADO"
+
+    ItemPedidoEvento:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        pedido_id: { type: string, format: uuid }
+        tipo_item: { type: integer, description: "1=OPCION_SERVICIO,2=PAQUETE" }
+        referencia_id: { type: string, format: uuid }
+        cantidad: { type: integer }
+        precio_unit: { type: number, format: float }
+        precio_total: { type: number, format: float }
+
+    Reserva:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        item_pedido_id: { type: string, format: uuid }
+        proveedor_id: { type: string, format: uuid }
+        inicio: { type: string, format: date-time }
+        fin: { type: string, format: date-time }
+        status: { type: integer, description: "0=PEND,1=CONFIRMADA,2=FALLIDA,3=CANCELADA" }
+        hold_id: { type: string, format: uuid, nullable: true }
+
+    ErrorResponse:
+      $ref: "./errors.yaml#/components/schemas/ErrorResponse"
