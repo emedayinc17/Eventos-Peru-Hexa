@@ -62,3 +62,6 @@ Thumbs.db
 *.rar
 *.tar
 *.zip
+
+#otros
+*.txt
