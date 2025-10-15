@@ -3,3 +3,16 @@
   "password": "Admin_2025!"
 }
 
+
+{
+  "email": "emedayinc@test.com",
+  "password": "Mipassword2025"
+}
+
+{
+  "email": "test@test.com",
+  "password": "test2025",
+  "nombre": "test",
+  "teléfono": "+51 99999999",
+  "role": "CLIENTE"
+}
