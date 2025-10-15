@@ -23,15 +23,15 @@ Crea/ajusta los `.env` en cada carpeta `services/<service>/.env` (ver ejemplos a
 ```powershell
 # IAM
 .\services\iam-service
-un.bat
+run.bat
 
 # Catálogo
 .\services\catalogo-service
-un.bat
+run.bat
 
 # Contratación
 .\services\contratacion-service
-un.bat
+run.bat
 ```
 (Usa los demás `run.bat` si aplica: proveedores, paquetes, mensajería).
 
