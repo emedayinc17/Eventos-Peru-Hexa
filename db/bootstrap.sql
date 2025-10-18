@@ -7,7 +7,7 @@
      - Estados de pedido ajustados (DRAFT→COTIZADO→APROBADO→ASIGNADO→CERRADO/CANCELADO)
      - Checks de tiempos (inicio < fin)
      - Vistas de precio vigente total de paquetes
-   IDs: CHAR(36) (UUID)
+   IDs: CHAR(36) (UUID)0000
    ============================================================ */
 
 SET NAMES utf8mb4;
