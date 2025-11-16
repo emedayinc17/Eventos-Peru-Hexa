@@ -20,6 +20,17 @@ spec:
     - host: eventos.emeday.inc
       http:
         paths:
+          # Ruta especial para Swagger (Swagger llama a "/openapi.json" SIN /iam)
+          # Usamos regex con 2 grupos para que $2 = "openapi.json" y
+          # rewrite-target "/$2" => "/openapi.json" (no se rompe)
+          - path: /()(openapi.json)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: iam-service
+                port:
+                  number: 80
+
           # IAM
           - path: /iam(/|$)(.*)
             pathType: ImplementationSpecific
@@ -55,6 +66,7 @@ spec:
                 name: contratacion-service
                 port:
                   number: 80
+
 
   # Si ya tienes TLS, descomenta:
   # tls:
