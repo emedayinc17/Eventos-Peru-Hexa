@@ -76,7 +76,7 @@ metadata:
   name: iam-frontend
   namespace: eventos-peru
   annotations:
-    kubernetes.io/ingress.class: nginx
+    kubernetes.io/ingress.class: public   # ← ESTE ES EL ACTIVO
 spec:
   tls:
     - hosts:
@@ -93,4 +93,3 @@ spec:
                 name: iam-frontend
                 port:
                   number: 80
-
