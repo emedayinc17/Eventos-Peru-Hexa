@@ -4,9 +4,18 @@
 // ==========================================
 
 // --- Base URL (se puede sobreescribir con window.API_BASE) ---
+// Si no se especifica window.API_BASE, usamos un valor por defecto:
+// - En producción (dominio eventos.emeday.inc) -> origin + "/iam"
+// - En desarrollo -> http://127.0.0.1:8010/iam
+const DEFAULT_BASE = (typeof window !== "undefined" && window.location)
+  ? (window.location.origin.includes("eventos.emeday.inc")
+      ? window.location.origin + "/iam"
+      : "https://eventos.emeday.inc/iam/iam")
+  : "https://eventos.emeday.inc/iam/iam";
+
 const RAW_BASE = (typeof window !== "undefined" && window.API_BASE)
   ? window.API_BASE
-  : "http://127.0.0.1:8010/iam";
+  : DEFAULT_BASE;
 
 // Normaliza para evitar // al concatenar paths
 function normalizeBase(base) {
