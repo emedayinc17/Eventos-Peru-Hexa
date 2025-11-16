@@ -76,12 +76,8 @@ metadata:
   name: iam-frontend
   namespace: eventos-peru
   annotations:
-    # Usamos regex para soportar /iam-ui/ y los recursos estáticos bajo esa ruta
-    nginx.ingress.kubernetes.io/use-regex: "true"
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    kubernetes.io/ingress.class: nginx
 spec:
-  # 👈 Misma clase que ya usas en eventos-api
-  ingressClassName: public
   tls:
     - hosts:
         - eventos.emeday.inc
@@ -90,10 +86,11 @@ spec:
     - host: eventos.emeday.inc
       http:
         paths:
-          - path: /iam-ui(/|$)(.*)
+          - path: /
             pathType: Prefix
             backend:
               service:
                 name: iam-frontend
                 port:
                   number: 80
+
