@@ -39,8 +39,8 @@ spec:
           env:
             - name: BASE_PATH
               value: "/iam"                           # para URLs públicas detrás del Ingress
-          #  - name: PYTHONPATH
-          #    value: /app/libs:/app/services/iam-service
+            - name: PYTHONPATH
+              value: /app/libs:/app/services/iam-service
           #  - name: PORT
           #    value: "8000"
           ## Ya NO "sourceamos" /vault/secrets/config: el Settings lo lee directo
