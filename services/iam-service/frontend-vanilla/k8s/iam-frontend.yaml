@@ -8,7 +8,7 @@ data:
   config.js: |
     // Configuración del frontend IAM (entorno Kubernetes)
     // Apunta al backend deployado en el mismo dominio
-    window.API_BASE = "https://eventos.emeday.inc/iam";
+    window.API_BASE = "https://eventos.emeday.inc/iam/iam";
 ---
 apiVersion: apps/v1
 kind: Deployment
