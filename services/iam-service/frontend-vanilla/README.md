@@ -36,10 +36,5 @@ js/
 
 python -m http.server 8000
 
-#Crear imagen docker para el frontend
 docker build -t emeday17/eventos-iam-frontend:1.0.0 .
-
 docker push emeday17/eventos-iam-frontend:1.0.0
-
-
-- docker run --rm -p 8080:80 emeday17/eventos-iam-frontend:1.0.0

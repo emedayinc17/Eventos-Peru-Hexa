@@ -345,8 +345,13 @@ window.addEventListener("hashchange", router);
 
 // ----- Boot -----
 (async function init() {
-  const me = await Auth.init(); // si hay token, intenta /me
-  if (me) currentUser = me;
-  configureNavbar();
-  router();
+  try {
+    const me = await Auth.init(); // si hay token, intenta /me
+    if (me) currentUser = me;
+  } catch (e) {
+    console.error("Error durante inicialización de la app", e);
+  } finally {
+    configureNavbar();
+    router();
+  }
 })();
