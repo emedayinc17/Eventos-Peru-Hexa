@@ -37,7 +37,7 @@ spec:
       containers:
         - name: iam-frontend
           # 👉 Cambia el tag si usas otra versión
-          image: emeday17/eventos-iam-frontend:1.0.1
+          image: emeday17/eventos-iam-frontend:1.0.0
           imagePullPolicy: Always
           ports:
             - containerPort: 80
