@@ -36,9 +36,9 @@ spec:
         - name: app
           image: eventos-iam  # ajusta tu tag si corresponde
           imagePullPolicy: Always
-          #env:
-          #  - name: BASE_PATH
-          #    value: "/iam"                           # para URLs públicas detrás del Ingress
+          env:
+            - name: BASE_PATH
+              value: "/iam"                           # para URLs públicas detrás del Ingress
           #  - name: PYTHONPATH
           #    value: /app/libs:/app/services/iam-service
           #  - name: PORT
