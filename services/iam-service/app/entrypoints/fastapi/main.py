@@ -1,4 +1,3 @@
-
 """
 IAM FastAPI main
 ----------------
@@ -15,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 settings = load_settings(service_name="iam-service")
 log = get_logger(__name__, service_name=settings.SERVICE_NAME)
 
+# 👇 Sin BASE_PATH aquí: las rutas internas serán "/auth/login", "/health", etc.
 app = FastAPI(title="IAM Service", version="0.1.0")
 
 origins = [
@@ -31,13 +31,20 @@ app.add_middleware(
 )
 
 # Routers
-app.include_router(build_debug_router(settings), prefix="/iam")
-app.include_router(build_api_router(settings), prefix="/iam")
+# 👇 IMPORTANTE: sin prefix="/iam". El "/iam" lo añade el Ingress sólo por fuera
+app.include_router(build_debug_router(settings))       # quedará /_debug/env
+app.include_router(build_api_router(settings))         # quedará /auth/login, /admin/...
 
 @app.on_event("startup")
 async def on_startup():
-    log.info("Starting %s on %s:%s", settings.SERVICE_NAME, settings.APP_HOST, settings.APP_PORT)
+    log.info(
+        "Starting %s on %s:%s",
+        settings.SERVICE_NAME,
+        settings.APP_HOST,
+        settings.APP_PORT,
+    )
 
-@app.get("/iam/health")
+# 👇 Health sin "/iam"
+@app.get("/health")
 def health():
     return {"status": "ok", "service": settings.SERVICE_NAME}
