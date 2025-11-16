@@ -14,31 +14,31 @@ metadata:
     nginx.ingress.kubernetes.io/cors-allow-headers: "Authorization, Content-Type, Accept, Origin, X-Requested-With"
     # Límite simple
     nginx.ingress.kubernetes.io/limit-rps: "20"
+    # Para MicroK8s usa 'public' en lugar de 'nginx'
+    kubernetes.io/ingress.class: "public"
 spec:
-  ingressClassName: nginx
+  ingressClassName: public  # ← CAMBIADO: MicroK8s usa 'public' no 'nginx'
   rules:
     - host: eventos.emeday.inc
       http:
         paths:
-          # Ruta especial para Swagger (Swagger llama a "/openapi.json" SIN /iam)
-          # Usamos regex con 2 grupos para que $2 = "openapi.json" y
-          # rewrite-target "/$2" => "/openapi.json" (no se rompe)
-          - path: /()(openapi.json)
-            pathType: ImplementationSpecific
+          # Endpoint específico para openapi.json
+          - path: /openapi.json
+            pathType: Prefix
             backend:
               service:
                 name: iam-service
                 port:
-                  number: 80
+                  number: 8010  # ← CAMBIADO: usa el puerto correcto (8010 no 80)
 
-          # IAM
+          # IAM - Ruta con regex
           - path: /iam(/|$)(.*)
             pathType: ImplementationSpecific
             backend:
               service:
                 name: iam-service
                 port:
-                  number: 80
+                  number: 8010  # ← CAMBIADO: 8010
 
           # CATALOGO
           - path: /catalogo(/|$)(.*)
@@ -66,10 +66,3 @@ spec:
                 name: contratacion-service
                 port:
                   number: 80
-
-
-  # Si ya tienes TLS, descomenta:
-  # tls:
-  #   - hosts:
-  #       - eventos.emeday.inc
-  #     secretName: eventos-peru-tls

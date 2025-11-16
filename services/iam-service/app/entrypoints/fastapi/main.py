@@ -44,6 +44,11 @@ async def on_startup():
         settings.APP_PORT,
     )
 
+# Health "externo" (si lo estabas usando)
+@app.get("/iam/health")
+def health_iam():
+    return {"status": "ok", "service": settings.SERVICE_NAME}
+    
 # 👇 Health sin "/iam"
 @app.get("/health")
 def health():
