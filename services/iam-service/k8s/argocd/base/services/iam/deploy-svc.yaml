@@ -36,23 +36,23 @@ spec:
         - name: app
           image: eventos-iam  # ajusta tu tag si corresponde
           imagePullPolicy: Always
-          env:
-            - name: BASE_PATH
-              value: "/iam"                           # para URLs públicas detrás del Ingress
-            - name: PYTHONPATH
-              value: /app/libs:/app/services/iam-service
-            - name: PORT
-              value: "8000"
-          # Ya NO "sourceamos" /vault/secrets/config: el Settings lo lee directo
-          command: ["uvicorn"]
-          args:
-            - app.main:app
-            - --host
-            - 0.0.0.0
-            - --port
-            - "8010"
-            - --app-dir
-            - /app/services/iam-service
+          #env:
+          #  - name: BASE_PATH
+          #    value: "/iam"                           # para URLs públicas detrás del Ingress
+          #  - name: PYTHONPATH
+          #    value: /app/libs:/app/services/iam-service
+          #  - name: PORT
+          #    value: "8000"
+          ## Ya NO "sourceamos" /vault/secrets/config: el Settings lo lee directo
+          #command: ["uvicorn"]
+          #args:
+          #  - app.main:app
+          #  - --host
+          #  - 0.0.0.0
+          #  - --port
+          #  - "8010"
+          #  - --app-dir
+          #  - /app/services/iam-service
           ports:
             - name: http
               containerPort: 8010
@@ -82,4 +82,4 @@ spec:
   ports:
     - name: http
       port: 80
-      targetPort: 8000
+      targetPort: 8010

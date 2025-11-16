@@ -43,4 +43,4 @@ EXPOSE 8010
 
 # ===== Comando de arranque =====
 # Igual que tu run.bat pero para contenedor
-CMD ["uvicorn", "app.entrypoints.fastapi.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.entrypoints.fastapi.main:app", "--host", "0.0.0.0", "--port", "8010"]
