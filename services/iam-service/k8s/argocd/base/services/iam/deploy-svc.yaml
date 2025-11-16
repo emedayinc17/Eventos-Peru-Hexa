@@ -39,6 +39,8 @@ spec:
           env:
             - name: BASE_PATH
               value: "/iam"                           # para URLs públicas detrás del Ingress
+            - name: UVICORN_ROOT_PATH  # ← NUEVA VARIABLE
+              value: "/iam"
           #  - name: PYTHONPATH
           #    value: /app/libs:/app/services/iam-service
           #  - name: PORT
