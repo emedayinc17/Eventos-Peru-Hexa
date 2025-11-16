@@ -5,40 +5,38 @@ metadata:
   namespace: eventos-peru
   annotations:
     nginx.ingress.kubernetes.io/use-regex: "true"
-    # Reescribe "/<svc>/<lo-que-sea>" -> "/<lo-que-sea>" en el backend
     nginx.ingress.kubernetes.io/rewrite-target: /$2
-    # CORS básico
     nginx.ingress.kubernetes.io/enable-cors: "true"
     nginx.ingress.kubernetes.io/cors-allow-origin: "*"
     nginx.ingress.kubernetes.io/cors-allow-methods: "GET, PUT, POST, DELETE, PATCH, OPTIONS"
     nginx.ingress.kubernetes.io/cors-allow-headers: "Authorization, Content-Type, Accept, Origin, X-Requested-With"
-    # Límite simple
     nginx.ingress.kubernetes.io/limit-rps: "20"
-    # Para MicroK8s usa 'public' en lugar de 'nginx'
-    kubernetes.io/ingress.class: "public"
 spec:
-  ingressClassName: public  # ← CAMBIADO: MicroK8s usa 'public' no 'nginx'
+  ingressClassName: nginx
   rules:
     - host: eventos.emeday.inc
       http:
         paths:
-          # Endpoint específico para openapi.json
-          - path: /openapi.json
-            pathType: Prefix
+          # 👇 Ruta especial SOLO para /openapi.json
+          #   - use-regex está en "true"
+          #   - aquí $1="" y $2="openapi.json"
+          #   - rewrite-target "/$2" => "/openapi.json" (no se rompe)
+          - path: /()(openapi.json)
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: iam-service
                 port:
-                  number: 8010  # ← CAMBIADO: usa el puerto correcto (8010 no 80)
+                  number: 80
 
-          # IAM - Ruta con regex
+          # IAM (todas las demás rutas /iam/...)
           - path: /iam(/|$)(.*)
             pathType: ImplementationSpecific
             backend:
               service:
                 name: iam-service
                 port:
-                  number: 8010  # ← CAMBIADO: 8010
+                  number: 80
 
           # CATALOGO
           - path: /catalogo(/|$)(.*)
