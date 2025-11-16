@@ -81,5 +81,5 @@ spec:
   selector: { app: iam-service }
   ports:
     - name: http
-      port: 80
+      port: 8010
       targetPort: 8010
