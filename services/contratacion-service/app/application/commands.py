@@ -3,7 +3,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from ev_shared.config import Settings
 from ev_shared.db import session_scope
-
+import datetime
 # IMPORT corregido: NUNCA uses "contratacion-service" con guion en imports
 # Usa import absoluto dentro del paquete app (o relativo si prefieres).
 from app.infrastructure.db.sqlalchemy.repositories import EmailOutboxSql
@@ -204,8 +204,29 @@ def listar_mis_pedidos(settings: Settings, cliente_id: str) -> List[Dict[str, An
     """)
     with session_scope(settings) as s:
         rows = s.execute(sql, {"uid": cliente_id}).mappings().all()
-        return [dict(r) for r in rows]
+        result = []
+        for r in rows:
+            data = dict(r)
+            # Convierte timedeltas a time
+            if "hora_inicio" in data:
+                data["hora_inicio"] = _convert_timedelta_to_time(data["hora_inicio"])
+            if "hora_fin" in data:
+                data["hora_fin"] = _convert_timedelta_to_time(data["hora_fin"])
+            result.append(data)
+        return result
 
+
+def _convert_timedelta_to_time(td):
+    """Convierte un datetime.timedelta a datetime.time."""
+    import datetime
+    if not isinstance(td, datetime.timedelta):
+        return td # Si ya es time o str, lo devolvemos
+    total_seconds = int(td.total_seconds())
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    seconds = total_seconds % 60
+    
+    return datetime.time(hour=hours, minute=minutes, second=seconds)
 
 def obtener_pedido(settings: Settings, cliente_id: str, pedido_id: str) -> Dict[str, Any]:
     sql_pedido = text("""
@@ -225,9 +246,14 @@ def obtener_pedido(settings: Settings, cliente_id: str, pedido_id: str) -> Dict[
             raise ValueError("PEDIDO_NO_ENCONTRADO")
         items = s.execute(sql_items, {"pid": pedido_id}).mappings().all()
         data = dict(p)
+        # Convierte timedeltas a time
+        if "hora_inicio" in data:
+            data["hora_inicio"] = _convert_timedelta_to_time(data["hora_inicio"])
+        if "hora_fin" in data:
+            data["hora_fin"] = _convert_timedelta_to_time(data["hora_fin"])
         data["items"] = [dict(i) for i in items]
         return data
-
+    
 
 def enviar_resumen_pedido(settings: Settings, cliente_id: str, pedido_id: str, to_email: str) -> Dict[str, Any]:
     ped = obtener_pedido(settings, cliente_id, pedido_id)
@@ -362,6 +388,9 @@ def admin_eliminar_items(settings: Settings, pedido_id: str, item_ids: List[str]
     ped = _get_pedido_row(settings, pedido_id)
     if not ped:
         raise ValueError("PEDIDO_NO_ENCONTRADO")
+    # Permite DELETE cuando status esté entre 0 y 2
+    if int(ped["status"]) not in (0, 1, 2):
+        raise ValueError("NO_PERMITE_ELIMINAR_EN_ESTE_ESTADO")
 
     placeholders = ",".join([f":id{i}" for i in range(len(item_ids))])
     params = {f"id{i}": item_ids[i] for i in range(len(item_ids))}
