@@ -2,8 +2,9 @@
 from typing import Any, Dict, Optional
 from fastapi import Depends, HTTPException, Header, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import jwt, JWTError
+from jose import JWTError
 from ev_shared.config import Settings
+from ev_shared.security import decode_jwt
 
 # Mantenemos el esquema Bearer para que Swagger muestre "Authorize"
 bearer_scheme = HTTPBearer(auto_error=True)
@@ -14,28 +15,26 @@ def require_user(
     settings: Settings = Depends(lambda: Settings()),
 ) -> Dict[str, Any]:
     token = credentials.credentials
-    secret = getattr(settings, "JWT_SECRET", None)
-    algo = getattr(settings, "JWT_ALG", getattr(settings, "JWT_ALGORITHM", "HS256"))
-    if not secret:
-        raise HTTPException(status_code=500, detail="JWT configuration missing (JWT_SECRET).")
     try:
-        payload = jwt.decode(token, secret, algorithms=[algo])
+        payload = decode_jwt(token)
         return payload
     except JWTError:
         raise HTTPException(status_code=401, detail="Token inválido o expirado")
+    except RuntimeError:
+        raise HTTPException(status_code=500, detail="JWT configuration missing (JWT_SECRET).")
 
 # --- Requeridos por router.py ---
 def _decode_token(settings: Settings, token: str) -> Dict[str, Any]:
-    secret = getattr(settings, "JWT_SECRET", None)
-    algo = getattr(settings, "JWT_ALG", getattr(settings, "JWT_ALGORITHM", "HS256"))
-    if not secret:
-        raise HTTPException(status_code=500, detail="JWT_SECRET no configurado")
     try:
-        payload = jwt.decode(token, secret, algorithms=[algo])
+        payload = decode_jwt(token)
     except JWTError:
         raise HTTPException(status_code=401, detail="Token inválido o expirado")
+    except RuntimeError:
+        raise HTTPException(status_code=500, detail="JWT_SECRET no configurado")
+
     # Chequeos mínimos de claims que usa el MVP
-    if "sub" not in payload or "username" not in payload or "role" not in payload:
+    # Aceptamos 'username' o 'email' para compatibilidad con tokens antiguos/variantes
+    if "sub" not in payload or ("username" not in payload and "email" not in payload) or "role" not in payload:
         raise HTTPException(status_code=401, detail="Token inválido (claims)")
     return payload
 

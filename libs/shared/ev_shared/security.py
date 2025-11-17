@@ -22,3 +22,38 @@ def make_jwt(subject: str, claims: Optional[Dict[str, Any]] = None) -> str:
         payload.update(claims)
     token = jwt.encode(payload, s.JWT_SECRET, algorithm="HS256")
     return token
+
+
+def decode_jwt(token: str, leeway: int = 60, algorithms: Optional[list[str]] = None) -> Dict[str, Any]:
+    """
+    Decode a JWT using settings from ev_shared.config.load_settings().
+    Use manual exp check with leeway for compatibility with different jose versions.
+    Raises jose.JWTError on signature/parse failure or RuntimeError if secret missing.
+    """
+    s = load_settings()
+    secret = getattr(s, "JWT_SECRET", None)
+    algo = getattr(s, "JWT_ALG", getattr(s, "JWT_ALGORITHM", "HS256"))
+    if not secret:
+        raise RuntimeError("JWT_SECRET not configured in settings")
+    used_algorithms = algorithms or [algo]
+
+    try:
+        payload = jwt.decode(token, secret, algorithms=used_algorithms, options={"verify_exp": False})
+    except Exception as e:
+        # Let jose raise a JWTError (or other) to callers
+        raise
+
+    exp = payload.get("exp")
+    if exp is not None:
+        from datetime import datetime, timezone
+        try:
+            exp_ts = int(exp)
+            now_ts = int(datetime.now(timezone.utc).timestamp())
+            if now_ts > exp_ts + int(leeway):
+                from jose import JWTError as _JWTError
+                raise _JWTError("Token expired")
+        except ValueError:
+            from jose import JWTError as _JWTError
+            raise _JWTError("Invalid exp claim")
+
+    return payload

@@ -2,8 +2,9 @@
 from typing import Any, Dict
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import jwt, JWTError  # python-jose
+from jose import JWTError  # python-jose (errors)
 from ev_shared.config import Settings
+from ev_shared.security import decode_jwt
 
 # auto_error=True hace que falte-> 403 inmediatamente
 bearer_scheme = HTTPBearer(auto_error=True)
@@ -17,21 +18,13 @@ def require_user(
     Lanza 401 si no es válido.
     """
     token = credentials.credentials
-    secret = getattr(settings, "JWT_SECRET", None)
-    algo = getattr(settings, "JWT_ALGORITHM", "HS256")
-
-    if not secret:
-        # Falla segura si no hay clave configurada
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="JWT configuration missing (JWT_SECRET).",
-        )
-
     try:
-        payload = jwt.decode(token, secret, algorithms=[algo])
-        return payload  # puedes mapear a un dto si quieres
+        payload = decode_jwt(token)
+        return payload
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token inválido o expirado",
         )
+    except RuntimeError:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="JWT configuration missing (JWT_SECRET).")
