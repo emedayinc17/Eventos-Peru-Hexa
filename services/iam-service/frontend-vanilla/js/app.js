@@ -4,6 +4,11 @@ import { IAM } from "./api.js";
 
 let currentUser = null; // cache
 
+// Admin pagination state
+let adminLimit = 10;
+let adminOffset = 0;
+let adminTotal = null; // if backend provides total count
+
 // ----- refs de vistas -----
 const views = {
   home:            document.getElementById("view-home"),
@@ -17,6 +22,7 @@ const views = {
 const navLogin    = document.getElementById("nav-login");
 const navLogout   = document.getElementById("nav-logout");
 const navRegister = document.getElementById("nav-register");
+const navAdmin    = document.getElementById("nav-admin");
 const openPublicRegister = document.getElementById("open-public-register");
 
 // Modal público (se inicializa on-demand)
@@ -95,8 +101,13 @@ async function loadUsers() {
   tbody.innerHTML = "";
   err.textContent = "";
   try {
-    const data = await IAM.adminUsers(50, 0);
-    (data.items ?? data).forEach(u => {
+    const data = await IAM.adminUsers(adminLimit, adminOffset);
+    // Detect items array (paginated) or array directly
+    const items = (data && data.items) ? data.items : data;
+    // Try to read total count if backend provides it
+    adminTotal = data && (data.total || data.count || (data.meta && data.meta.total)) || null;
+
+    (items ?? []).forEach(u => {
       const tr = document.createElement("tr");
       const id = u.id ?? "";
       const email = u.email ?? "";
@@ -138,6 +149,59 @@ async function loadUsers() {
   } catch (e) {
     err.textContent = "No autorizado o error: " + e.message;
   }
+
+  // Render pagination controls
+  renderAdminPagination();
+}
+
+function renderAdminPagination() {
+  const container = document.getElementById("admin-pagination");
+  const info = document.getElementById("admin-pagination-info");
+  if (!container || !info) return;
+
+  // Clear
+  container.innerHTML = "";
+
+  // Prev button
+  const btnPrev = document.createElement("button");
+  btnPrev.className = "btn btn-sm btn-outline-secondary";
+  btnPrev.textContent = "« Prev";
+  btnPrev.disabled = adminOffset <= 0;
+  btnPrev.addEventListener("click", async () => {
+    if (adminOffset <= 0) return;
+    adminOffset = Math.max(0, adminOffset - adminLimit);
+    await loadUsers();
+  });
+
+  // Next button
+  const btnNext = document.createElement("button");
+  btnNext.className = "btn btn-sm btn-outline-secondary";
+  btnNext.textContent = "Next »";
+  // If we know total we can disable when end reached; otherwise enable if items length == limit
+  let disableNext = false;
+  if (adminTotal !== null) {
+    disableNext = adminOffset + adminLimit >= adminTotal;
+  }
+  btnNext.disabled = disableNext;
+  btnNext.addEventListener("click", async () => {
+    // If total known, avoid overshooting
+    if (adminTotal !== null && adminOffset + adminLimit >= adminTotal) return;
+    adminOffset = adminOffset + adminLimit;
+    await loadUsers();
+  });
+
+  container.appendChild(btnPrev);
+  container.appendChild(btnNext);
+
+  // Info text
+  const page = Math.floor(adminOffset / adminLimit) + 1;
+  const from = adminOffset + 1;
+  const to = adminOffset + adminLimit;
+  if (adminTotal !== null) {
+    info.textContent = `Página ${page} — mostrando ${from}-${Math.min(to, adminTotal)} de ${adminTotal}`;
+  } else {
+    info.textContent = `Página ${page} — items ${from}-${to}`;
+  }
 }
 
 // Modal para editar usuario
@@ -161,6 +225,8 @@ async function openEditModal(id) {
     form["telefono"].value = u.telefono || "";
     form["role"].value = u.role || "CLIENTE";
     form["status"].value = String(u.status ?? 1);
+    // Clear password field (do not prefill)
+    if (form["password"]) form["password"].value = "";
     editUserModal?.show();
   } catch (e) {
     alert("Error al cargar usuario: " + e.message);
@@ -177,6 +243,9 @@ document.getElementById("edit-user-form")?.addEventListener("submit", async ev =
     status: Number(fd.get("status")),
     role: fd.get("role") || "CLIENTE",
   };
+  // If password provided, include in patch
+  const pw = (fd.get("password") || "").toString();
+  if (pw && pw.length > 0) patch.password = pw;
   const err = document.getElementById("edit-error");
   err.textContent = "";
   try {
@@ -254,13 +323,19 @@ function configureNavbar() {
     navRegister?.classList.remove("d-none");
     navRegister?.setAttribute("href", "#");          // no navegamos de hash
     navRegister?.setAttribute("data-mode", "public");
+    // admin link hidden when not logged
+    navAdmin?.classList.add("d-none");
   } else if (role === "ADMIN") {
     navRegister?.classList.remove("d-none");
     navRegister?.setAttribute("href", "#/admin-register");
     navRegister?.setAttribute("data-mode", "admin");
+    // Only show admin nav to ADMIN role
+    navAdmin?.classList.remove("d-none");
   } else {
     navRegister?.classList.add("d-none");
     navRegister?.setAttribute("data-mode", "hidden");
+    // Non-admin logged-in users should not see the Admin link
+    navAdmin?.classList.add("d-none");
   }
 }
 
@@ -336,6 +411,9 @@ async function router() {
   }
   if (route === "/admin") {
     if (!isLogged || role !== "ADMIN") { location.hash = "/"; return; }
+    // Reset to first page when opening admin view
+    adminOffset = 0;
+    adminTotal = null;
     show("admin"); await loadUsers(); return;
   }
   show("home");

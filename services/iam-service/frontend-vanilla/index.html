@@ -21,7 +21,7 @@
     <div class="collapse navbar-collapse" id="navbarsExampleDefault">
       <ul class="navbar-nav ms-auto">
         <li class="nav-item"><a class="nav-link" href="#/me">Mi Perfil</a></li>
-        <li class="nav-item"><a class="nav-link" href="#/admin">Admin</a></li>
+  <li class="nav-item"><a class="nav-link" href="#/admin" id="nav-admin">Admin Usuarios</a></li>
         <!-- Su comportamiento lo controla app.js con data-mode -->
         <li class="nav-item"><a class="nav-link" href="#" id="nav-register" data-mode="public">Registrar</a></li>
         <li class="nav-item"><a class="nav-link" href="#/login" id="nav-login">Login</a></li>
@@ -218,6 +218,13 @@
         <tbody id="users-tbody"></tbody>
       </table>
     </div>
+    <!-- Paginación simple -->
+    <div class="d-flex align-items-center justify-content-between mt-2">
+      <div id="admin-pagination" class="btn-group" role="group" aria-label="Paginación admin">
+        <!-- Botones serán renderizados desde js -->
+      </div>
+      <div class="small text-secondary" id="admin-pagination-info"></div>
+    </div>
     <div id="admin-error" class="text-danger small"></div>
   </section>
 
@@ -255,6 +262,10 @@
                 <option value="1">Activo</option>
                 <option value="0">Inactivo</option>
               </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Nueva contraseña</label>
+              <input class="form-control" type="password" name="password" id="edit-password" placeholder="Dejar en blanco para no cambiar" />
             </div>
             <div class="text-danger small" id="edit-error"></div>
             <div class="d-grid">
