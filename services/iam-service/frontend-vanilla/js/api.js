@@ -13,6 +13,13 @@ function normalizeBase(base) {
   return String(base || "").replace(/\/+$/, "");
 }
 export const API_BASE = normalizeBase(RAW_BASE);
+// --- Base URL catálogo (se puede sobreescribir con window.CATALOGO_API_BASE) ---
+const RAW_CATALOGO_BASE = (typeof window !== "undefined" && window.CATALOGO_API_BASE)
+  ? window.CATALOGO_API_BASE
+  : "http://127.0.0.1:8020/catalogo";
+
+export const CATALOGO_API_BASE = normalizeBase(RAW_CATALOGO_BASE);
+
 
 // --- Configuración global ---
 const DEFAULT_TIMEOUT_MS = 12_000;
@@ -125,6 +132,52 @@ export async function http(method, path, body, { timeoutMs } = {}) {
     clear();
   }
 
+  // Parse response & normalize errors like httpCatalogo does
+  const parsed = await safeJson(res);
+
+  if (!res.ok) {
+    throwIfAuthError(toHttpError({ res, body: parsed, url, method }));
+  }
+  return parsed;
+
+} // Closing brace added for http() function
+
+
+async function httpCatalogo(method, path, body, { timeoutMs } = {}) {
+  const headers = { "Content-Type": "application/json" };
+  if (_token) headers["Authorization"] = `Bearer ${_token}`;
+
+  const url = `${CATALOGO_API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
+  const { signal, clear } = withTimeout(timeoutMs ?? DEFAULT_TIMEOUT_MS);
+
+  let res;
+  try {
+    res = await fetch(url, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal,
+    });
+  } catch (err) {
+    clear();
+    // Diferencia net::ERR_FAILED / abort / timeout
+    if (err?.name === "AbortError" || err?.name === "TimeoutError") {
+      const e = new Error("Solicitud expirada");
+      e.name = "TimeoutError";
+      e.url = url;
+      e.method = method;
+      throw e;
+    }
+    const e = new Error("Fallo de red o CORS");
+    e.name = "NetworkError";
+    e.cause = err;
+    e.url = url;
+    e.method = method;
+    throw e;
+  } finally {
+    clear();
+  }
+
   const parsed = await safeJson(res);
 
   if (!res.ok) {
@@ -185,6 +238,48 @@ export const IAM = {
   adminDeleteUser: (id) =>
     http("DELETE", `/admin/users/${encodeURIComponent(id)}`),
 };
+
+
+// ==========================================
+//       Endpoints del servicio Catálogo
+// ==========================================
+export const CATALOGO = {
+  /** Salud del servicio de catálogo. */
+  health: () => httpCatalogo("GET", "/health"),
+
+  /**
+   * Lista de tipos de eventos/servicios disponibles.
+   * @param {Object} [params]  Opcional: filtros adicionales.
+   */
+  tipos: (params = {}) =>
+    httpCatalogo("GET", `/v1/catalogo/tipos${qs(params)}`),
+
+  /**
+   * Lista de servicios del catálogo.
+   * @param {Object} [params]  Ej: { tipo_id, activo }
+   */
+  servicios: (params = {}) =>
+    httpCatalogo("GET", `/v1/catalogo/servicios${qs(params)}`),
+
+  /**
+   * Opciones o características configurables de los servicios.
+   */
+  opciones: (params = {}) =>
+    httpCatalogo("GET", `/v1/catalogo/opciones${qs(params)}`),
+
+  /**
+   * Paquetes disponibles (bundle de servicios/opciones).
+   */
+  paquetes: (params = {}) =>
+    httpCatalogo("GET", `/v1/catalogo/paquetes${qs(params)}`),
+
+  /**
+   * Detalle de un paquete específico por ID.
+   */
+  paquetePorId: (id) =>
+    httpCatalogo("GET", `/v1/catalogo/paquetes/${encodeURIComponent(id)}`),
+};
+
 
 // ==========================================
 // Export opcional de utilidades (por si las usas)

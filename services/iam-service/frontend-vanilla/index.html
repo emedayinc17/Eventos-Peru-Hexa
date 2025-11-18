@@ -21,7 +21,10 @@
     <div class="collapse navbar-collapse" id="navbarsExampleDefault">
       <ul class="navbar-nav ms-auto">
         <li class="nav-item"><a class="nav-link" href="#/me">Mi Perfil</a></li>
-  <li class="nav-item"><a class="nav-link" href="#/admin" id="nav-admin">Admin Usuarios</a></li>
+        <li class="nav-item"><a class="nav-link" href="#/catalogo" id="nav-catalogo">Catálogo</a></li>
+        <li class="nav-item"><a class="nav-link" href="#/proveedores" id="nav-proveedores">Proveedores</a></li>
+        <li class="nav-item"><a class="nav-link" href="#/contratacion" id="nav-contratacion">Contratación</a></li>
+        <li class="nav-item"><a class="nav-link" href="#/admin" id="nav-admin">Admin Usuarios</a></li>
         <!-- Su comportamiento lo controla app.js con data-mode -->
         <li class="nav-item"><a class="nav-link" href="#" id="nav-register" data-mode="public">Registrar</a></li>
         <li class="nav-item"><a class="nav-link" href="#/login" id="nav-login">Login</a></li>
@@ -39,6 +42,41 @@
       <h4 class="mb-2">Bienvenido</h4>
       <p class="mb-0">Este es el MVP académico. Inicia sesión o regístrate para probar el sistema IAM.</p>
     </div>
+  </section>
+
+  <!-- Catálogo -->
+  <section id="view-catalogo" class="d-none">
+    <div class="card shadow-sm mb-3">
+      <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+          <h4 class="mb-0">Catálogo de paquetes</h4>
+          <small class="text-muted">Explora los paquetes y servicios disponibles.</small>
+        </div>
+        <div class="text-end">
+          <button class="btn btn-outline-secondary btn-sm" id="btn-catalogo-reload">
+            <i class="bi bi-arrow-clockwise me-1"></i>Recargar
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="catalogo-alert" class="alert d-none" role="alert"></div>
+
+    <div id="catalogo-carousel-wrapper" class="d-none mb-4">
+      <div id="catalogoCarousel" class="carousel slide" data-bs-ride="carousel">
+        <div class="carousel-inner" id="catalogo-carousel-inner"></div>
+        <button class="carousel-control-prev" type="button" data-bs-target="#catalogoCarousel" data-bs-slide="prev">
+          <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+          <span class="visually-hidden">Anterior</span>
+        </button>
+        <button class="carousel-control-next" type="button" data-bs-target="#catalogoCarousel" data-bs-slide="next">
+          <span class="carousel-control-next-icon" aria-hidden="true"></span>
+          <span class="visually-hidden">Siguiente</span>
+        </button>
+      </div>
+    </div>
+
+    <div id="catalogo-cards" class="row g-3"></div>
   </section>
 
   <!-- Login -->
@@ -228,6 +266,69 @@
     <div id="admin-error" class="text-danger small"></div>
   </section>
 
+  <!-- Proveedores -->
+  <section id="view-proveedores" class="d-none">
+    <div class="card shadow-sm mb-3">
+      <div class="card-body d-flex justify-content-between align-items-center">
+        <div>
+          <h5 class="mb-0">Buscar disponibilidad — Proveedores</h5>
+          <small class="text-muted">Consulta disponibilidad por servicio y fecha.</small>
+        </div>
+      </div>
+    </div>
+
+    <form id="proveedores-search-form" class="row g-2 mb-3">
+      <div class="col-md-4">
+        <label class="form-label">Servicio ID</label>
+        <input class="form-control" name="servicio_id" type="text" placeholder="opcional" />
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Fecha</label>
+        <input class="form-control" name="fecha" type="date" />
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Límite</label>
+        <input class="form-control" name="limit" type="number" value="20" />
+      </div>
+      <div class="col-md-2 d-flex align-items-end">
+        <button class="btn btn-primary w-100" type="submit">Buscar</button>
+      </div>
+    </form>
+
+    <div id="proveedores-error" class="text-danger small mb-2"></div>
+    <div id="proveedores-results" class="list-group"></div>
+  </section>
+
+  <!-- Contratación -->
+  <section id="view-contratacion" class="d-none">
+    <div class="card shadow-sm mb-3">
+      <div class="card-body d-flex justify-content-between align-items-center">
+        <div>
+          <h5 class="mb-0">Contratación — Crear pedido</h5>
+          <small class="text-muted">Crea pedidos y revisa tus pedidos.</small>
+        </div>
+      </div>
+    </div>
+
+    <form id="contratacion-create-form" class="row g-2 mb-3">
+      <div class="col-md-4">
+        <label class="form-label">Paquete / Servicio ID</label>
+        <input class="form-control" name="paquete_id" type="text" required />
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Cantidad</label>
+        <input class="form-control" name="cantidad" type="number" value="1" min="1" />
+      </div>
+      <div class="col-md-4 d-flex align-items-end">
+        <button class="btn btn-success w-100" type="submit">Crear Pedido</button>
+      </div>
+    </form>
+
+    <div id="contratacion-error" class="text-danger small mb-2"></div>
+    <h6>Mis Pedidos</h6>
+    <div id="contratacion-mis-pedidos" class="list-group"></div>
+  </section>
+
 </main>
 
   <!-- Modal: Editar Usuario (ADMIN) -->
@@ -277,7 +378,6 @@
     </div>
   </div>
 
-  
 <!-- Config dinámico (ConfigMap) -->
 <script src="config.js"></script>
 
@@ -285,8 +385,6 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <!-- Módulos -->
-<!--<script type="module" src="./js/api.js"></script>
-<script type="module" src="./js/auth.js"></script>-->
 <script type="module" src="js/app.js"></script>
 </body>
 </html>
