@@ -1,12 +1,12 @@
 // js/api.js
 // ==========================================
-// Cliente ligero para el servicio IAM (fetch)
+// Cliente ligero para el servicio PROVEEDORES (fetch)
 // ==========================================
 
 // --- Base URL (se puede sobreescribir con window.API_BASE) ---
-const RAW_BASE = (typeof window !== "undefined" && window.API_BASE)
-  ? window.API_BASE
-  : "http://localhost:8010/iam";
+const RAW_BASE = (typeof window !== "undefined" && window.API_BASE_PROVEEDOR)
+  ? window.API_BASE_PROVEEDOR
+  : "http://localhost:8030/proveedores";
 
 // Normaliza para evitar // al concatenar paths
 function normalizeBase(base) {
@@ -133,58 +133,22 @@ export async function http(method, path, body, { timeoutMs } = {}) {
   return parsed;
 }
 
-// ==========================================
-//          Endpoints del servicio IAM
-// ==========================================
-export const IAM = {
-  // ---------- Públicas ----------
+// ========================================================
+//          Endpoints del servicio Proveedores
+// ========================================================
+export const PROVEEDOR = {
   /**
-   * Autenticación de usuario.
-   * @returns {Promise<{ access_token:string, token_type:string, expires_in:number, user?:any }>}
+   * Listar Disponibles.
    */
-  login: (email, password) =>
-    http("POST", "/auth/login", { email, password }),
+  buscarDisponibles: (servicio_id, fecha, limit = 50, offset = 0) =>
+    http("GET", `/v1/proveedores${qs({ servicio_id, fecha, limit, offset })}`),
 
   /**
-   * Registro público de usuario.
+   * Registro Reserva.
    */
-  register: (email, password, nombre = "", telefono = "") =>
-    http("POST", "/auth/register", { email, password, nombre, telefono }),
-
-  /** Salud del servicio. */
-  health: () => http("GET", "/health"),
-
-  // ---------- Protegidas ----------
-  /** Información del usuario autenticado. */
-  me: () => http("GET", "/me"),
-
-  // ---------- Admin ----------
-  /**
-   * Lista de usuarios con paginación.
-   * Devuelve `data.items` o un array simple (según backend).
-   */
-  adminUsers: (limit = 20, offset = 0) =>
-    http("GET", `/admin/users${qs({ limit, offset })}`),
-
-  /**
-   * Crea usuario (ADMIN).
-   * @param {{email:string, password:string, role?:string, nombre?:string, telefono?:string}} user
-   */
-  adminCreateUser: (user) =>
-    http("POST", "/admin/users", user),
-
-  /** Obtiene un usuario por ID (ADMIN). */
-  adminGetUser: (id) =>
-    http("GET", `/admin/users/${encodeURIComponent(id)}`),
-
-  /** Actualización parcial (ADMIN). */
-  adminPatchUser: (id, patch) =>
-    http("PATCH", `/admin/users/${encodeURIComponent(id)}`, patch),
-
-  /** Elimina un usuario (ADMIN). */
-  adminDeleteUser: (id) =>
-    http("DELETE", `/admin/users/${encodeURIComponent(id)}`),
-};
+  registroReserva: (data) =>
+    http("POST", "/v1/proveedores/reservas", data),
+}
 
 // ==========================================
 // Export opcional de utilidades (por si las usas)

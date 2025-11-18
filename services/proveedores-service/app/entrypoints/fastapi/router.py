@@ -177,6 +177,11 @@ def build_api_router(settings: Settings) -> APIRouter:
         if body.inicio >= body.fin:
             raise HTTPException(status_code=400, detail="Rango de tiempo inválido (fin > inicio)")
 
+        # Get user ID from JWT payload (use "sub" or "id")
+        user_id = user.get("id") or user.get("sub")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Token inválido: falta user ID")
+
         with session_scope(settings) as s:
             # Conflictos con holds
             conflict_hold = s.execute(
@@ -243,7 +248,7 @@ def build_api_router(settings: Settings) -> APIRouter:
                     "fin": body.fin,
                     "ttl": body.ttl_min,
                     "corr": body.correlation_id,
-                    "uid": user["id"],
+                    "uid": user_id,
                 },
             )
 

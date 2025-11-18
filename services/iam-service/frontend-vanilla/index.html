@@ -21,6 +21,7 @@
     <div class="collapse navbar-collapse" id="navbarsExampleDefault">
       <ul class="navbar-nav ms-auto">
         <li class="nav-item"><a class="nav-link" href="#/me">Mi Perfil</a></li>
+        <li class="nav-item"><a class="nav-link d-none" href="#proveedores" id="nav-proveedores">Proveedores</a></li>
   <li class="nav-item"><a class="nav-link" href="#/admin" id="nav-admin">Admin Usuarios</a></li>
         <!-- Su comportamiento lo controla app.js con data-mode -->
         <li class="nav-item"><a class="nav-link" href="#" id="nav-register" data-mode="public">Registrar</a></li>
@@ -228,6 +229,48 @@
     <div id="admin-error" class="text-danger small"></div>
   </section>
 
+  <!-- Buscar Proveedores -->
+  <section id="view-proveedores" class="d-none">
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <h5 class="card-title mb-3">
+          <i class="bi bi-search me-2"></i>Buscar Proveedores Disponibles
+        </h5>
+        <form id="buscar-form" class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label">Servicio ID</label>
+            <input class="form-control" type="text" name="servicio_id" required
+                   placeholder="ej: srv_fotografia" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Fecha</label>
+            <input class="form-control" type="date" name="fecha" required />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Límite</label>
+            <input class="form-control" type="number" name="limit" value="50" min="1" max="200" />
+          </div>
+          <div class="col-12">
+            <button class="btn btn-primary" type="submit">
+              <i class="bi bi-search me-2"></i>Buscar
+            </button>
+            <button class="btn btn-outline-secondary" type="reset">Limpiar</button>
+          </div>
+        </form>
+        <div class="text-danger small mt-3" id="buscar-error"></div>
+      </div>
+    </div>
+
+    <!-- Resultados -->
+    <div id="resultados-container">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h5 class="mb-0">Proveedores Disponibles</h5>
+        <span class="badge bg-primary" id="resultados-count">0 resultados</span>
+      </div>
+      <div class="row g-3" id="proveedores-grid"></div>
+    </div>
+  </section>
+
 </main>
 
   <!-- Modal: Editar Usuario (ADMIN) -->
@@ -270,6 +313,69 @@
             <div class="text-danger small" id="edit-error"></div>
             <div class="d-grid">
               <button class="btn btn-info" type="submit">Guardar cambios</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Crear Reserva -->
+  <div class="modal fade" id="crearReservaModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-success-subtle">
+          <h5 class="modal-title">
+            <i class="bi bi-calendar-plus me-2"></i>Crear Reserva Temporal
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <!-- Info del proveedor seleccionado -->
+          <div class="alert alert-info" id="proveedor-info">
+            <strong id="proveedor-nombre">—</strong><br>
+            <small id="proveedor-email">—</small>
+          </div>
+
+          <form id="crear-reserva-form">
+            <input type="hidden" name="proveedor_id" id="reserva-proveedor-id" />
+
+            <div class="mb-3">
+              <label class="form-label">Opción de Servicio ID</label>
+              <input class="form-control" type="text" name="opcion_servicio_id" required
+                     placeholder="ej: opt_foto_basica" />
+            </div>
+
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Fecha y Hora Inicio</label>
+                <input class="form-control" type="datetime-local" name="inicio" required />
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Fecha y Hora Fin</label>
+                <input class="form-control" type="datetime-local" name="fin" required />
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">TTL (minutos)</label>
+              <input class="form-control" type="number" name="ttl_min" value="30"
+                     min="5" max="1440" />
+              <small class="text-secondary">Tiempo de expiración de la reserva</small>
+            </div>
+
+            <div class="mb-3 d-none">
+              <label class="form-label">Correlation ID (opcional)</label>
+              <input class="form-control" type="text" name="correlation_id"
+                     placeholder="Identificador de correlación" />
+            </div>
+
+            <div class="text-danger small mb-3" id="crear-reserva-error"></div>
+
+            <div class="d-grid">
+              <button class="btn btn-success" type="submit">
+                <i class="bi bi-check-circle me-2"></i>Crear Reserva
+              </button>
             </div>
           </form>
         </div>

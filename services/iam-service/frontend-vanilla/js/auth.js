@@ -1,5 +1,6 @@
 // js/auth.js
 import { setToken, IAM } from "./api.js";
+import { setToken as setProveedorToken, PROVEEDOR } from "./api-proveedores.js";
 
 const KEY_TOKEN = "iam_token";
 
@@ -21,10 +22,12 @@ export const Auth = {
       this.token = null;
       this._user = null;
       setToken(null);
+      setProveedorToken(null);
       return null;
     }
     this.token = stored;
     setToken(stored);
+    setProveedorToken(stored);
     try {
       const me = await IAM.me();
       this._user = me;
@@ -44,6 +47,7 @@ export const Auth = {
     this.token = data.access_token;
     sessionStorage.setItem(KEY_TOKEN, data.access_token);
     setToken(data.access_token);
+    setProveedorToken(data.access_token);
     // Traemos el perfil real del usuario
     const me = await this.me();
     return me;
