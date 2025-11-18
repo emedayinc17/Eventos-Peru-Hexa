@@ -1,0 +1,399 @@
+openapi: 3.0.3
+info:
+  title: Catalogo Service API
+  version: "1.0"
+servers:
+  - url: /v1/catalogo
+  - url: /catalogo   # alias legacy (solo GET públicos)
+security:
+  - bearerAuth: []
+paths:
+
+  # ===========================
+  # 1) ADMIN (CRUD)
+  # ===========================
+  /admin/tipos:
+    post:
+      summary: Crear tipo de evento
+      security: [{ bearerAuth: [] }]
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nombre]
+              properties:
+                nombre: { type: string }
+                descripcion: { type: string }
+                status: { type: integer, enum: [0,1], default: 1 }
+      responses:
+        "201":
+          description: Creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TipoEvento"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /admin/tipos/{id}:
+    put:
+      summary: Actualizar tipo de evento
+      security: [{ bearerAuth: [] }]
+      tags: [admin]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre: { type: string }
+                descripcion: { type: string }
+                status: { type: integer, enum: [0,1] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TipoEvento" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /admin/servicios:
+    post:
+      summary: Crear servicio
+      security: [{ bearerAuth: [] }]
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nombre, tipo_evento_id]
+              properties:
+                nombre: { type: string }
+                descripcion: { type: string }
+                tipo_evento_id: { type: string, format: uuid }
+                status: { type: integer, enum: [0,1], default: 1 }
+      responses:
+        "201":
+          description: Creado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Servicio" }
+
+  /admin/servicios/{id}:
+    put:
+      summary: Actualizar servicio
+      security: [{ bearerAuth: [] }]
+      tags: [admin]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre: { type: string }
+                descripcion: { type: string }
+                tipo_evento_id: { type: string, format: uuid }
+                status: { type: integer, enum: [0,1] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Servicio" }
+
+  /admin/opciones:
+    post:
+      summary: Crear opción de servicio
+      security: [{ bearerAuth: [] }]
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [servicio_id, nombre]
+              properties:
+                servicio_id: { type: string, format: uuid }
+                nombre: { type: string }
+                detalles:
+                  type: object
+                  additionalProperties: true
+                status: { type: integer, enum: [0,1], default: 1 }
+      responses:
+        "201":
+          description: Creado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OpcionServicio" }
+
+  /admin/opciones/{id}:
+    put:
+      summary: Actualizar opción de servicio
+      security: [{ bearerAuth: [] }]
+      tags: [admin]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre: { type: string }
+                detalles: { type: object, additionalProperties: true }
+                status: { type: integer, enum: [0,1] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OpcionServicio" }
+
+  /admin/paquetes:
+    post:
+      summary: Crear paquete (con items)
+      security: [{ bearerAuth: [] }]
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CrearPaqueteRequest"
+      responses:
+        "201":
+          description: Creado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Paquete" }
+
+  /admin/paquetes/{id}:
+    put:
+      summary: Actualizar paquete (datos generales)
+      security: [{ bearerAuth: [] }]
+      tags: [admin]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre: { type: string }
+                descripcion: { type: string }
+                status: { type: integer, enum: [0,1] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Paquete" }
+
+  # ===========================
+  # 2) PÚBLICO/CLIENTE (GET)
+  # ===========================
+  /tipos:
+    get:
+      summary: Listar tipos de evento (vigentes)
+      tags: [public]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TipoEvento" }
+
+  /servicios:
+    get:
+      summary: Listar servicios por tipo de evento
+      tags: [public]
+      parameters:
+        - name: tipo_evento_id
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Servicio" }
+
+  /opciones:
+    get:
+      summary: Listar opciones por servicio (con precio vigente)
+      tags: [public]
+      parameters:
+        - name: servicio_id
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/OpcionConPrecio" }
+
+  /paquetes:
+    get:
+      summary: Listar paquetes y precio vigente total
+      tags: [public]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PaqueteConPrecioTotal" }
+
+  /paquetes/{id}:
+    get:
+      summary: Obtener detalle de paquete
+      tags: [public]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaqueteDetalle" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+components:
+  responses:
+    Unauthorized:
+      description: No autenticado
+      content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+    Forbidden:
+      description: Sin permisos
+      content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+    NotFound:
+      description: No existe
+      content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+
+  schemas:
+    TipoEvento:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string }
+        descripcion: { type: string }
+        status: { type: integer }
+
+    Servicio:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string }
+        descripcion: { type: string }
+        tipo_evento_id: { type: string, format: uuid }
+        status: { type: integer }
+
+    OpcionServicio:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        servicio_id: { type: string, format: uuid }
+        nombre: { type: string }
+        detalles:
+          type: object
+          additionalProperties: true
+        status: { type: integer }
+
+    OpcionConPrecio:
+      allOf:
+        - $ref: "#/components/schemas/OpcionServicio"
+        - type: object
+          properties:
+            moneda: { type: string, example: "PEN" }
+            monto: { type: number, format: float }
+
+    CrearPaqueteRequest:
+      type: object
+      required: [codigo, nombre, items]
+      properties:
+        codigo: { type: string }
+        nombre: { type: string }
+        descripcion: { type: string }
+        items:
+          type: array
+          items:
+            type: object
+            required: [opcion_servicio_id, cantidad]
+            properties:
+              opcion_servicio_id: { type: string, format: uuid }
+              cantidad: { type: integer, minimum: 1 }
+
+    Paquete:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        codigo: { type: string }
+        nombre: { type: string }
+        descripcion: { type: string }
+        status: { type: integer }
+
+    PaqueteConPrecioTotal:
+      allOf:
+        - $ref: "#/components/schemas/Paquete"
+        - type: object
+          properties:
+            moneda: { type: string, example: "PEN" }
+            monto_total_vigente: { type: number, format: float }
+
+    PaqueteDetalle:
+      allOf:
+        - $ref: "#/components/schemas/Paquete"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                type: object
+                properties:
+                  opcion_servicio_id: { type: string, format: uuid }
+                  cantidad: { type: integer }
+                  moneda: { type: string }
+                  monto: { type: number, format: float }
+
+    ErrorResponse:
+      $ref: "./errors.yaml#/components/schemas/ErrorResponse"
