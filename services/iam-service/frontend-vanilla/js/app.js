@@ -1,6 +1,9 @@
 // js/app.js
 import { Auth } from "./auth.js";
-import { IAM } from "./api.js";
+import { IAM, CATALOGO, getToken } from "./api.js";
+import { PROVEEDORES, CONTRATACION } from "./services.js";
+
+console.log('[app] module loaded');
 
 let currentUser = null; // cache
 
@@ -12,18 +15,37 @@ let adminTotal = null; // if backend provides total count
 // ----- refs de vistas -----
 const views = {
   home:            document.getElementById("view-home"),
+  catalogo:        document.getElementById("view-catalogo"),
   login:           document.getElementById("view-login"),
   adminRegister:   document.getElementById("view-admin-register"),
   me:              document.getElementById("view-me"),
   admin:           document.getElementById("view-admin"),
+  proveedores:     document.getElementById("view-proveedores"),
+  contratacion:    document.getElementById("view-contratacion"),
 };
 
 // ----- navbar -----
 const navLogin    = document.getElementById("nav-login");
+const navCatalogo = document.getElementById("nav-catalogo");
 const navLogout   = document.getElementById("nav-logout");
 const navRegister = document.getElementById("nav-register");
 const navAdmin    = document.getElementById("nav-admin");
 const openPublicRegister = document.getElementById("open-public-register");
+
+// Safety: ensure navbar links trigger routing even if default hashchange is blocked
+function bindNavLink(id, hash) {
+  const el = document.getElementById(id);
+  if (!el) { console.log(`[app] nav element not found: ${id}`); return; }
+  el.addEventListener('click', (ev) => {
+    // allow the anchor default for normal navigation but also force routing
+    try { ev.preventDefault(); } catch {}
+    try { location.hash = hash; } catch {}
+    try { router(); } catch (e) { console.error('router error (nav click)', e); }
+  });
+}
+bindNavLink('nav-catalogo', '#/catalogo');
+bindNavLink('nav-proveedores', '#/proveedores');
+bindNavLink('nav-contratacion', '#/contratacion');
 
 // Modal público (se inicializa on-demand)
 let publicRegisterModal = null;
@@ -90,6 +112,280 @@ async function loadMe() {
     }
   } catch (e) {
     if (pre) { pre.classList.remove("d-none"); pre.textContent = "Error: " + e.message; }
+  }
+}
+
+// ----- CATÁLOGO -----
+// Renderiza tarjetas y carrusel a partir de la lista de paquetes.
+async function loadCatalogo() {
+  const alertBox      = document.getElementById("catalogo-alert");
+  const cardsRow      = document.getElementById("catalogo-cards");
+  const carouselWrap  = document.getElementById("catalogo-carousel-wrapper");
+  const carouselInner = document.getElementById("catalogo-carousel-inner");
+  const reloadBtn     = document.getElementById("btn-catalogo-reload");
+
+  if (!cardsRow) return; // vista no presente
+
+  // estado inicial UI
+  if (alertBox) {
+    alertBox.className = "alert alert-info";
+    alertBox.textContent = "Cargando catálogo...";
+    alertBox.classList.remove("d-none");
+  }
+  if (reloadBtn) reloadBtn.disabled = true;
+  cardsRow.innerHTML = "";
+  if (carouselInner) carouselInner.innerHTML = "";
+  if (carouselWrap) carouselWrap.classList.add("d-none");
+
+  try {
+    const paquetes = await CATALOGO.paquetes();
+    const list = Array.isArray(paquetes) ? paquetes : (paquetes?.items ?? []);
+
+    if (!list.length) {
+      if (alertBox) {
+        alertBox.className = "alert alert-warning";
+        alertBox.textContent = "No hay paquetes configurados en el catálogo.";
+        alertBox.classList.remove("d-none");
+      }
+      return;
+    }
+
+    if (alertBox) alertBox.classList.add("d-none");
+
+    // Tarjetas
+    const fragment = document.createDocumentFragment();
+    list.forEach((p, idx) => {
+      const col = document.createElement("div");
+      col.className = "col-12 col-md-6 col-lg-4";
+
+      const card = document.createElement("div");
+      card.className = "card h-100 shadow-sm";
+
+      const body = document.createElement("div");
+      body.className = "card-body d-flex flex-column";
+
+      const title = document.createElement("h5");
+      title.className = "card-title";
+      title.textContent = p.nombre || p.name || `Paquete ${idx + 1}`;
+
+      const desc = document.createElement("p");
+      desc.className = "card-text small text-muted flex-grow-1";
+      desc.textContent = p.descripcion || p.description || "Sin descripción.";
+
+      const meta = document.createElement("div");
+      meta.className = "mt-2 small";
+
+      const servicios = p.servicios || p.services || [];
+      if (Array.isArray(servicios) && servicios.length) {
+        const label = document.createElement("div");
+        label.className = "fw-semibold mb-1";
+        label.textContent = "Servicios incluidos:";
+        meta.appendChild(label);
+
+        const ul = document.createElement("ul");
+        ul.className = "small ps-3 mb-0";
+        servicios.slice(0, 4).forEach(s => {
+          const li = document.createElement("li");
+          li.textContent = s.nombre || s.name || String(s);
+          ul.appendChild(li);
+        });
+        if (servicios.length > 4) {
+          const li = document.createElement("li");
+          li.textContent = `+ ${servicios.length - 4} adicionales`;
+          ul.appendChild(li);
+        }
+        meta.appendChild(ul);
+      }
+
+      const footer = document.createElement("div");
+      footer.className = "mt-3 d-flex justify-content-between align-items-center small";
+
+      const price = document.createElement("span");
+      const monto = p.precio ?? p.monto ?? p.amount;
+      if (monto != null && !Number.isNaN(Number(monto))) {
+        price.textContent = `Desde S/ ${Number(monto).toFixed(2)}`;
+      } else {
+        price.textContent = "Precio a consultar";
+      }
+
+      const badge = document.createElement("span");
+      badge.className = "badge text-bg-primary";
+      badge.textContent = p.codigo || p.code || p.id || `PK-${idx + 1}`;
+
+      footer.appendChild(price);
+      footer.appendChild(badge);
+
+      body.appendChild(title);
+      body.appendChild(desc);
+      body.appendChild(meta);
+      body.appendChild(footer);
+
+      card.appendChild(body);
+      col.appendChild(card);
+      fragment.appendChild(col);
+    });
+    cardsRow.appendChild(fragment);
+
+    // Carrusel basado en los mismos paquetes
+    if (carouselInner && carouselWrap) {
+      list.forEach((p, idx) => {
+        const item = document.createElement("div");
+        item.className = "carousel-item" + (idx === 0 ? " active" : "");
+
+        const inner = document.createElement("div");
+        inner.className = "d-flex flex-column justify-content-center align-items-start p-4 bg-white border rounded-3 shadow-sm";
+        inner.style.minHeight = "160px";
+
+        const title = document.createElement("h5");
+        title.className = "mb-1";
+        title.textContent = p.nombre || p.name || `Paquete ${idx + 1}`;
+
+        const desc = document.createElement("p");
+        desc.className = "mb-2 small text-muted";
+        desc.textContent = p.descripcion || p.description || "Sin descripción.";
+
+        const meta = document.createElement("div");
+        meta.className = "small text-secondary";
+        const servicios = p.servicios || p.services || [];
+        if (Array.isArray(servicios) && servicios.length) {
+          meta.textContent = `Incluye ${servicios.length} servicio(s).`;
+        } else {
+          meta.textContent = "Servicios no detallados.";
+        }
+
+        inner.appendChild(title);
+        inner.appendChild(desc);
+        inner.appendChild(meta);
+        item.appendChild(inner);
+        carouselInner.appendChild(item);
+      });
+
+      if (list.length > 1) {
+        carouselWrap.classList.remove("d-none");
+      } else {
+        carouselWrap.classList.add("d-none");
+      }
+    }
+
+  } catch (err) {
+    console.error("Error cargando catálogo", err);
+    if (alertBox) {
+      alertBox.className = "alert alert-danger";
+      alertBox.textContent = "No se pudo cargar el catálogo. Intenta más tarde.";
+      alertBox.classList.remove("d-none");
+    }
+  } finally {
+    const reloadBtn2 = document.getElementById("btn-catalogo-reload");
+    if (reloadBtn2) reloadBtn2.disabled = false;
+  }
+}
+
+// ----- PROVEEDORES -----
+async function loadProveedores() {
+  const form = document.getElementById("proveedores-search-form");
+  const results = document.getElementById("proveedores-results");
+  const err = document.getElementById("proveedores-error");
+  if (!form || !results) return;
+  err.textContent = "";
+  results.innerHTML = "";
+
+  // Ensure the submit handler is attached only once
+  if (!form._bound) {
+    form.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      err.textContent = "";
+      results.innerHTML = "";
+      const fd = new FormData(form);
+      const servicio_id = (fd.get("servicio_id") || "").toString().trim();
+      const fecha = (fd.get("fecha") || "").toString().trim();
+      const limit = Number(fd.get("limit") || 20) || 20;
+      try {
+        const data = await PROVEEDORES.buscar(servicio_id || null, fecha || "", limit, 0);
+        const list = Array.isArray(data) ? data : (data?.items ?? []);
+        if (!list.length) { err.textContent = "No se encontraron proveedores/disponibilidades."; return; }
+        const frag = document.createDocumentFragment();
+        list.forEach(item => {
+          const a = document.createElement("div");
+          a.className = "list-group-item d-flex justify-content-between align-items-start";
+          const left = document.createElement("div");
+          left.innerHTML = `<div class="fw-semibold">${item.nombre || item.name || item.proveedor || 'Proveedor'}</div><div class="small text-muted">${item.descripcion || item.desc || ''}</div>`;
+          const right = document.createElement("div");
+          const btn = document.createElement("button");
+          btn.className = "btn btn-sm btn-outline-primary";
+          btn.textContent = "Reservar";
+          btn.addEventListener("click", async () => {
+            try {
+              const payload = { proveedor_id: item.id || item.proveedor_id || item.proveedor || null, servicio_id: servicio_id || null, fecha };
+              await PROVEEDORES.crearReserva(payload);
+              alert('Reserva creada correctamente.');
+            } catch (e) { alert('Error al crear reserva: ' + (e.message || e)); }
+          });
+          right.appendChild(btn);
+          a.appendChild(left);
+          a.appendChild(right);
+          frag.appendChild(a);
+        });
+        results.appendChild(frag);
+      } catch (e) {
+        console.error('Error buscando proveedores', e);
+        err.textContent = e.message || 'Error al consultar proveedores';
+      }
+    });
+    form._bound = true;
+  }
+}
+
+// ----- CONTRATACION -----
+async function loadContratacion() {
+  const form = document.getElementById("contratacion-create-form");
+  const listWrap = document.getElementById("contratacion-mis-pedidos");
+  const err = document.getElementById("contratacion-error");
+  if (!form || !listWrap) return;
+  err.textContent = "";
+  listWrap.innerHTML = "";
+
+  if (!form._bound) {
+    form.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      err.textContent = "";
+      const fd = new FormData(form);
+      const paquete_id = (fd.get("paquete_id") || "").toString().trim();
+      const cantidad = Number(fd.get("cantidad") || 1) || 1;
+      try {
+        const body = { paquete_id, cantidad };
+        const created = await CONTRATACION.crearPedido(body);
+        alert('Pedido creado: ' + (created && created.id ? created.id : 'OK'));
+        form.reset();
+        await refreshMisPedidos(listWrap, err);
+      } catch (e) {
+        console.error('Error creando pedido', e);
+        err.textContent = e.message || 'No se pudo crear pedido';
+      }
+    });
+    form._bound = true;
+  }
+
+  await refreshMisPedidos(listWrap, err);
+}
+
+async function refreshMisPedidos(listWrap, err) {
+  listWrap.innerHTML = "";
+  err.textContent = "";
+  try {
+    const pedidos = await CONTRATACION.misPedidos();
+    const arr = Array.isArray(pedidos) ? pedidos : (pedidos?.items ?? []);
+    if (!arr.length) { listWrap.innerHTML = '<div class="text-muted small">No hay pedidos.</div>'; return; }
+    const frag = document.createDocumentFragment();
+    arr.forEach(p => {
+      const a = document.createElement('div');
+      a.className = 'list-group-item d-flex justify-content-between align-items-start';
+      a.innerHTML = `<div><div class="fw-semibold">Pedido ${p.id || ''}</div><div class="small text-muted">${p.status || ''} — ${p.created_at || ''}</div></div>`;
+      frag.appendChild(a);
+    });
+    listWrap.appendChild(frag);
+  } catch (e) {
+    console.error('Error cargando mis pedidos', e);
+    err.textContent = e.message || 'Error al cargar pedidos';
   }
 }
 
@@ -395,11 +691,24 @@ document.getElementById("admin-create-form")?.addEventListener("submit", async (
 // ----- Router -----
 async function router() {
   const route = (location.hash.replace("#", "") || "/").trim();
+  console.log('[app.router] route=', route);
   const isLogged = !!Auth.token;
   const role = userRole();
 
   configureNavbar();
 
+  if (route === "/catalogo") {
+    show("catalogo"); await loadCatalogo(); return;
+  }
+  if (route === "/proveedores") {
+    // require login to view providers (they need token for availability)
+    if (!isLogged) { location.hash = "/login"; return; }
+    show("proveedores"); await loadProveedores(); return;
+  }
+  if (route === "/contratacion") {
+    if (!isLogged) { location.hash = "/login"; return; }
+    show("contratacion"); await loadContratacion(); return;
+  }
   if (route === "/login" && !isLogged) { show("login"); return; }
   if (route === "/admin-register") {
     if (!isLogged || role !== "ADMIN") { location.hash = "/"; return; }
@@ -424,6 +733,15 @@ window.addEventListener("hashchange", router);
 // ----- Boot -----
 (async function init() {
   try {
+    // Hook botón de recarga de catálogo (si existe)
+    const reloadBtn = document.getElementById("btn-catalogo-reload");
+    if (reloadBtn) {
+      reloadBtn.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        loadCatalogo();
+      });
+    }
+
     const me = await Auth.init(); // si hay token, intenta /me
     if (me) currentUser = me;
   } catch (e) {

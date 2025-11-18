@@ -6,9 +6,18 @@ metadata:
 data:
   # Archivo que se servirá como /config.js en el frontend
   config.js: |
-    // Configuración del frontend IAM (entorno Kubernetes)
-    // Apunta al backend deployado en el mismo dominio
-    window.API_BASE = "https://eventos.emeday.inc/iam/iam";
+    // Configuración del frontend Eventos Perú (entorno Kubernetes)
+    // ================= IAM Service =================
+    // Apunta al backend IAM deployado en el mismo dominio/cluster.
+    window.IAM_API_BASE = "https://eventos.emeday.inc/iam/iam";
+
+    // Compatibilidad hacia atrás (código legado que usa window.API_BASE).
+    window.API_BASE = window.API_BASE || window.IAM_API_BASE;
+
+    // ================= Catálogo Service =================
+    // Apunta al backend de Catálogo (solo lectura).
+    window.CATALOGO_API_BASE = "https://eventos.emeday.inc/catalogo/catalogo";
+
 ---
 apiVersion: apps/v1
 kind: Deployment
