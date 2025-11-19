@@ -43,16 +43,10 @@ function bindNavLink(id, hash) {
     return;
   }
   el.addEventListener("click", (ev) => {
-    try {
-      ev.preventDefault();
-    } catch {}
-    try {
+    ev.preventDefault();
+    // solo cambiamos el hash; el listener hashchange llamará router()
+    if (location.hash !== hash) {
       location.hash = hash;
-    } catch {}
-    try {
-      router();
-    } catch (e) {
-      console.error("router error (nav click)", e);
     }
   });
 }
@@ -486,6 +480,7 @@ async function loadCatalogo() {
         carouselWrap.classList.add("d-none");
       }
     }
+      await loadCatalogoMeta();
   } catch (err) {
     console.error("Error cargando catálogo", err);
     if (alertBox) {
@@ -499,6 +494,108 @@ async function loadCatalogo() {
     if (reloadBtn2) reloadBtn2.disabled = false;
   }
 }
+let loadingCatalogoMeta = false;
+
+// =============================
+//     META CATÁLOGO (abajo!!!!!
+// =============================
+async function loadCatalogoMeta() {
+  const tiposListEl     = document.getElementById("catalogo-tipos-list");
+  const serviciosListEl = document.getElementById("catalogo-servicios-list");
+
+  // si no existen esos elementos, no hacemos nada
+  if (!tiposListEl && !serviciosListEl) return;
+
+  // 🔴 si ya se está ejecutando, no vuelvas a entrar
+  if (loadingCatalogoMeta) return;
+  loadingCatalogoMeta = true;
+
+  try {
+    // limpiamos SIEMPRE antes de pintar
+    if (tiposListEl) tiposListEl.innerHTML = "";
+    if (serviciosListEl) serviciosListEl.innerHTML = "";
+
+    // 1) Traer tipos y servicios
+    const [tipos, servicios] = await Promise.all([
+      CATALOGO.tipos(),       // GET /v1/catalogo/tipos
+      CATALOGO.servicios(),   // GET /v1/catalogo/servicios
+    ]);
+
+    const tiposList      = Array.isArray(tipos)     ? tipos     : (tipos?.items ?? []);
+    const serviciosList  = Array.isArray(servicios) ? servicios : (servicios?.items ?? []);
+
+    // ---------- TIPOS ----------
+    if (tiposListEl) {
+      if (!tiposList.length) {
+        const li = document.createElement("li");
+        li.textContent = "No hay tipos de evento configurados.";
+        tiposListEl.appendChild(li);
+      } else {
+        tiposList.forEach((t) => {
+          const li = document.createElement("li");
+          li.className = "mb-1";
+          li.innerHTML =
+            `<strong>${t.nombre}</strong><br>` +
+            `<span class="text-muted">${t.descripcion || ""}</span>`;
+          tiposListEl.appendChild(li);
+        });
+      }
+    }
+
+    // ---------- SERVICIOS POR TIPO ----------
+    if (serviciosListEl) {
+      if (!serviciosList.length) {
+        serviciosListEl.textContent = "No hay servicios configurados.";
+      } else {
+        const byTipo = {};
+        serviciosList.forEach((s) => {
+          const tid = s.tipo_evento_id || s.tipo_id || "otros";
+          (byTipo[tid] ||= []).push(s);
+        });
+
+        tiposList.forEach((t) => {
+          const servs = byTipo[t.id] || [];
+          if (!servs.length) return;
+
+          const wrapper = document.createElement("div");
+          wrapper.className = "mb-3";
+
+          const title = document.createElement("div");
+          title.className = "fw-semibold mb-1";
+          title.textContent = t.nombre;
+          wrapper.appendChild(title);
+
+          const chips = document.createElement("div");
+          chips.className = "d-flex flex-wrap gap-1";
+
+          const vistos = new Set();
+          servs.forEach((s) => {
+            const name = s.nombre || s.name;
+            if (!name || vistos.has(name)) return;
+            vistos.add(name);
+
+            const span = document.createElement("span");
+            span.className = "badge rounded-pill bg-light text-dark border";
+            span.textContent = name;
+            chips.appendChild(span);
+          });
+
+          wrapper.appendChild(chips);
+          serviciosListEl.appendChild(wrapper);
+        });
+      }
+    }
+  } catch (err) {
+    console.error("Error cargando meta del catálogo", err);
+    if (tiposListEl) tiposListEl.textContent       = "Error cargando tipos.";
+    if (serviciosListEl) serviciosListEl.textContent = "Error cargando servicios.";
+  } finally {
+    // liberar la bandera
+    loadingCatalogoMeta = false;
+  }
+}
+
+
 
 // ====== PROVEEDORES ======
 async function loadProveedores() {

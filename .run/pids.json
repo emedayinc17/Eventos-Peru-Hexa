@@ -1,30 +1,30 @@
 ﻿[
     {
-        "out":  "E:\\eventos-peru-hexagonal\\services\\iam-service\\.run\\out.log",
-        "path":  "E:\\eventos-peru-hexagonal\\services\\iam-service",
-        "pid":  25748,
+        "out":  "F:\\Eventos-Peru-Hexa\\services\\iam-service\\.run\\out.log",
+        "path":  "F:\\Eventos-Peru-Hexa\\services\\iam-service",
+        "pid":  15136,
         "name":  "iam-service",
-        "err":  "E:\\eventos-peru-hexagonal\\services\\iam-service\\.run\\err.log"
+        "err":  "F:\\Eventos-Peru-Hexa\\services\\iam-service\\.run\\err.log"
     },
     {
-        "out":  "E:\\eventos-peru-hexagonal\\services\\catalogo-service\\.run\\out.log",
-        "path":  "E:\\eventos-peru-hexagonal\\services\\catalogo-service",
-        "pid":  15148,
+        "out":  "F:\\Eventos-Peru-Hexa\\services\\catalogo-service\\.run\\out.log",
+        "path":  "F:\\Eventos-Peru-Hexa\\services\\catalogo-service",
+        "pid":  27224,
         "name":  "catalogo-service",
-        "err":  "E:\\eventos-peru-hexagonal\\services\\catalogo-service\\.run\\err.log"
+        "err":  "F:\\Eventos-Peru-Hexa\\services\\catalogo-service\\.run\\err.log"
     },
     {
-        "out":  "E:\\eventos-peru-hexagonal\\services\\proveedores-service\\.run\\out.log",
-        "path":  "E:\\eventos-peru-hexagonal\\services\\proveedores-service",
-        "pid":  23296,
+        "out":  "F:\\Eventos-Peru-Hexa\\services\\proveedores-service\\.run\\out.log",
+        "path":  "F:\\Eventos-Peru-Hexa\\services\\proveedores-service",
+        "pid":  27720,
         "name":  "proveedores-service",
-        "err":  "E:\\eventos-peru-hexagonal\\services\\proveedores-service\\.run\\err.log"
+        "err":  "F:\\Eventos-Peru-Hexa\\services\\proveedores-service\\.run\\err.log"
     },
     {
-        "out":  "E:\\eventos-peru-hexagonal\\services\\contratacion-service\\.run\\out.log",
-        "path":  "E:\\eventos-peru-hexagonal\\services\\contratacion-service",
-        "pid":  22120,
+        "out":  "F:\\Eventos-Peru-Hexa\\services\\contratacion-service\\.run\\out.log",
+        "path":  "F:\\Eventos-Peru-Hexa\\services\\contratacion-service",
+        "pid":  25740,
         "name":  "contratacion-service",
-        "err":  "E:\\eventos-peru-hexagonal\\services\\contratacion-service\\.run\\err.log"
+        "err":  "F:\\Eventos-Peru-Hexa\\services\\contratacion-service\\.run\\err.log"
     }
 ]
