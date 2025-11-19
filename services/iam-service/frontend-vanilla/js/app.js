@@ -342,74 +342,139 @@ async function loadCatalogo() {
       const col = document.createElement("div");
       col.className = "col-12 col-md-6 col-lg-4";
 
+      // create card skeleton early so we can append pieces in order
       const card = document.createElement("div");
-      card.className = "card h-100 shadow-sm border-0";
+      card.className = "card mb-3 shadow-sm position-relative"; // position-relative for price badge
 
       const body = document.createElement("div");
-      body.className = "card-body d-flex flex-column";
+      body.className = "card-body";
 
       const title = document.createElement("h5");
-      title.className = "card-title mb-1 text-truncate";
+      title.className = "card-title mb-1";
       title.textContent = p.nombre || p.name || `Paquete ${idx + 1}`;
 
       const desc = document.createElement("p");
-      desc.className = "card-text small text-muted flex-grow-1";
-      desc.textContent =
-        p.descripcion || p.description || "Sin descripción.";
-
-      const meta = document.createElement("div");
-      meta.className = "mt-2 small";
-
-      const servicios = p.servicios || p.services || [];
-      if (Array.isArray(servicios) && servicios.length) {
-        const label = document.createElement("div");
-        label.className = "fw-semibold mb-1";
-        label.textContent = "Servicios incluidos:";
-        meta.appendChild(label);
-
-        const ul = document.createElement("ul");
-        ul.className = "small ps-3 mb-0";
-        servicios.slice(0, 3).forEach((s) => {
-          const li = document.createElement("li");
-          li.textContent = s.nombre || s.name || String(s);
-          ul.appendChild(li);
-        });
-        if (servicios.length > 3) {
-          const li = document.createElement("li");
-          li.textContent = `+ ${servicios.length - 3} adicionales`;
-          ul.appendChild(li);
-        }
-        meta.appendChild(ul);
-      }
+      desc.className = "card-text small text-muted mb-2";
+      desc.textContent = p.descripcion || p.description || "Sin descripción.";
 
       const footer = document.createElement("div");
-      footer.className =
-        "mt-3 d-flex justify-content-between align-items-center small";
+      footer.className = "mt-3 d-flex justify-content-between align-items-center small gap-2";
 
-      const price = document.createElement("span");
-      const monto = p.precio ?? p.monto ?? p.amount;
-      if (monto != null && !Number.isNaN(Number(monto))) {
-        price.textContent = `Desde S/ ${Number(monto).toFixed(2)}`;
-      } else {
-        price.textContent = "Precio a consultar";
+      // Price resolution: support direct fields or nested precio_paquete table (object or array)
+      function resolvePrice(obj) {
+        if (!obj) return null;
+
+        // Direct simple fields (include monto_total which catalogo returns)
+        const direct = obj.monto_total ?? obj.monto ?? obj.precio ?? obj.precio_min ?? obj.precio_unitario ?? obj.amount ?? obj.price ?? null;
+        if (direct != null && !Number.isNaN(Number(direct))) {
+          return { amount: Number(direct), currency: obj.moneda ?? obj.currency ?? 'PEN' };
+        }
+
+        // Nested precio_paquete (may be an object or an array)
+        const pp = obj.precio_paquete ?? obj.precio_paquetes ?? obj.precios ?? obj.price_list ?? null;
+        if (pp) {
+          const rows = Array.isArray(pp) ? pp.slice() : [pp];
+          // prefer active (vigente_hasta null) or latest by vigente_desde
+          let sel = rows.find(r => r.vigente_hasta == null) || rows.sort((a,b) => new Date(b.vigente_desde) - new Date(a.vigente_desde))[0];
+          if (sel) {
+            const m = sel.monto ?? sel.amount ?? sel.price ?? null;
+            const c = sel.moneda ?? sel.currency ?? obj.moneda ?? 'PEN';
+            if (m != null && !Number.isNaN(Number(m))) return { amount: Number(m), currency: c };
+          }
+        }
+
+        return null;
       }
 
+      const priceInfo = resolvePrice(p);
+
+      // helper to map currency code -> symbol
+      function currencySymbol(code) {
+        if (!code) return 'S/';
+        const c = String(code).toUpperCase();
+        if (c === 'PEN' || c === 'PEN-S' || c === 'PESO') return 'S/';
+        if (c === 'USD' || c === 'US' || c === 'DOLAR' || c === 'USD$') return '$';
+        return c + ' ';
+      }
+
+      // format amount with thousands separators according to locale
+      function formatAmount(amount, currency) {
+        try {
+          return new Intl.NumberFormat('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
+        } catch (e) {
+          return Number(amount).toFixed(2);
+        }
+      }
+
+      // Price badge top-right
+      const priceBadge = document.createElement("div");
+      priceBadge.className = "position-absolute top-0 end-0 m-2 badge rounded-pill";
+      if (priceInfo && priceInfo.amount != null) {
+        priceBadge.classList.add("bg-success", "text-white");
+        priceBadge.style.fontSize = "0.95rem";
+  priceBadge.textContent = `${currencySymbol(priceInfo.currency)}${formatAmount(priceInfo.amount, priceInfo.currency)}`;
+      } else {
+        priceBadge.classList.add("bg-secondary", "text-white");
+        priceBadge.style.fontSize = "0.85rem";
+        priceBadge.textContent = "Consultar precio";
+      }
+
+      // prominent price in the body (large but balanced)
+      const priceBox = document.createElement("div");
+      priceBox.className = "mb-2 d-flex align-items-baseline gap-2";
+      const priceMain = document.createElement("div");
+      priceMain.className = "h5 fw-bold mb-0";
+      if (priceInfo && priceInfo.amount != null) {
+        priceMain.classList.add("text-success");
+        //priceMain.textContent = `Desde ${currencySymbol(priceInfo.currency)}${formatAmount(priceInfo.amount, priceInfo.currency)}`;
+      } else {
+        //priceMain.classList.add("text-secondary");
+        priceMain.textContent = "Precio a consultar";
+      }
+      priceBox.appendChild(priceMain);
+
+      // Ensure there's a dedicated price container in the card for consistent layout
+      const priceContainer = document.createElement("div");
+      //priceContainer.className = "card-price mb-2"; // CSS hook: keep place for price even if empty
+      priceContainer.setAttribute('role', 'text');
+      priceContainer.appendChild(priceBox);
+
+      const codeBadge = document.createElement("span");
+      codeBadge.className = "badge text-bg-primary ms-auto";
+      codeBadge.textContent = p.codigo || p.code || p.id || `PK-${idx + 1}`;
+
+      // meta (servicios)
+      const meta = document.createElement("div");
+      //meta.className = "mt-2 small text-muted";
+      const servicios = p.servicios || p.services || [];
+      if (Array.isArray(servicios) && servicios.length) {
+        const snippet = servicios.slice(0, 2).map(s => s.nombre || s.name || String(s)).join(', ');
+        meta.textContent = `Incluye: ${snippet}` + (servicios.length > 2 ? ` +${servicios.length - 2} más` : '');
+      } else {
+        meta.textContent = "Servicios no detallados.";
+      }
+
+      // CTA
+      const cta = document.createElement("div");
+      cta.className = "d-flex gap-2 align-items-center";
       const btn = document.createElement("button");
       btn.className = "btn btn-sm btn-primary";
       btn.textContent = "Reservar / Contratar";
-      btn.addEventListener("click", () =>
-        solicitarContratacionDesdeCatalogo(p)
-      );
+      btn.addEventListener("click", () => solicitarContratacionDesdeCatalogo(p));
 
-      footer.appendChild(price);
-      footer.appendChild(btn);
+      cta.appendChild(btn);
 
-      body.appendChild(title);
-      body.appendChild(desc);
+      // assemble
+  body.appendChild(title);
+  body.appendChild(desc);
+  body.appendChild(priceContainer);
       body.appendChild(meta);
+      footer.appendChild(codeBadge);
+      footer.appendChild(cta);
       body.appendChild(footer);
 
       card.appendChild(body);
+      card.appendChild(priceBadge);
       col.appendChild(card);
       fragment.appendChild(col);
     });
@@ -457,12 +522,12 @@ async function loadCatalogo() {
 
         const price = document.createElement("div");
         const monto = p.precio ?? p.monto ?? p.amount;
-        price.className = "fw-semibold mb-2";
-        if (monto != null && !Number.isNaN(Number(monto))) {
-          price.textContent = `Desde S/ ${Number(monto).toFixed(2)}`;
-        } else {
-          price.textContent = "Precio a consultar";
-        }
+        //price.className = "fw-semibold mb-2";
+        //if (monto != null && !Number.isNaN(Number(monto))) {
+        //  price.textContent = `Desde S/ ${Number(monto).toFixed(2)}`;
+        //} else {
+        //  price.textContent = "Precio a consultar";
+        //}
 
         const cta = document.createElement("button");
         cta.className = "btn btn-sm btn-outline-primary";
