@@ -19,6 +19,7 @@ async function fetchJson(base, method, path, body) {
   const token = getToken && getToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
   const url = `${base}${path.startsWith("/") ? "" : "/"}${path}`;
+  console.log(`🔄 ${method} ${url}`); // Debug
   const res = await fetch(url, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined });
   if (!res.ok) {
     const txt = await res.text().catch(()=>null);
@@ -42,10 +43,28 @@ export const PROVEEDORES = {
   liberarReserva: (id) => fetchJson(PROVEEDORES_BASE, "DELETE", `/v1/proveedores/reservas/${encodeURIComponent(id)}`),
 };
 
+// En services.js - CORREGIR las rutas ADMIN
 export const CONTRATACION = {
   health: () => fetchJson(CONTRATACION_BASE, "GET", "/health"),
+  
+  // Endpoints CLIENTE
   crearPedido: (body) => fetchJson(CONTRATACION_BASE, "POST", "/v1/contratacion/pedidos", body),
   misPedidos: () => fetchJson(CONTRATACION_BASE, "GET", "/v1/contratacion/pedidos/mios"),
   detallePedido: (id) => fetchJson(CONTRATACION_BASE, "GET", `/v1/contratacion/pedidos/${encodeURIComponent(id)}`),
   enviarResumen: (id, body) => fetchJson(CONTRATACION_BASE, "POST", `/v1/contratacion/pedidos/${encodeURIComponent(id)}/enviar-resumen`, body),
+  
+  // Endpoints ADMIN - CORREGIDOS (sin el /v1/contratacion duplicado)
+  adminTodosPedidos: () => fetchJson(CONTRATACION_BASE, "GET", "/v1/contratacion/admin/pedidos"),
+  adminDetallePedido: (id) => fetchJson(CONTRATACION_BASE, "GET", `/v1/contratacion/admin/pedidos/${encodeURIComponent(id)}`),
+  adminCambiarEstado: (pedidoId, body) => 
+    fetchJson(CONTRATACION_BASE, "PATCH", `/v1/contratacion/admin/pedidos/${encodeURIComponent(pedidoId)}`, body),
+   // ❌ ESTE NO EXISTE
+  adminCambiarEstado: (pedidoId, body) => 
+    fetchJson(CONTRATACION_BASE, "PATCH", `/v1/contratacion/admin/pedidos/${encodeURIComponent(pedidoId)}`, body),
+  adminAgregarItems: (pedidoId, body) =>
+    fetchJson(CONTRATACION_BASE, "POST", `/v1/contratacion/admin/pedidos/${encodeURIComponent(pedidoId)}/items`, body),
+  adminEliminarItems: (pedidoId, body) =>
+    fetchJson(CONTRATACION_BASE, "DELETE", `/v1/contratacion/admin/pedidos/${encodeURIComponent(pedidoId)}/items`, body),
+  adminAsignarProveedor: (pedidoId, body) =>
+    fetchJson(CONTRATACION_BASE, "POST", `/v1/contratacion/admin/pedidos/${encodeURIComponent(pedidoId)}/asignar-proveedor`, body),
 };

@@ -13,13 +13,13 @@ function normalizeBase(base) {
   return String(base || "").replace(/\/+$/, "");
 }
 export const API_BASE = normalizeBase(RAW_BASE);
+
 // --- Base URL catálogo (se puede sobreescribir con window.CATALOGO_API_BASE) ---
 const RAW_CATALOGO_BASE = (typeof window !== "undefined" && window.CATALOGO_API_BASE)
   ? window.CATALOGO_API_BASE
   : "http://127.0.0.1:8020/catalogo";
 
 export const CATALOGO_API_BASE = normalizeBase(RAW_CATALOGO_BASE);
-
 
 // --- Configuración global ---
 const DEFAULT_TIMEOUT_MS = 12_000;
@@ -106,6 +106,7 @@ export async function http(method, path, body, { timeoutMs } = {}) {
 
   let res;
   try {
+    console.log(`🌐 HTTP ${method} ${url}`, body ? { body } : '');
     res = await fetch(url, {
       method,
       headers,
@@ -136,12 +137,13 @@ export async function http(method, path, body, { timeoutMs } = {}) {
   const parsed = await safeJson(res);
 
   if (!res.ok) {
+    console.error(`❌ HTTP ${res.status} ${method} ${url}`, parsed);
     throwIfAuthError(toHttpError({ res, body: parsed, url, method }));
   }
+  
+  console.log(`✅ HTTP ${res.status} ${method} ${url}`, parsed);
   return parsed;
-
-} // Closing brace added for http() function
-
+}
 
 async function httpCatalogo(method, path, body, { timeoutMs } = {}) {
   const headers = { "Content-Type": "application/json" };
@@ -230,15 +232,34 @@ export const IAM = {
   adminGetUser: (id) =>
     http("GET", `/admin/users/${encodeURIComponent(id)}`),
 
-  /** Actualización parcial (ADMIN). */
-  adminPatchUser: (id, patch) =>
-    http("PATCH", `/admin/users/${encodeURIComponent(id)}`, patch),
+  /** Actualización parcial (ADMIN) - VERSIÓN MEJORADA */
+  /** Actualización parcial (ADMIN) - CON DEBUG MEJORADO */
+  adminPatchUser: async (id, patch) => {
+      console.log("🔧 adminPatchUser llamado:", { id, patch });
+      
+      // DEBUG: Mostrar headers y payload completo
+      const token = getToken();
+      console.log("🔑 Token presente:", !!token);
+      console.log("📦 Payload completo a enviar:", JSON.stringify(patch, null, 2));
+      
+      try {
+          const response = await http("PATCH", `/admin/users/${encodeURIComponent(id)}`, patch);
+          console.log("✅ Respuesta de adminPatchUser:", response);
+          return response;
+      } catch (error) {
+          console.error("❌ Error en adminPatchUser:", {
+              status: error.status,
+              message: error.message,
+              data: error.data
+          });
+          throw error;
+      }
+  },
 
   /** Elimina un usuario (ADMIN). */
   adminDeleteUser: (id) =>
     http("DELETE", `/admin/users/${encodeURIComponent(id)}`),
 };
-
 
 // ==========================================
 //       Endpoints del servicio Catálogo
@@ -279,7 +300,6 @@ export const CATALOGO = {
   paquetePorId: (id) =>
     httpCatalogo("GET", `/v1/catalogo/paquetes/${encodeURIComponent(id)}`),
 };
-
 
 // ==========================================
 // Export opcional de utilidades (por si las usas)

@@ -652,6 +652,20 @@ GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_proveedores.*   TO 'a
 GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_contratacion.*  TO 'app_api'@'%';
 GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_mensajeria.*    TO 'app_api'@'%';
 
+-- Contratación - AGREGAR ESTOS PERMISOS:
+GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_contratacion.*    TO 'app_contratacion'@'%';
+
+-- NUEVO: Permisos de LECTURA para paquetes (necesario para calcular precios)
+GRANT SELECT ON ev_paquetes.* TO 'app_contratacion'@'%';
+
+-- NUEVO: Permisos de LECTURA para catálogo (necesario para obtener tipos de evento)
+GRANT SELECT ON ev_catalogo.* TO 'app_contratacion'@'%';
+
+-- Contratacion en Mensajeria (para este MVP)
+GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_mensajeria.* TO 'app_contratacion'@'%';
+
+ALTER TABLE ev_contratacion.pedido_evento DROP CONSTRAINT chk_ped_horas;
+
 FLUSH PRIVILEGES;
 
 /* ============================================================

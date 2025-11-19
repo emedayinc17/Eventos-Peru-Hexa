@@ -138,12 +138,27 @@ def build_api_router(settings: Settings) -> APIRouter:
     @r.patch("/admin/users/{id}", response_model=UsuarioOut, operation_id="iam_admin_patch_user", openapi_extra={"security": [{"HTTPBearer": []}]})
     def admin_patch_user(id: str, data: UpdateUsuarioRequest = Body(...), admin=Depends(require_role("ADMIN")), settings: Settings = Depends(get_settings)):
         changes: Dict[str, Any] = {}
+        
+        # Debug para ver qué datos llegan
+        print(f"🎯 [PATCH ENDPOINT] Datos recibidos para usuario {id}:")
+        print(f"   - nombre: {data.nombre}")
+        print(f"   - telefono: {data.telefono}") 
+        print(f"   - status: {data.status}")
+        print(f"   - role: {data.role}")
+        print(f"   - password: {'***' if data.password else 'None'}")
+        
+        # Mapear campos normales
         if data.nombre is not None:
             changes["nombre"] = data.nombre
         if data.telefono is not None:
             changes["telefono"] = data.telefono
         if data.status is not None:
             changes["status"] = int(data.status)
+        
+        # ✅ AGREGAR ESTO: Incluir password si viene
+        if data.password is not None:
+            changes["password"] = data.password
+            print(f"🔐 [PATCH ENDPOINT] Password incluido en changes: {'***' if data.password else 'Empty'}")
 
         uc = make_admin_patch_uc(settings)
         res = uc.execute(user_id=id, changes=changes, new_role=data.role, actor_id=admin["id"])

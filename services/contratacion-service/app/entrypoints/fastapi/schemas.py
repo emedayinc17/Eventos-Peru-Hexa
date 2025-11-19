@@ -90,3 +90,11 @@ class AdminAsignarProveedorRequest(BaseModel):
     fecha_inicio: datetime   # mapea a ev_contratacion.reserva.inicio
     fecha_fin: datetime      # mapea a ev_contratacion.reserva.fin
     hold_id: Optional[str] = None
+
+
+# ---------- ADMIN: Listar todos los pedidos ----------
+class AdminListaPedidosResponse(BaseModel):
+    items: List[PedidoEventoOut]
+    total: Optional[int] = None
+    limit: int
+    offset: int

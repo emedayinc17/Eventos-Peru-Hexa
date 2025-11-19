@@ -49,3 +49,4 @@ class UpdateUsuarioRequest(BaseModel):
     telefono: Optional[str] = None
     status: Optional[int] = None  # 0/1
     role: Optional[str] = None    # "admin" | "cliente"
+    password: Optional[str] = None  # ✅ AGREGAR ESTE CAMPO - opcional para cambios de password
