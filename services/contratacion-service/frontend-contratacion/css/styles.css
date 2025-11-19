@@ -1,0 +1,24 @@
+.method-badge {
+  font-weight:600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  color:#fff;
+} 
+
+.m-get    { background:#0d6efd; }     /* Azul */
+.m-post   { background:#198754; }     /* Verde */
+.m-patch  { background:#0dcaf0; color:#000; } /* Cyan */
+.m-delete { background:#dc3545; }     /* Rojo */
+
+.card-endpoint {
+  border:1px solid rgba(0,0,0,.08);
+}
+
+.route-path {
+  font-family: monospace;
+}
+
+.lock-icon {
+  margin-left:6px;
+  opacity: .6;
+}
