@@ -15,6 +15,11 @@ let adminTotal = null; // if backend provides total count
 // Contratación pendiente (cuando viene desde catálogo sin login)
 let pendingPaqueteId = null;
 
+// Proveedor
+let proveedorSeleccionado = null;
+let reservasActivas = [];
+let crearReservaModal = null;
+
 // ----- refs de vistas -----
 const views = {
   home: document.getElementById("view-home"),
@@ -33,6 +38,7 @@ const navCatalogo = document.getElementById("nav-catalogo");
 const navLogout = document.getElementById("nav-logout");
 const navRegister = document.getElementById("nav-register");
 const navAdmin = document.getElementById("nav-admin");
+const navProveedores    = document.getElementById("nav-proveedores");
 const openPublicRegister = document.getElementById("open-public-register");
 
 // Safety: ensure navbar links trigger routing even if default hashchange is blocked
@@ -574,6 +580,155 @@ async function loadProveedores() {
     form._bound = true;
   }
 }
+
+document.getElementById("buscar-form")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const servicioId = fd.get("servicio_id");
+  const fecha = fd.get("fecha");
+  const limit = fd.get("limit");
+
+  const err = document.getElementById("buscar-error");
+  const grid = document.getElementById("proveedores-grid");
+  const count = document.getElementById("resultados-count");
+
+  err.textContent = "";
+  grid.innerHTML = '<div class="col-12 text-center"><div class="spinner-border text-primary"></div></div>';
+
+  try {
+    const proveedores = await PROVEEDORES.buscar(servicioId, fecha);
+
+    grid.innerHTML = "";
+    count.textContent = `${proveedores.length} resultados`;
+
+    if (proveedores.length === 0) {
+      grid.innerHTML = `
+        <div class="col-12 text-center text-secondary py-5">
+          <i class="bi bi-inbox display-1"></i>
+          <p class="mt-3">No se encontraron proveedores disponibles</p>
+        </div>
+      `;
+      return;
+    }
+
+    proveedores.forEach(p => {
+      const rating = Number(p.rating_prom || 0).toFixed(1);
+      const stars = Math.round(rating);
+      const starsHtml = '★'.repeat(stars) + '☆'.repeat(5 - stars);
+
+      const card = document.createElement("div");
+      card.className = "col-md-6 col-lg-4";
+      card.innerHTML = `
+        <div class="card proveedor-card h-100 shadow-sm" data-id="${p.id}">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <h6 class="card-title mb-0">${p.nombre || 'Sin nombre'}</h6>
+              <span class="badge ${p.status == 1 ? 'bg-success' : 'bg-secondary'}">
+                ${p.status == 1 ? 'Activo' : 'Inactivo'}
+              </span>
+            </div>
+            <p class="card-text small text-secondary mb-2">
+              <i class="bi bi-envelope me-1"></i>${p.email || '—'}<br>
+              <i class="bi bi-telephone me-1"></i>${p.telefono || '—'}
+            </p>
+            <div class="rating-stars mb-3">
+              ${starsHtml} <span class="text-secondary">(${rating})</span>
+            </div>
+            <button class="btn btn-primary btn-sm w-100 btn-reservar" data-proveedor='${JSON.stringify(p)}'>
+              <i class="bi bi-calendar-plus me-1"></i>Reservar
+            </button>
+          </div>
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+
+      // Listeners para botones de reserva
+    document.querySelectorAll(".btn-reservar").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const p = JSON.parse(btn.dataset.proveedor);
+        abrirModalReserva(p);
+      });
+    });
+
+  } catch (error) {
+    err.textContent = "Error al buscar: " + error.message;
+    grid.innerHTML = "";
+  }
+});
+
+document.getElementById("crear-reserva-form")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+
+  const generateCorrelationId = () => {
+    const randomHex = Array.from(crypto.getRandomValues(new Uint8Array(8)))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+    return `corr-${randomHex}`;
+  };
+
+  // Helper to ensure ISO datetime format
+  const ensureISODateTime = (datetimeStr) => {
+    if (!datetimeStr) return null;
+    // If it already has seconds, return as is
+    if (datetimeStr.length === 19) return datetimeStr;
+    // If it's missing seconds, add ":00"
+    if (datetimeStr.length === 16) return datetimeStr + ":00";
+    return datetimeStr;
+  };
+
+  const data = {
+    proveedor_id: fd.get("proveedor_id"),
+    opcion_servicio_id: fd.get("opcion_servicio_id"),
+    inicio: ensureISODateTime(fd.get("inicio")),
+    fin: ensureISODateTime(fd.get("fin")),
+    ttl_min: parseInt(fd.get("ttl_min")) || 30,
+    correlation_id: fd.get("correlation_id") || generateCorrelationId(),
+  };
+
+  const err = document.getElementById("crear-reserva-error");
+  err.textContent = "";
+
+  try {
+    const reserva = await PROVEEDORES.crearReserva(data);
+    crearReservaModal?.hide();
+
+    showNotification(`Reserva creada exitosamente!\nID: ${reserva.id}\nExpira: ${reserva.expira_en}`, 'success');
+
+    //alert(`Reserva creada exitosamente!\nID: ${reserva.id}\nExpira: ${reserva.expira_en}`);
+
+    // Limpiar formulario
+    e.target.reset();
+
+    // Si está en la vista de reservas, recargar
+    if (!views.reservas.classList.contains("d-none")) {
+      cargarReservas();
+    }
+  } catch (error) {
+    err.textContent = "Error: " + error.message;
+  }
+});
+
+function abrirModalReserva(proveedor) {
+  if (!Auth.token) {
+    alert("Debes iniciar sesión para crear reservas");
+    return;
+  }
+
+  proveedorSeleccionado = proveedor;
+
+  document.getElementById("proveedor-nombre").textContent = proveedor.nombre || "Proveedor";
+  document.getElementById("proveedor-email").textContent = proveedor.email || "";
+  document.getElementById("reserva-proveedor-id").value = proveedor.id;
+
+  if (!crearReservaModal) {
+    crearReservaModal = new bootstrap.Modal(document.getElementById("crearReservaModal"));
+  }
+  crearReservaModal.show();
+}
+
 
 // ====== CONTRATACION (vista de pedidos) ======
 // ====== CONTRATACION (vista de pedidos) ======
@@ -1495,15 +1650,18 @@ function configureNavbar() {
     navRegister?.setAttribute("href", "#");
     navRegister?.setAttribute("data-mode", "public");
     navAdmin?.classList.add("d-none");
+    navProveedores?.classList.add("d-none");
   } else if (role === "ADMIN") {
     navRegister?.classList.remove("d-none");
     navRegister?.setAttribute("href", "#/admin-register");
     navRegister?.setAttribute("data-mode", "admin");
     navAdmin?.classList.remove("d-none");
+    navProveedores?.classList.remove("d-none");
   } else {
     navRegister?.classList.add("d-none");
     navRegister?.setAttribute("data-mode", "hidden");
     navAdmin?.classList.add("d-none");
+    navProveedores?.classList.remove("d-none");
   }
 }
 
