@@ -1283,7 +1283,7 @@ async function verDetallePedidoAdmin(pedidoId) {
                       <tbody>
                         ${pedido.items.map(item => `
                           <tr>
-                            <td>${item.servicio_nombre || 'Servicio'}</td>
+                            <td>${item.servicio_nombre || item.opcion_nombre || item.paquete_nombre || 'Servicio'}</td>
                             <td>${item.cantidad || 1}</td>
                             <td>${item.precio_unitario ? `S/ ${parseFloat(item.precio_unitario).toFixed(2)}` : 'N/A'}</td>
                             <td>${item.subtotal ? `S/ ${parseFloat(item.subtotal).toFixed(2)}` : 'N/A'}</td>
@@ -1294,6 +1294,28 @@ async function verDetallePedidoAdmin(pedidoId) {
                   </div>
                 </div>
               ` : '<p class="text-muted">No hay items registrados en este pedido.</p>'}
+              
+              ${pedido.proveedores && pedido.proveedores.length > 0 ? `
+                <div class="mt-4">
+                  <h6>Proveedores involucrados</h6>
+                  <div class="table-responsive">
+                    <table class="table table-sm">
+                      <thead>
+                        <tr><th>Proveedor</th><th>Email</th><th>Acción</th></tr>
+                      </thead>
+                      <tbody>
+                        ${pedido.proveedores.map(pr => `
+                          <tr>
+                            <td>${pr.nombre || pr.name || pr.id}</td>
+                            <td>${pr.email || '-'}</td>
+                            <td><button class="btn btn-sm btn-outline-primary ver-proveedor" data-prov-id="${pr.id}">Ver</button></td>
+                          </tr>
+                        `).join('')}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ` : ''}
               
               <div class="mt-4">
                 <h6>Acciones Administrativas</h6>
@@ -1352,6 +1374,19 @@ async function verDetallePedidoAdmin(pedidoId) {
     // Limpiar modal cuando se cierre
     modalElement.addEventListener('hidden.bs.modal', () => {
       modalElement.remove();
+    });
+
+    // Handler para botones "Ver proveedor" (muestra info básica incluida en la respuesta)
+    modalElement.querySelectorAll('.ver-proveedor').forEach(btn => {
+      btn.addEventListener('click', (ev) => {
+        const pid = btn.dataset.provId;
+        const prov = (pedido.proveedores || []).find(x => String(x.id) === String(pid));
+        if (prov) {
+          alert(`Proveedor: ${prov.nombre || prov.id}\nEmail: ${prov.email || 'N/A'}`);
+        } else {
+          alert('Proveedor no encontrado');
+        }
+      });
     });
 
   } catch (error) {
