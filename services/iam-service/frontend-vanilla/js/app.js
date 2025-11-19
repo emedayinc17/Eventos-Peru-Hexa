@@ -5,6 +5,26 @@ import { PROVEEDORES, CONTRATACION } from "./services.js";
 
 console.log("[app] module loaded");
 
+// Inject small stylesheet for catalog card sizing & hover
+const _injectCatalogStyles = (() => {
+  try {
+    const css = `
+      /* Catalog cards: uniform height and nice hover */
+      .catalog-card { height: 100%; }
+      .catalog-card .card-body { display: flex; flex-direction: column; min-height: 200px; }
+      .catalog-card .card-price { min-height: 48px; }
+      .catalog-card .card-footer-cta { margin-top: auto; }
+      .catalog-card:hover { transform: translateY(-4px); transition: transform 160ms ease; }
+    `;
+    const s = document.createElement('style');
+    s.setAttribute('type', 'text/css');
+    s.appendChild(document.createTextNode(css));
+    document.head.appendChild(s);
+  } catch (e) {
+    /* noop */
+  }
+})();
+
 let currentUser = null; // cache
 
 // Admin pagination state
@@ -81,6 +101,23 @@ function show(id) {
 }
 const roleOf = (u) => (u?.role || "").toString().toUpperCase();
 const userRole = () => roleOf(currentUser);
+
+// Currency helpers (global) used by multiple views
+function currencySymbol(code) {
+  if (!code) return 'S/';
+  const c = String(code).toUpperCase();
+  if (c === 'PEN' || c === 'PEN-S' || c === 'PESO') return 'S/';
+  if (c === 'USD' || c === 'US' || c === 'DOLAR' || c === 'USD$') return '$';
+  return c + ' ';
+}
+
+function formatAmount(amount, currency) {
+  try {
+    return new Intl.NumberFormat('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
+  } catch (e) {
+    return Number(amount).toFixed(2);
+  }
+}
 
 // Builder común para el payload de CrearPedidoDesdePaquete
 function buildPedidoPayload({
@@ -346,8 +383,10 @@ async function loadCatalogo() {
       const card = document.createElement("div");
       card.className = "card mb-3 shadow-sm position-relative"; // position-relative for price badge
 
-      const body = document.createElement("div");
-      body.className = "card-body";
+  const body = document.createElement("div");
+  body.className = "card-body";
+  // make body a flex column so footer CTA can be pushed to bottom
+  body.classList.add('d-flex', 'flex-column');
 
       const title = document.createElement("h5");
       title.className = "card-title mb-1";
@@ -357,8 +396,9 @@ async function loadCatalogo() {
       desc.className = "card-text small text-muted mb-2";
       desc.textContent = p.descripcion || p.description || "Sin descripción.";
 
-      const footer = document.createElement("div");
-      footer.className = "mt-3 d-flex justify-content-between align-items-center small gap-2";
+  const footer = document.createElement("div");
+  // use mt-auto via class to push footer to bottom of the card body
+  footer.className = "mt-3 mt-auto d-flex justify-content-between align-items-center small gap-2 card-footer-cta";
 
       // Price resolution: support direct fields or nested precio_paquete table (object or array)
       function resolvePrice(obj) {
@@ -410,7 +450,7 @@ async function loadCatalogo() {
       const priceBadge = document.createElement("div");
       priceBadge.className = "position-absolute top-0 end-0 m-2 badge rounded-pill";
       if (priceInfo && priceInfo.amount != null) {
-        priceBadge.classList.add("bg-success", "text-white");
+        priceBadge.classList.add( "text-white");
         priceBadge.style.fontSize = "0.95rem";
   priceBadge.textContent = `${currencySymbol(priceInfo.currency)}${formatAmount(priceInfo.amount, priceInfo.currency)}`;
       } else {
@@ -426,7 +466,7 @@ async function loadCatalogo() {
       priceMain.className = "h5 fw-bold mb-0";
       if (priceInfo && priceInfo.amount != null) {
         priceMain.classList.add("text-success");
-        //priceMain.textContent = `Desde ${currencySymbol(priceInfo.currency)}${formatAmount(priceInfo.amount, priceInfo.currency)}`;
+        priceMain.textContent = `Desde ${currencySymbol(priceInfo.currency)}${formatAmount(priceInfo.amount, priceInfo.currency)}`;
       } else {
         //priceMain.classList.add("text-secondary");
         priceMain.textContent = "Precio a consultar";
@@ -435,7 +475,7 @@ async function loadCatalogo() {
 
       // Ensure there's a dedicated price container in the card for consistent layout
       const priceContainer = document.createElement("div");
-      //priceContainer.className = "card-price mb-2"; // CSS hook: keep place for price even if empty
+      priceContainer.className = "card-price mb-2"; // CSS hook: keep place for price even if empty
       priceContainer.setAttribute('role', 'text');
       priceContainer.appendChild(priceBox);
 
@@ -457,11 +497,22 @@ async function loadCatalogo() {
       // CTA
       const cta = document.createElement("div");
       cta.className = "d-flex gap-2 align-items-center";
+
+      // Ver detalle button (secondary)
+      const verBtn = document.createElement('button');
+      verBtn.className = 'btn btn-sm btn-outline-secondary';
+      verBtn.textContent = 'Ver detalle';
+      verBtn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        showPaqueteDetalle(p);
+      });
+
       const btn = document.createElement("button");
       btn.className = "btn btn-sm btn-primary";
       btn.textContent = "Reservar / Contratar";
       btn.addEventListener("click", () => solicitarContratacionDesdeCatalogo(p));
 
+      cta.appendChild(verBtn);
       cta.appendChild(btn);
 
       // assemble
@@ -562,6 +613,86 @@ async function loadCatalogo() {
   } finally {
     const reloadBtn2 = document.getElementById("btn-catalogo-reload");
     if (reloadBtn2) reloadBtn2.disabled = false;
+  }
+}
+
+// Mostrar modal con detalle de paquete (usa detalle si es necesario)
+async function showPaqueteDetalle(paqueteOrId) {
+  try {
+    let paquete = paqueteOrId;
+    const id = paquete?.id ?? paquete?.codigo ?? paquete?.code ?? paqueteOrId;
+    if (!paquete || !paquete.items) {
+      paquete = await CATALOGO.paquetePorId(id);
+    }
+
+    const precio = (() => {
+      const pi = (paquete && (paquete.monto_total || paquete.monto)) ? { amount: paquete.monto_total ?? paquete.monto, currency: paquete.moneda ?? 'PEN' } : null;
+      return pi;
+    })();
+
+    const itemsHtml = (paquete.items || []).map(it => {
+      // Prefer human-friendly fields when available
+      const nombre = it.nombre || it.servicio_nombre || it.opcion_nombre || it.nombre_opcion || it.descripcion || it.detalles || it.detalle || it.descripcion_servicio || it.servicio_desc || null;
+      const title = nombre || (it.opcion_servicio_id || it.servicio_id || '-');
+      const precioUnit = it.precio_unit_vigente || it.precio_unitario || it.precio || it.monto || null;
+      const moneda = it.moneda || paquete.moneda || '';
+      return `
+        <tr>
+          <td>${String(title)}</td>
+          <td>${it.cantidad || 1}</td>
+          <td>${precioUnit ? (currencySymbol(moneda) + formatAmount(Number(precioUnit), moneda)) : '-'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const modalHtml = `
+      <div class="modal fade" id="paqueteDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">${paquete.nombre || paquete.name || 'Detalle del paquete'}</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <p class="text-muted small">${paquete.descripcion || paquete.description || ''}</p>
+              <div class="mb-3">
+                <strong>Precio:</strong> ${precio ? (currencySymbol(precio.currency) + formatAmount(precio.amount, precio.currency)) : 'Consultar precio'}
+              </div>
+              <h6>Servicios incluidos</h6>
+              <div class="table-responsive">
+                <table class="table table-sm">
+                  <thead><tr><th>Servicio / Opción</th><th>Cantidad</th><th>Precio unit.</th></tr></thead>
+                  <tbody>
+                    ${itemsHtml || '<tr><td colspan="3" class="text-muted">No hay items detallados.</td></tr>'}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+              <button type="button" class="btn btn-primary" id="paquete-contratar">Reservar / Contratar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const existing = document.getElementById('paqueteDetailModal');
+    if (existing) existing.remove();
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    const modalEl = document.getElementById('paqueteDetailModal');
+    const modal = new bootstrap.Modal(modalEl);
+    modalEl.addEventListener('hidden.bs.modal', () => modalEl.remove());
+
+    modal.show();
+
+    document.getElementById('paquete-contratar').addEventListener('click', () => {
+      modal.hide();
+      solicitarContratacionDesdeCatalogo(paquete);
+    });
+  } catch (e) {
+    console.error('Error mostrando detalle de paquete', e);
+    alert('No se pudo cargar el detalle del paquete');
   }
 }
 
