@@ -1,15 +1,31 @@
 # created by emeday 2025 - corrected hex alignment
 from fastapi import FastAPI
-from fastapi.openapi.utils import get_openapi  # 👈 añade esto
+from fastapi.middleware.cors import CORSMiddleware  # 👈 AÑADE ESTO
+from fastapi.openapi.utils import get_openapi
 from ev_shared.config import load_settings, Settings
 from ev_shared.logger import get_logger
 from ev_shared.http_debug import build_debug_router
-from .router import build_api_router  # Asegúrate que router.py exporte esta función
+from .router import build_api_router
 
 settings: Settings = load_settings(service_name="contratacion-service")
 log = get_logger(__name__, service_name=settings.SERVICE_NAME)
 
 app = FastAPI(title="Contratacion Service", version="0.1.0", docs_url="/docs", redoc_url="/redoc")
+
+# 🔥 AGREGAR CONFIGURACIÓN CORS 🔥
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:8000",  # Tu frontend principal
+        "http://127.0.0.1:8000",  # Alternativa con IP
+        "http://localhost:3000",  # Por si usas React
+        "http://localhost:8040",
+        "http://localhost:8020",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],  # Permite GET, POST, PUT, DELETE, etc.
+    allow_headers=["*"],  # Permite todos los headers
+)
 
 # 👉 Esquema de seguridad Bearer para Swagger (Authorize)
 def custom_openapi():

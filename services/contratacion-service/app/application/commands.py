@@ -18,11 +18,27 @@ def _calcular_total_paquete(settings: Settings, paquete_id: str) -> Dict[str, An
         WHERE paquete_id = :pid
         LIMIT 1
     """)
-    with session_scope(settings) as s:
-        row = s.execute(sql, {"pid": paquete_id}).mappings().first()
-        if not row:
-            raise ValueError("PAQUETE_SIN_PRECIO_VIGENTE")
-        return dict(row)
+    
+    print(f"🔍 [DEBUG _calcular_total_paquete] Ejecutando consulta para paquete: {paquete_id}")
+    
+    try:
+        with session_scope(settings) as s:
+            result = s.execute(sql, {"pid": paquete_id})
+            print(f"🔍 [DEBUG] Resultado raw: {result}")
+            
+            row = result.mappings().first()
+            print(f"🔍 [DEBUG] Fila obtenida: {row}")
+            
+            if not row:
+                print(f"❌ [ERROR] No se encontró precio para paquete: {paquete_id}")
+                raise ValueError("PAQUETE_SIN_PRECIO_VIGENTE")
+            
+            print(f"✅ [DEBUG] Precio encontrado: {dict(row)}")
+            return dict(row)
+            
+    except Exception as e:
+        print(f"💥 [ERROR _calcular_total_paquete] Error en consulta: {e}")
+        raise
 
 
 def _calcular_items_custom(settings: Settings, items: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -68,74 +84,120 @@ def _calcular_items_custom(settings: Settings, items: List[Dict[str, Any]]) -> D
 # ========= Casos de uso (Cliente) =========
 
 def crear_pedido_desde_paquete(settings: Settings, cliente_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-    tot = _calcular_total_paquete(settings, payload["paquete_id"])
-    status_inicial = 1  # COTIZADO
+    print(f"🔍 [DEBUG crear_pedido_desde_paquete] Iniciando - Cliente: {cliente_id}")
+    print(f"🔍 [DEBUG] Payload completo: {payload}")
+    
+    try:
+        # 1. Calcular total del paquete
+        print(f"🔍 [DEBUG] Calculando total para paquete: {payload['paquete_id']}")
+        tot = _calcular_total_paquete(settings, payload["paquete_id"])
+        print(f"🔍 [DEBUG] Total calculado: {tot}")
+        
+        status_inicial = 1  # COTIZADO
 
-    sql_tipo = text("""
-        SELECT s.tipo_evento_id
-        FROM ev_paquetes.item_paquete ip
-        JOIN ev_catalogo.opcion_servicio o ON o.id = ip.opcion_servicio_id
-        JOIN ev_catalogo.servicio s ON s.id = o.servicio_id
-        WHERE ip.paquete_id = :pid
-        LIMIT 1
-    """)
+        # 2. Obtener tipo de evento
+        sql_tipo = text("""
+            SELECT s.tipo_evento_id
+            FROM ev_paquetes.item_paquete ip
+            JOIN ev_catalogo.opcion_servicio o ON o.id = ip.opcion_servicio_id
+            JOIN ev_catalogo.servicio s ON s.id = o.servicio_id
+            WHERE ip.paquete_id = :pid
+            LIMIT 1
+        """)
+        
+        print(f"🔍 [DEBUG] Obteniendo tipo de evento...")
+        with session_scope(settings) as s:
+            trow = s.execute(sql_tipo, {"pid": payload["paquete_id"]}).first()
+            print(f"🔍 [DEBUG] Resultado tipo evento: {trow}")
+            
+            if not trow:
+                raise ValueError("PAQUETE_SIN_ITEMS")
 
-    sql_insert_pedido = text("""
-        INSERT INTO ev_contratacion.pedido_evento
-            (id, cliente_id, tipo_evento_id, fecha_evento, hora_inicio, hora_fin, ubicacion,
-             monto_total, moneda, status, correlation_id, request_id, created_at)
-        VALUES (UUID(), :cliente_id, :tipo_evento_id, :fecha_evento, :hora_inicio, :hora_fin, :ubicacion,
-                :monto_total, :moneda, :status, :correlation_id, :request_id, CURRENT_TIMESTAMP)
-    """)
+            tipo_evento_id = trow[0]
+            print(f"🔍 [DEBUG] Tipo evento ID: {tipo_evento_id}")
 
-    sql_get_by_req = text("""
-        SELECT * FROM ev_contratacion.pedido_evento WHERE request_id=:req LIMIT 1
-    """)
+        # 3. Preparar datos para inserción
+        insert_data = {
+            "cliente_id": cliente_id,
+            "tipo_evento_id": tipo_evento_id,
+            "fecha_evento": payload["fecha_evento"],
+            "hora_inicio": payload["hora_inicio"],
+            "hora_fin": payload.get("hora_fin"),
+            "ubicacion": payload["ubicacion"],
+            "monto_total": float(tot["monto_total_vigente"]),
+            "moneda": tot["moneda"],
+            "status": status_inicial,
+            "correlation_id": payload.get("correlation_id"),
+            "request_id": payload.get("request_id"),
+        }
+        
+        print(f"🔍 [DEBUG] Datos para inserción: {insert_data}")
 
-    sql_insert_item = text("""
-        INSERT INTO ev_contratacion.item_pedido_evento
-            (id, pedido_id, tipo_item, referencia_id, cantidad, precio_unit, precio_total, created_at)
-        VALUES (UUID(), :pedido_id, 2, :paquete_id, 1, :precio_unit, :precio_total, CURRENT_TIMESTAMP)
-    """)
+        sql_insert_pedido = text("""
+            INSERT INTO ev_contratacion.pedido_evento
+                (id, cliente_id, tipo_evento_id, fecha_evento, hora_inicio, hora_fin, ubicacion,
+                 monto_total, moneda, status, correlation_id, request_id, created_at)
+            VALUES (UUID(), :cliente_id, :tipo_evento_id, :fecha_evento, :hora_inicio, :hora_fin, :ubicacion,
+                    :monto_total, :moneda, :status, :correlation_id, :request_id, CURRENT_TIMESTAMP)
+        """)
 
-    with session_scope(settings) as s:
-        trow = s.execute(sql_tipo, {"pid": payload["paquete_id"]}).first()
-        if not trow:
-            raise ValueError("PAQUETE_SIN_ITEMS")
+        sql_get_by_req = text("""
+            SELECT * FROM ev_contratacion.pedido_evento WHERE request_id=:req LIMIT 1
+        """)
 
-        tipo_evento_id = trow[0]
+        sql_insert_item = text("""
+            INSERT INTO ev_contratacion.item_pedido_evento
+                (id, pedido_id, tipo_item, referencia_id, cantidad, precio_unit, precio_total, created_at)
+            VALUES (UUID(), :pedido_id, 2, :paquete_id, 1, :precio_unit, :precio_total, CURRENT_TIMESTAMP)
+        """)
 
-        try:
-            s.execute(sql_insert_pedido, {
-                "cliente_id": cliente_id,
-                "tipo_evento_id": tipo_evento_id,
-                "fecha_evento": payload["fecha_evento"],
-                "hora_inicio": payload["hora_inicio"],
-                "hora_fin": payload.get("hora_fin"),
-                "ubicacion": payload["ubicacion"],
-                "monto_total": float(tot["monto_total_vigente"]),
-                "moneda": tot["moneda"],
-                "status": status_inicial,
-                "correlation_id": payload.get("correlation_id"),
-                "request_id": payload.get("request_id"),
+        # 4. Ejecutar en transacción
+        with session_scope(settings) as s:
+            try:
+                print(f"🔍 [DEBUG] Insertando pedido...")
+                result = s.execute(sql_insert_pedido, insert_data)
+                print(f"🔍 [DEBUG] Resultado inserción pedido: {result.rowcount} filas")
+                
+            except IntegrityError as e:
+                print(f"🔍 [ERROR] IntegrityError: {e}")
+                # Si hay duplicado, retornar el existente
+                if payload.get("request_id"):
+                    row = s.execute(sql_get_by_req, {"req": payload.get("request_id")}).mappings().first()
+                    if row:
+                        print(f"🔍 [DEBUG] Pedido duplicado encontrado: {dict(row)}")
+                        return dict(row)
+                raise
+
+            # Obtener el pedido insertado
+            print(f"🔍 [DEBUG] Obteniendo pedido creado...")
+            prow = s.execute(sql_get_by_req, {"req": payload.get("request_id")}).mappings().first()
+            if not prow:
+                raise ValueError("NO_SE_PUDO_RECUPERAR_PEDIDO_CREADO")
+                
+            pedido_id = prow["id"]
+            print(f"🔍 [DEBUG] Pedido ID creado: {pedido_id}")
+
+            # Insertar item del paquete
+            print(f"🔍 [DEBUG] Insertando item del paquete...")
+            item_result = s.execute(sql_insert_item, {
+                "pedido_id": pedido_id,
+                "paquete_id": payload["paquete_id"],
+                "precio_unit": float(tot["monto_total_vigente"]),
+                "precio_total": float(tot["monto_total_vigente"]),
             })
-        except IntegrityError:
-            row = s.execute(sql_get_by_req, {"req": payload.get("request_id")}).mappings().first()
-            if row:
-                return dict(row)
-            raise
+            print(f"🔍 [DEBUG] Resultado inserción item: {item_result.rowcount} filas")
 
-        prow = s.execute(sql_get_by_req, {"req": payload.get("request_id")}).mappings().first()
-        pedido_id = prow["id"]
+            print(f"✅ [DEBUG] Pedido creado exitosamente: {dict(prow)}")
+            return dict(prow)
 
-        s.execute(sql_insert_item, {
-            "pedido_id": pedido_id,
-            "paquete_id": payload["paquete_id"],
-            "precio_unit": float(tot["monto_total_vigente"]),
-            "precio_total": float(tot["monto_total_vigente"]),
-        })
-
-        return dict(prow)
+    except ValueError as e:
+        print(f"❌ [ERROR] ValueError en crear_pedido_desde_paquete: {e}")
+        raise
+    except Exception as e:
+        print(f"💥 [ERROR] Exception inesperada en crear_pedido_desde_paquete: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 def crear_pedido_custom(settings: Settings, cliente_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -215,7 +277,57 @@ def listar_mis_pedidos(settings: Settings, cliente_id: str) -> List[Dict[str, An
             result.append(data)
         return result
 
+def listar_todos_pedidos_admin(settings: Settings, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+    """
+    Lista TODOS los pedidos del sistema (solo para ADMIN)
+    """
+    sql = text("""
+        SELECT * FROM ev_contratacion.v_pedido_con_cliente
+        ORDER BY created_at DESC
+        LIMIT :lim OFFSET :off
+    """)
+    with session_scope(settings) as s:
+        rows = s.execute(sql, {"lim": limit, "off": offset}).mappings().all()
+        result = []
+        for r in rows:
+            data = dict(r)
+            # Convierte timedeltas a time
+            if "hora_inicio" in data:
+                data["hora_inicio"] = _convert_timedelta_to_time(data["hora_inicio"])
+            if "hora_fin" in data:
+                data["hora_fin"] = _convert_timedelta_to_time(data["hora_fin"])
+            result.append(data)
+        return result
 
+def admin_obtener_pedido(settings: Settings, pedido_id: str) -> Dict[str, Any]:
+    """
+    Obtiene cualquier pedido del sistema (solo ADMIN)
+    """
+    sql_pedido = text("""
+        SELECT * FROM ev_contratacion.v_pedido_con_cliente
+        WHERE id = :pid
+        LIMIT 1
+    """)
+    sql_items = text("""
+        SELECT id, pedido_id, tipo_item, referencia_id, cantidad, precio_unit, precio_total, created_at
+        FROM ev_contratacion.item_pedido_evento
+        WHERE pedido_id = :pid
+        ORDER BY created_at ASC
+    """)
+    with session_scope(settings) as s:
+        p = s.execute(sql_pedido, {"pid": pedido_id}).mappings().first()
+        if not p:
+            raise ValueError("PEDIDO_NO_ENCONTRADO")
+        items = s.execute(sql_items, {"pid": pedido_id}).mappings().all()
+        data = dict(p)
+        # Convierte timedeltas a time
+        if "hora_inicio" in data:
+            data["hora_inicio"] = _convert_timedelta_to_time(data["hora_inicio"])
+        if "hora_fin" in data:
+            data["hora_fin"] = _convert_timedelta_to_time(data["hora_fin"])
+        data["items"] = [dict(i) for i in items]
+        return data
+        
 def _convert_timedelta_to_time(td):
     """Convierte un datetime.timedelta a datetime.time."""
     import datetime

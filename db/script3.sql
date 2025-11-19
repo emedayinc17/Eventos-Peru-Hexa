@@ -1,12 +1,12 @@
 /* ============================================================
-   DATOS MASIVOS DE PRUEBA - SOA EVENTOS PERÚ (MVP++)
-   Genera 150-200 registros por tabla con datos realistas y aleatorios
-   Contraseña para admin@eventos.pe: Evoluti0n (hasheada)
+   MASSIVE TEST DATA - SOA EVENTOS PERU (MVP++)
+   Generates 150-200 records per table with realistic random data
+   Password for admin@eventos.pe: Evoluti0n (hashed)
    ============================================================ */
 
 START TRANSACTION;
 
--- Helpers de fecha/hora
+-- Date/time helpers
 SET @today := CURRENT_DATE();
 SET @now := NOW();
 SET @next_sat := DATE_ADD(@today, INTERVAL (6 - WEEKDAY(@today)) DAY);
@@ -14,23 +14,23 @@ SET @evt_date_1 := DATE_ADD(@next_sat, INTERVAL 7 DAY);
 SET @evt_date_2 := DATE_ADD(@next_sat, INTERVAL 14 DAY);
 SET @evt_date_3 := DATE_ADD(@next_sat, INTERVAL 21 DAY);
 
--- Contador para UUIDs determinísticos
+-- Counter for deterministic UUIDs
 SET @counter := 0;
 
 /* ============================================================
-   1) IAM - Usuarios Masivos (1 ADMIN + 150 CLIENTES)
+   1) IAM - Massive Users (1 ADMIN + 150 CLIENTS)
    ============================================================ */
 
--- Roles (solo una vez)
+-- Roles (once only)
 INSERT IGNORE INTO ev_iam.rol (id, codigo, nombre, descripcion, status) VALUES
- ('aaaa1111-1111-1111-1111-aaaaaaaaaaa1','ADMIN','Administrador','Acceso administrativo completo del sistema',1),
- ('aaaa1111-1111-1111-1111-aaaaaaaaaaa2','CLIENTE','Cliente','Usuario final que contrata servicios de eventos',1);
+ ('aaaa1111-1111-1111-1111-aaaaaaaaaaa1','ADMIN','Administrador','Administrative access (MVP)',1),
+ ('aaaa1111-1111-1111-1111-aaaaaaaaaaa2','CLIENTE','Cliente','End user who contracts events',1);
 
--- Unico administrador con contraseña: Evoluti0n
+-- Single administrator with password: Evoluti0n
 INSERT IGNORE INTO ev_iam.usuario (id, email, password_hash, nombre, telefono, status) VALUES
- ('ee111111-1111-4111-8111-aaaaaaaaaaa1','admin@eventos.pe','$2b$12$T9QvT2JrJQmA2y7cKk1oMOOYqUj8K0e4R2rRj3Wm3mX8xWl3.1m5C','Administrador Principal','+51 900 111 000',1);
+ ('ee111111-1111-4111-8111-aaaaaaaaaaa1','admin@eventos.pe','$2b$12$T9QvT2JrJQmA2y7cKk1oMOOYqUj8K0e4R2rRj3Wm3mX8xWl3.1m5C','Admin Eventos','+51 900 111 000',1);
 
--- Generar 150 clientes automáticamente
+-- Generate 150 clients automatically
 INSERT IGNORE INTO ev_iam.usuario (id, email, password_hash, nombre, telefono, status)
 SELECT 
     CONCAT('ee', LPAD(@counter := @counter + 1, 6, '0'), '-', SUBSTRING(MD5(RAND()), 1, 4), '-', SUBSTRING(MD5(RAND()), 1, 4), '-', SUBSTRING(MD5(RAND()), 1, 4), '-', SUBSTRING(MD5(RAND()), 1, 12)),
@@ -43,9 +43,9 @@ SELECT
     ),
     '$2b$12$T9QvT2JrJQmA2y7cKk1oMOOYqUj8K0e4R2rRj3Wm3mX8xWl3.1m5C',
     CONCAT(
-        ELT(1 + FLOOR(RAND() * 20), 'Juan', 'María', 'Carlos', 'Ana', 'Luis', 'Rosa', 'José', 'Carmen', 'Miguel', 'Elena', 'Fernando', 'Patricia', 'Roberto', 'Lucía', 'Jorge', 'Sofía', 'Ricardo', 'Claudia', 'Pedro', 'Daniela'),
+        ELT(1 + FLOOR(RAND() * 20), 'Juan', 'Maria', 'Carlos', 'Ana', 'Luis', 'Rosa', 'Jose', 'Carmen', 'Miguel', 'Elena', 'Fernando', 'Patricia', 'Roberto', 'Lucia', 'Jorge', 'Sofia', 'Ricardo', 'Claudia', 'Pedro', 'Daniela'),
         ' ',
-        ELT(1 + FLOOR(RAND() * 20), 'García', 'Rodríguez', 'López', 'Martínez', 'Pérez', 'González', 'Hernández', 'Ramírez', 'Torres', 'Flores', 'Vargas', 'Castillo', 'Romero', 'Álvarez', 'Mendoza', 'Silva', 'Rojas', 'Delgado', 'Castro', 'Ortiz')
+        ELT(1 + FLOOR(RAND() * 20), 'Garcia', 'Rodriguez', 'Lopez', 'Martinez', 'Perez', 'Gonzalez', 'Hernandez', 'Ramirez', 'Torres', 'Flores', 'Vargas', 'Castillo', 'Romero', 'Alvarez', 'Mendoza', 'Silva', 'Rojas', 'Delgado', 'Castro', 'Ortiz')
     ),
     CONCAT('+51 9', LPAD(FLOOR(RAND() * 100000000), 8, '0')),
     1
@@ -55,7 +55,7 @@ FROM
     (SELECT 1 UNION SELECT 2 UNION SELECT 3) c
 LIMIT 150;
 
--- Asignar roles a clientes
+-- Assign roles to clients
 INSERT IGNORE INTO ev_iam.usuario_rol (id, usuario_id, rol_id)
 SELECT 
     UUID(),
@@ -64,31 +64,31 @@ SELECT
 FROM ev_iam.usuario u
 WHERE u.id != 'ee111111-1111-4111-8111-aaaaaaaaaaa1';
 
--- Asignar rol ADMIN (solo uno)
+-- Assign ADMIN role (only one)
 INSERT IGNORE INTO ev_iam.usuario_rol (id, usuario_id, rol_id) 
 VALUES ('ur-admin-0001', 'ee111111-1111-4111-8111-aaaaaaaaaaa1', 'aaaa1111-1111-1111-1111-aaaaaaaaaaa1');
 
 /* ============================================================
-   2) CATÁLOGO - Servicios y Opciones Masivas
+   2) CATALOG - Massive Services and Options
    ============================================================ */
 
--- Tipos de evento adicionales
+-- Additional event types
 INSERT IGNORE INTO ev_catalogo.tipo_evento (id, nombre, descripcion, status) VALUES
- ('44444444-1111-1111-1111-111111111111','Quinceañeros','Fiestas de 15 años con servicios especializados',1),
- ('55555555-1111-1111-1111-111111111111','Conciertos','Eventos musicales y shows en vivo',1),
- ('66666666-1111-1111-1111-111111111111','Conferencias','Eventos corporativos y profesionales',1),
- ('77777777-1111-1111-1111-111111111111','Graduaciones','Ceremonias de graduación y promociones',1),
- ('88888888-1111-1111-1111-111111111111','Aniversarios','Celebraciones de aniversario personal y empresarial',1);
+ ('44444444-1111-1111-1111-111111111111','Quinceanero','15th birthday parties',1),
+ ('55555555-1111-1111-1111-111111111111','Concierto','Musical mass events',1),
+ ('66666666-1111-1111-1111-111111111111','Conferencia','Corporate events',1),
+ ('77777777-1111-1111-1111-111111111111','Graduacion','Graduation ceremonies',1),
+ ('88888888-1111-1111-1111-111111111111','Aniversario','Anniversary celebrations',1);
 
--- Servicios masivos (30 servicios)
+-- Massive services (30 services)
 INSERT IGNORE INTO ev_catalogo.servicio (id, nombre, descripcion, tipo_evento_id, status, created_by)
 SELECT 
     UUID(),
     CONCAT(
-        ELT(1 + FLOOR(RAND() * 15), 'Premium ', 'Estándar ', 'Económico ', 'Lujo ', 'Básico ', 'Completo ', 'Especial ', 'Personalizado ', 'Profesional ', 'Express ', 'Deluxe ', 'Gold ', 'Platinum ', 'VIP ', 'Estandar '),
-        ELT(1 + FLOOR(RAND() * 20), 'Catering', 'Iluminación', 'Sonido', 'Decoración', 'Fotografía', 'Video', 'Animación', 'Mobiliario', 'Floristería', 'Seguridad', 'Coordinación', 'Transporte', 'Entretenimiento', 'Bebidas', 'Postres', 'Salón', 'Música', 'Ambientación', 'Logística', 'Staff')
+        ELT(1 + FLOOR(RAND() * 15), 'Premium ', 'Standard ', 'Economic ', 'Luxury ', 'Basic ', 'Complete ', 'Special ', 'Customized ', 'Professional ', 'Express ', 'Deluxe ', 'Gold ', 'Platinum ', 'VIP ', 'Standard '),
+        ELT(1 + FLOOR(RAND() * 20), 'Catering', 'Lighting', 'Sound', 'Decoration', 'Photography', 'Video', 'Animation', 'Furniture', 'Florist', 'Security', 'Coordination', 'Transport', 'Entertainment', 'Beverages', 'Desserts', 'Venue', 'Music', 'Ambiance', 'Logistics', 'Staff')
     ),
-    CONCAT('Servicio de calidad para eventos ', ELT(1 + FLOOR(RAND() * 8), 'sociales', 'corporativos', 'familiares', 'musicales', 'deportivos', 'culturales', 'educativos', 'benéficos')),
+    CONCAT('Quality service for ', ELT(1 + FLOOR(RAND() * 8), 'social', 'corporate', 'family', 'music', 'sports', 'cultural', 'educational', 'charity'), ' events'),
     ELT(1 + FLOOR(RAND() * 8), '11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222', '33333333-3333-3333-3333-333333333333', '44444444-1111-1111-1111-111111111111', '55555555-1111-1111-1111-111111111111', '66666666-1111-1111-1111-111111111111', '77777777-1111-1111-1111-111111111111', '88888888-1111-1111-1111-111111111111'),
     1,
     'ee111111-1111-4111-8111-aaaaaaaaaaa1'
@@ -97,29 +97,23 @@ FROM
     (SELECT 1 UNION SELECT 2 UNION SELECT 3) b
 LIMIT 30;
 
--- Opciones de servicio masivas (80 opciones)
+-- Service options (80 options)
 INSERT IGNORE INTO ev_catalogo.opcion_servicio (id, servicio_id, nombre, detalles, status, created_by)
 SELECT 
     UUID(),
     (SELECT id FROM ev_catalogo.servicio ORDER BY RAND() LIMIT 1),
     CONCAT(
-        ELT(1 + FLOOR(RAND() * 10), 'Paquete ', 'Servicio ', 'Solución ', 'Kit ', 'Set ', 'Combo ', 'Plan ', 'Programa ', 'Oferta ', 'Propuesta '),
-        ELT(1 + FLOOR(RAND() * 15), 'Básico', 'Completo', 'Premium', 'Estándar', 'Deluxe', 'Gold', 'Platinum', 'VIP', 'Express', 'Personalizado', 'Familiar', 'Empresarial', 'Económico', 'Lujo', 'Especial'),
+        ELT(1 + FLOOR(RAND() * 10), 'Package ', 'Service ', 'Solution ', 'Kit ', 'Set ', 'Combo ', 'Plan ', 'Program ', 'Offer ', 'Proposal '),
+        ELT(1 + FLOOR(RAND() * 15), 'Basic', 'Complete', 'Premium', 'Standard', 'Deluxe', 'Gold', 'Platinum', 'VIP', 'Express', 'Customized', 'Family', 'Business', 'Economic', 'Luxury', 'Special'),
         ' - ',
         FLOOR(50 + RAND() * 500),
-        ' personas'
+        ' people'
     ),
     JSON_OBJECT(
-        'capacidad', FLOOR(50 + RAND() * 500),
-        'duracion_horas', FLOOR(2 + RAND() * 10),
-        'personal', FLOOR(1 + RAND() * 10),
-        'equipos', ELT(1 + FLOOR(RAND() * 5), 'básico', 'estándar', 'premium', 'completo', 'profesional'),
-        'descripcion_detallada', CONCAT(
-            'Este servicio incluye ', 
-            ELT(1 + FLOOR(RAND() * 8), 'atención personalizada', 'equipos de última generación', 'personal calificado', 'materiales de primera calidad', 'coordinación profesional', 'logística completa', 'soporte técnico', 'asesoría especializada'),
-            ' para garantizar el éxito de su evento. Ideal para ',
-            ELT(1 + FLOOR(RAND() * 6), 'bodas y eventos sociales', 'reuniones corporativas', 'fiestas familiares', 'eventos masivos', 'celebraciones íntimas', 'actividades culturales')
-        )
+        'capacity', FLOOR(50 + RAND() * 500),
+        'duration_hours', FLOOR(2 + RAND() * 10),
+        'staff', FLOOR(1 + RAND() * 10),
+        'equipment', ELT(1 + FLOOR(RAND() * 5), 'basic', 'standard', 'premium', 'complete', 'professional')
     ),
     1,
     'ee111111-1111-4111-8111-aaaaaaaaaaa1'
@@ -128,7 +122,7 @@ FROM
     (SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8) b
 LIMIT 80;
 
--- Precios históricos y vigentes
+-- Historical and current prices
 INSERT IGNORE INTO ev_catalogo.precio_servicio (id, opcion_servicio_id, moneda, monto, vigente_desde, vigente_hasta, created_by)
 SELECT 
     UUID(),
@@ -152,30 +146,26 @@ SELECT
 FROM ev_catalogo.opcion_servicio os;
 
 /* ============================================================
-   3) PAQUETES - Paquetes Masivos
+   3) PACKAGES - Massive Packages
    ============================================================ */
 
--- Paquetes (15 paquetes)
+-- Packages (15 packages)
 INSERT IGNORE INTO ev_paquetes.paquete (id, codigo, nombre, descripcion, status, created_by)
 SELECT 
     UUID(),
     CONCAT('PKG-', UPPER(SUBSTRING(MD5(RAND()), 1, 6)), '-', @counter := @counter + 1),
     CONCAT(
-        ELT(1 + FLOOR(RAND() * 8), 'Paquete ', 'Combo ', 'Solución ', 'Kit ', 'Set ', 'Plan ', 'Programa ', 'Oferta '),
-        ELT(1 + FLOOR(RAND() * 12), 'Fiesta Completa', 'Evento Empresarial', 'Celebración Familiar', 'Boda Dream', 'Quinceañero Mágico', 'Concierto Premium', 'Conferencia Profesional', 'Graduación Elegante', 'Aniversario Especial', 'Corporativo Ejecutivo', 'Social Premium', 'Personalizado Único')
+        ELT(1 + FLOOR(RAND() * 8), 'Package ', 'Combo ', 'Solution ', 'Kit ', 'Set ', 'Plan ', 'Program ', 'Offer '),
+        ELT(1 + FLOOR(RAND() * 12), 'Complete Party', 'Business Event', 'Family Celebration', 'Dream Wedding', 'Magical Quinceanero', 'Premium Concert', 'Professional Conference', 'Elegant Graduation', 'Special Anniversary', 'Executive Corporate', 'Premium Social', 'Unique Customized')
     ),
-    CONCAT(
-        'Paquete integral que incluye todos los servicios necesarios para su ',
-        ELT(1 + FLOOR(RAND() * 12), 'fiesta inolvidable', 'evento corporativo exitoso', 'celebración familiar perfecta', 'boda soñada', 'quinceañero mágico', 'concierto espectacular', 'conferencia profesional', 'graduación elegante', 'aniversario especial', 'reunión ejecutiva', 'ocasión social', 'momento único'),
-        '. Incluye coordinación profesional, equipos de calidad y atención personalizada.'
-    ),
+    CONCAT('Complete description for ', ELT(1 + FLOOR(RAND() * 12), 'unforgettable parties', 'corporate events', 'family celebrations', 'perfect weddings', 'magical quinceaneros', 'spectacular concerts', 'professional conferences', 'elegant graduations', 'special anniversaries', 'executive events', 'social occasions', 'unique moments')),
     1,
     'ee111111-1111-4111-8111-aaaaaaaaaaa1'
 FROM 
     (SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9 UNION SELECT 10 UNION SELECT 11 UNION SELECT 12 UNION SELECT 13 UNION SELECT 14 UNION SELECT 15) a
 LIMIT 15;
 
--- Ítems de paquetes (3-6 opciones por paquete)
+-- Package items (3-6 options per package)
 INSERT IGNORE INTO ev_paquetes.item_paquete (id, paquete_id, opcion_servicio_id, cantidad)
 SELECT 
     UUID(),
@@ -187,7 +177,7 @@ FROM ev_paquetes.paquete p,
 WHERE RAND() > 0.3
 LIMIT 80;
 
--- Precios de paquetes
+-- Package prices
 INSERT IGNORE INTO ev_paquetes.precio_paquete (id, paquete_id, moneda, monto, vigente_desde, vigente_hasta, created_by)
 SELECT 
     UUID(),
@@ -200,25 +190,25 @@ SELECT
 FROM ev_paquetes.paquete p;
 
 /* ============================================================
-   4) PROVEEDORES - Proveedores Masivos
+   4) PROVIDERS - Massive Providers
    ============================================================ */
 
--- Proveedores (50 proveedores)
+-- Providers (50 providers)
 INSERT IGNORE INTO ev_proveedores.proveedor (id, nombre, email, telefono, rating_prom, status, created_by)
 SELECT 
     UUID(),
     CONCAT(
-        ELT(1 + FLOOR(RAND() * 15), 'Servicios ', 'Soluciones ', 'Expertos en ', 'Profesionales ', 'Calidad ', 'Premium ', 'Elite ', 'Master ', 'Pro ', 'Super ', 'Mega ', 'Ultra ', 'Global ', 'Nacional ', 'Local '),
-        ELT(1 + FLOOR(RAND() * 20), 'Eventos', 'Catering', 'Sonido', 'Iluminación', 'Decoración', 'Fotografía', 'Video', 'Animación', 'Logística', 'Coordinación', 'Entretenimiento', 'Música', 'Bailes', 'Flores', 'Mobiliario', 'Seguridad', 'Transporte', 'Tecnología', 'Producción', 'Artística'),
+        ELT(1 + FLOOR(RAND() * 15), 'Services ', 'Solutions ', 'Experts in ', 'Professionals ', 'Quality ', 'Premium ', 'Elite ', 'Master ', 'Pro ', 'Super ', 'Mega ', 'Ultra ', 'Global ', 'National ', 'Local '),
+        ELT(1 + FLOOR(RAND() * 20), 'Events', 'Catering', 'Sound', 'Lighting', 'Decoration', 'Photography', 'Video', 'Animation', 'Logistics', 'Coordination', 'Entertainment', 'Music', 'Dances', 'Flowers', 'Furniture', 'Security', 'Transport', 'Technology', 'Production', 'Artistic'),
         ' ',
-        ELT(1 + FLOOR(RAND() * 8), 'SAC', 'EIRL', 'SA', 'Ltda.', 'Group', 'Corp', 'Perú', 'Latam')
+        ELT(1 + FLOOR(RAND() * 8), 'SAC', 'EIRL', 'SA', 'Ltd.', 'Group', 'Corp', 'Peru', 'Latam')
     ),
     CONCAT(
-        LOWER(REPLACE(ELT(1 + FLOOR(RAND() * 15), 'Servicios', 'Soluciones', 'Expertos', 'Profesionales', 'Calidad', 'Premium', 'Elite', 'Master', 'Pro', 'Super', 'Mega', 'Ultra', 'Global', 'Nacional', 'Local'), ' ', '')),
+        LOWER(REPLACE(ELT(1 + FLOOR(RAND() * 15), 'Services', 'Solutions', 'Experts', 'Professionals', 'Quality', 'Premium', 'Elite', 'Master', 'Pro', 'Super', 'Mega', 'Ultra', 'Global', 'National', 'Local'), ' ', '')),
         '.',
-        LOWER(REPLACE(ELT(1 + FLOOR(RAND() * 20), 'Eventos', 'Catering', 'Sonido', 'Iluminación', 'Decoración', 'Fotografía', 'Video', 'Animación', 'Logística', 'Coordinación', 'Entretenimiento', 'Música', 'Bailes', 'Flores', 'Mobiliario', 'Seguridad', 'Transporte', 'Tecnología', 'Producción', 'Artística'), ' ', '')),
+        LOWER(REPLACE(ELT(1 + FLOOR(RAND() * 20), 'Events', 'Catering', 'Sound', 'Lighting', 'Decoration', 'Photography', 'Video', 'Animation', 'Logistics', 'Coordination', 'Entertainment', 'Music', 'Dances', 'Flowers', 'Furniture', 'Security', 'Transport', 'Technology', 'Production', 'Artistic'), ' ', '')),
         FLOOR(RAND() * 1000),
-        '@proveedor.pe'
+        '@provider.pe'
     ),
     CONCAT('+51 1', LPAD(FLOOR(RAND() * 10000000), 7, '0')),
     ROUND(3.0 + (RAND() * 2.0), 1),
@@ -229,7 +219,7 @@ FROM
     (SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5) b
 LIMIT 50;
 
--- Habilidades de proveedores
+-- Provider skills
 INSERT IGNORE INTO ev_proveedores.habilidad_proveedor (id, proveedor_id, servicio_id, nivel)
 SELECT 
     UUID(),
@@ -237,11 +227,11 @@ SELECT
     (SELECT id FROM ev_catalogo.servicio ORDER BY RAND() LIMIT 1),
     FLOOR(3 + RAND() * 3)
 FROM ev_proveedores.proveedor p,
-    (SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5) habilidades
+    (SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5) skills
 WHERE RAND() > 0.2
 LIMIT 150;
 
--- Calendario de proveedores
+-- Provider calendar
 INSERT IGNORE INTO ev_proveedores.calendario_proveedor (id, proveedor_id, inicio, fin, tipo, created_by)
 SELECT 
     UUID(),
@@ -251,15 +241,15 @@ SELECT
     1,
     'ee111111-1111-4111-8111-aaaaaaaaaaa1'
 FROM ev_proveedores.proveedor p,
-    (SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5) dias
+    (SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5) days
 WHERE RAND() > 0.3
 LIMIT 200;
 
 /* ============================================================
-   5) PEDIDOS - Pedidos Masivos (120 pedidos)
+   5) ORDERS - Massive Orders (120 orders)
    ============================================================ */
 
--- Pedidos
+-- Orders
 INSERT IGNORE INTO ev_contratacion.pedido_evento (id, cliente_id, tipo_evento_id, fecha_evento, hora_inicio, hora_fin, ubicacion, moneda, status, correlation_id, request_id, created_by)
 SELECT 
     UUID(),
@@ -268,7 +258,7 @@ SELECT
     DATE_ADD(@today, INTERVAL FLOOR(5 + RAND() * 60) DAY),
     CONCAT(LPAD(FLOOR(10 + RAND() * 10), 2, '0'), ':00:00'),
     CONCAT(LPAD(FLOOR(18 + RAND() * 6), 2, '0'), ':00:00'),
-    ELT(1 + FLOOR(RAND() * 8), 'Lima Centro', 'Miraflores', 'San Isidro', 'La Molina', 'Surco', 'Barranco', 'Callao', 'Provincias'),
+    ELT(1 + FLOOR(RAND() * 8), 'Lima Centro', 'Miraflores', 'San Isidro', 'La Molina', 'Surco', 'Barranco', 'Callao', 'Provinces'),
     'PEN',
     FLOOR(RAND() * 3),
     CONCAT('corr-', SUBSTRING(MD5(RAND()), 1, 12)),
@@ -280,7 +270,7 @@ FROM
     (SELECT 1 UNION SELECT 2) c
 LIMIT 120;
 
--- Ítems de pedidos
+-- Order items
 INSERT IGNORE INTO ev_contratacion.item_pedido_evento (id, pedido_id, tipo_item, referencia_id, cantidad, precio_unit, precio_total, created_by)
 SELECT 
     UUID(),
@@ -299,7 +289,7 @@ FROM ev_contratacion.pedido_evento p,
 WHERE RAND() > 0.1
 LIMIT 300;
 
--- Actualizar montos totales de pedidos
+-- Update order total amounts
 UPDATE ev_contratacion.pedido_evento pe
 JOIN (
     SELECT pedido_id, COALESCE(SUM(precio_total), 0) as total
@@ -309,7 +299,7 @@ JOIN (
 SET pe.monto_total = t.total;
 
 /* ============================================================
-   6) RESERVAS TEMPORALES (HOLDS)
+   6) TEMPORARY RESERVATIONS (HOLDS)
    ============================================================ */
 
 INSERT IGNORE INTO ev_proveedores.reserva_temporal (id, proveedor_id, opcion_servicio_id, inicio, fin, status, expira_en, correlation_id, created_by)
@@ -329,7 +319,7 @@ FROM
 LIMIT 50;
 
 /* ============================================================
-   7) RESERVAS CONFIRMADAS
+   7) CONFIRMED RESERVATIONS
    ============================================================ */
 
 INSERT IGNORE INTO ev_contratacion.reserva (id, item_pedido_id, proveedor_id, inicio, fin, status, hold_id, created_by)
@@ -348,7 +338,7 @@ WHERE pe.status = 1
 LIMIT 100;
 
 /* ============================================================
-   8) AUDITORÍA
+   8) AUDIT
    ============================================================ */
 
 INSERT IGNORE INTO ev_iam.evento_audit (id, fecha_hora, actor_id, entidad, entidad_id, accion, metadata)
@@ -361,13 +351,7 @@ SELECT
     ELT(1 + FLOOR(RAND() * 6), 'CREAR', 'ACTUALIZAR', 'CONSULTAR', 'ELIMINAR', 'CONFIRMAR', 'CANCELAR'),
     JSON_OBJECT(
         'ip', CONCAT('192.168.', FLOOR(RAND() * 255), '.', FLOOR(RAND() * 255)),
-        'user_agent', ELT(1 + FLOOR(RAND() * 5), 'Chrome', 'Firefox', 'Safari', 'Edge', 'Mobile'),
-        'descripcion', CONCAT(
-            'Acción de ', 
-            ELT(1 + FLOOR(RAND() * 6), 'creación', 'actualización', 'consulta', 'eliminación', 'confirmación', 'cancelación'),
-            ' sobre ',
-            ELT(1 + FLOOR(RAND() * 5), 'pedido de evento', 'usuario del sistema', 'servicio del catálogo', 'proveedor', 'reserva')
-        )
+        'user_agent', ELT(1 + FLOOR(RAND() * 5), 'Chrome', 'Firefox', 'Safari', 'Edge', 'Mobile')
     )
 FROM 
     (SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9 UNION SELECT 10) a,
@@ -377,34 +361,28 @@ LIMIT 100;
 COMMIT;
 
 /* ============================================================
-   9) CONSULTAS DE VERIFICACIÓN
+   9) VERIFICATION QUERIES
    ============================================================ */
 
--- Conteo de registros por tabla
+-- Record counts per table
 SELECT 
-    'Usuarios' as tabla, COUNT(*) as total FROM ev_iam.usuario
-UNION ALL SELECT 'Servicios', COUNT(*) FROM ev_catalogo.servicio
-UNION ALL SELECT 'Opciones', COUNT(*) FROM ev_catalogo.opcion_servicio
-UNION ALL SELECT 'Proveedores', COUNT(*) FROM ev_proveedores.proveedor
-UNION ALL SELECT 'Pedidos', COUNT(*) FROM ev_contratacion.pedido_evento
-UNION ALL SELECT 'Paquetes', COUNT(*) FROM ev_paquetes.paquete
-UNION ALL SELECT 'Reservas', COUNT(*) FROM ev_contratacion.reserva
+    'Users' as table_name, COUNT(*) as total FROM ev_iam.usuario
+UNION ALL SELECT 'Services', COUNT(*) FROM ev_catalogo.servicio
+UNION ALL SELECT 'Options', COUNT(*) FROM ev_catalogo.opcion_servicio
+UNION ALL SELECT 'Providers', COUNT(*) FROM ev_proveedores.proveedor
+UNION ALL SELECT 'Orders', COUNT(*) FROM ev_contratacion.pedido_evento
+UNION ALL SELECT 'Packages', COUNT(*) FROM ev_paquetes.paquete
+UNION ALL SELECT 'Reservations', COUNT(*) FROM ev_contratacion.reserva
 UNION ALL SELECT 'Holds', COUNT(*) FROM ev_proveedores.reserva_temporal;
 
--- Verificar que solo hay un admin
-SELECT rol.nombre, COUNT(*) as cantidad
+-- Verify only one admin exists
+SELECT rol.nombre, COUNT(*) as quantity
 FROM ev_iam.usuario_rol ur
 JOIN ev_iam.rol rol ON ur.rol_id = rol.id
 GROUP BY rol.nombre;
 
--- Mostrar algunos pedidos de ejemplo
+-- Show some example orders
 SELECT id, status, monto_total, fecha_evento 
 FROM ev_contratacion.pedido_evento 
 ORDER BY created_at DESC 
-LIMIT 10;
-
--- Mostrar algunos servicios con descripciones
-SELECT nombre, detalles->>'$.descripcion_detallada' as descripcion
-FROM ev_catalogo.opcion_servicio 
-WHERE detalles->>'$.descripcion_detallada' IS NOT NULL
 LIMIT 10;

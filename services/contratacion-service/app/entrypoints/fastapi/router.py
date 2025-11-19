@@ -17,6 +17,7 @@ from .schemas import (
     AdminAddItemsRequest,
     AdminDeleteItemsRequest,
     AdminAsignarProveedorRequest,
+    AdminListaPedidosResponse,
 )
 
 # === Seguridad (entrypoint) ===
@@ -134,6 +135,32 @@ def enviar_resumen(
 #       ADMIN (protegido)
 # ===========================
 
+@router.get(
+    "/v1/contratacion/admin/pedidos",
+    response_model=AdminListaPedidosResponse,
+    operation_id="contratacion_admin_listar_pedidos",
+    openapi_extra={"security": [{"HTTPBearer": []}]},
+)
+def admin_listar_pedidos(
+    limit: int = 100,
+    offset: int = 0,
+    settings: Settings = Depends(get_settings),
+    admin=Depends(require_role("admin")),
+):
+    """
+    Lista TODOS los pedidos del sistema (solo ADMIN)
+    """
+    try:
+        items = commands.listar_todos_pedidos_admin(settings, limit, offset)
+        return {
+            "items": items,
+            "limit": limit,
+            "offset": offset,
+            "total": len(items)  # Para paginación simple, podrías agregar COUNT después
+        }
+    except Exception:
+        raise HTTPException(status_code=500, detail={"code": "ERR_LISTAR_PEDIDOS"})
+
 @router.patch(
     "/v1/contratacion/admin/pedidos/{pedido_id}",
     operation_id="contratacion_admin_patch_estado",
@@ -232,6 +259,25 @@ def admin_asignar_proveedor(
             raise HTTPException(status_code=400, detail={"code": msg})
         raise HTTPException(status_code=500, detail={"code": "ERR_ASIGNAR_PROVEEDOR"})
 
+
+@router.get(
+    "/v1/contratacion/admin/pedidos/{pedido_id}",
+    response_model=PedidoEventoOut,
+    operation_id="contratacion_admin_detalle_pedido", 
+    openapi_extra={"security": [{"HTTPBearer": []}]},
+)
+def admin_detalle_pedido(
+    pedido_id: str,
+    settings: Settings = Depends(get_settings),
+    admin=Depends(require_role("admin")),
+):
+    """
+    Detalle de cualquier pedido del sistema (solo ADMIN)
+    """
+    try:
+        return commands.admin_obtener_pedido(settings, pedido_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail={"code": "PEDIDO_NO_ENCONTRADO"})
 
 def build_api_router(settings: Settings) -> APIRouter:
     # Mantén la firma por consistencia; si más adelante quieres usar settings,
