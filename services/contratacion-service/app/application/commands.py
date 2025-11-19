@@ -1,6 +1,6 @@
 from typing import Dict, Any, List, Optional
 from sqlalchemy import text
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from ev_shared.config import Settings
 from ev_shared.db import session_scope
 import datetime
@@ -308,24 +308,123 @@ def admin_obtener_pedido(settings: Settings, pedido_id: str) -> Dict[str, Any]:
         WHERE id = :pid
         LIMIT 1
     """)
+    # Ampliamos la consulta de items para incluir datos legibles del catálogo
+    # (opción/servicio/paquete) y datos de reserva/proveedor cuando existan.
     sql_items = text("""
-        SELECT id, pedido_id, tipo_item, referencia_id, cantidad, precio_unit, precio_total, created_at
-        FROM ev_contratacion.item_pedido_evento
-        WHERE pedido_id = :pid
-        ORDER BY created_at ASC
+        SELECT
+          i.id,
+          i.pedido_id,
+          i.tipo_item,
+          i.referencia_id,
+          i.cantidad,
+          i.precio_unit,
+          i.precio_total,
+          i.created_at,
+          -- Opcional: si es item tipo 1 (opción de servicio) obtener opción y servicio
+          o.nombre AS opcion_nombre,
+          o.detalles AS opcion_detalles,
+          s.id AS servicio_id,
+          s.nombre AS servicio_nombre,
+          s.descripcion AS servicio_descripcion,
+          -- Si es paquete (tipo 2) obtener nombre del paquete
+          pck.nombre AS paquete_nombre,
+          -- Reserva (si existe) y proveedor asociado
+          r.id AS reserva_id,
+          r.proveedor_id AS proveedor_id,
+          pr.nombre AS proveedor_nombre,
+          pr.email AS proveedor_email
+        FROM ev_contratacion.item_pedido_evento i
+        LEFT JOIN ev_catalogo.opcion_servicio o
+          ON (i.tipo_item = 1 AND o.id = i.referencia_id)
+        LEFT JOIN ev_catalogo.servicio s
+          ON o.servicio_id = s.id
+        LEFT JOIN ev_paquetes.paquete pck
+          ON (i.tipo_item = 2 AND pck.id = i.referencia_id)
+        LEFT JOIN ev_contratacion.reserva r
+          ON r.item_pedido_id = i.id
+        LEFT JOIN ev_proveedores.proveedor pr
+          ON pr.id = r.proveedor_id
+        WHERE i.pedido_id = :pid
+        ORDER BY i.created_at ASC
     """)
+
     with session_scope(settings) as s:
         p = s.execute(sql_pedido, {"pid": pedido_id}).mappings().first()
         if not p:
             raise ValueError("PEDIDO_NO_ENCONTRADO")
-        items = s.execute(sql_items, {"pid": pedido_id}).mappings().all()
+
+        # Intentamos la consulta completa (incluye JOIN a proveedores). Si falla por permisos,
+        # caemos a una consulta simplificada que omite la tabla de proveedores.
+        try:
+            rows = s.execute(sql_items, {"pid": pedido_id}).mappings().all()
+        except OperationalError as oe:
+            # Posible falta de permisos para leer ev_proveedores.proveedor (Error 1142).
+            print(f"⚠️ [WARN] No se pudo ejecutar consulta completa de items (posible permiso denegado): {oe}")
+            sql_items_simple = text("""
+                SELECT
+                  i.id,
+                  i.pedido_id,
+                  i.tipo_item,
+                  i.referencia_id,
+                  i.cantidad,
+                  i.precio_unit,
+                  i.precio_total,
+                  i.created_at,
+                  o.nombre AS opcion_nombre,
+                  o.detalles AS opcion_detalles,
+                  s.id AS servicio_id,
+                  s.nombre AS servicio_nombre,
+                  s.descripcion AS servicio_descripcion,
+                  pck.nombre AS paquete_nombre
+                FROM ev_contratacion.item_pedido_evento i
+                LEFT JOIN ev_catalogo.opcion_servicio o
+                  ON (i.tipo_item = 1 AND o.id = i.referencia_id)
+                LEFT JOIN ev_catalogo.servicio s
+                  ON o.servicio_id = s.id
+                LEFT JOIN ev_paquetes.paquete pck
+                  ON (i.tipo_item = 2 AND pck.id = i.referencia_id)
+                WHERE i.pedido_id = :pid
+                ORDER BY i.created_at ASC
+            """)
+            rows = s.execute(sql_items_simple, {"pid": pedido_id}).mappings().all()
+
         data = dict(p)
+
         # Convierte timedeltas a time
         if "hora_inicio" in data:
             data["hora_inicio"] = _convert_timedelta_to_time(data["hora_inicio"])
         if "hora_fin" in data:
             data["hora_fin"] = _convert_timedelta_to_time(data["hora_fin"])
-        data["items"] = [dict(i) for i in items]
+
+        # Mapear items y construir lista de proveedores únicos
+        items = []
+        proveedores_map = {}
+        for r in rows:
+            it = dict(r)
+            # Normalizar nombres para compatibilidad con frontend (valores ya vienen en las columnas)
+            if it.get("opcion_nombre"):
+                it["opcion_nombre"] = it.get("opcion_nombre")
+            if it.get("servicio_nombre"):
+                it["servicio_nombre"] = it.get("servicio_nombre")
+            if it.get("paquete_nombre"):
+                it["paquete_nombre"] = it.get("paquete_nombre")
+
+            # Si hay proveedor asociado, añadir a map
+            prov_id = it.get("proveedor_id")
+            prov_nombre = it.get("proveedor_nombre")
+            prov_email = it.get("proveedor_email")
+            if prov_id:
+                proveedores_map[str(prov_id)] = {
+                    "id": prov_id,
+                    "nombre": prov_nombre,
+                    "email": prov_email,
+                }
+
+            items.append(it)
+
+        data["items"] = items
+        # Lista de proveedores (únicos) relacionados con el pedido
+        data["proveedores"] = list(proveedores_map.values())
         return data
         
 def _convert_timedelta_to_time(td):

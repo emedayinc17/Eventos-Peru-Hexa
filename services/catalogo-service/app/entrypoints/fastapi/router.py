@@ -146,13 +146,20 @@ def build_api_router(settings: Settings) -> APIRouter:
 
             items = s.execute(
                 text("""
-                    SELECT
-                      d.opcion_servicio_id,
-                      d.cantidad,
-                      d.moneda,
-                      d.monto AS precio_unit_vigente
-                    FROM ev_paquetes.v_paquete_detalle d
-                    WHERE d.paquete_id = :pid
+                                        SELECT
+                                            d.opcion_servicio_id,
+                                            d.cantidad,
+                                            d.moneda,
+                                            d.monto AS precio_unit_vigente,
+                                            o.nombre AS opcion_nombre,
+                                            o.detalles AS opcion_detalles,
+                                            s.id AS servicio_id,
+                                            s.nombre AS servicio_nombre,
+                                            s.descripcion AS servicio_descripcion
+                                        FROM ev_paquetes.v_paquete_detalle d
+                                        LEFT JOIN ev_catalogo.opcion_servicio o ON o.id = d.opcion_servicio_id
+                                        LEFT JOIN ev_catalogo.servicio s ON s.id = o.servicio_id
+                                        WHERE d.paquete_id = :pid
                 """),
                 {"pid": id},
             ).mappings().all()
