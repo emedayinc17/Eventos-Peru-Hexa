@@ -215,11 +215,11 @@ export const IAM = {
 
   // ---------- Admin ----------
   /**
-   * Lista de usuarios con paginación.
+   * Lista de usuarios con paginación y filtros sencillos (email).
    * Devuelve `data.items` o un array simple (según backend).
    */
-  adminUsers: (limit = 20, offset = 0) =>
-    http("GET", `/admin/users${qs({ limit, offset })}`),
+  adminUsers: (limit = 20, offset = 0, email = undefined) =>
+    http("GET", `/admin/users${qs({ limit, offset, email })}`),
 
   /**
    * Crea usuario (ADMIN).

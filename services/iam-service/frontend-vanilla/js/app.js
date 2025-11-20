@@ -102,6 +102,16 @@ function show(id) {
 const roleOf = (u) => (u?.role || "").toString().toUpperCase();
 const userRole = () => roleOf(currentUser);
 
+// Escapa texto simple para evitar inyección en templates (muy básico)
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 // Currency helpers (global) used by multiple views
 function currencySymbol(code) {
   if (!code) return 'S/';
@@ -1160,11 +1170,54 @@ async function showPaqueteDetalle(paqueteOrId) {
       const title = nombre || (it.opcion_servicio_id || it.servicio_id || '-');
       const precioUnit = it.precio_unit_vigente || it.precio_unitario || it.precio || it.monto || null;
       const moneda = it.moneda || paquete.moneda || '';
+
+      // Proveedores (si el backend devolvió proveedores por item)
+      // Mostramos solo el proveedor "principal" (mejor nivel/rating) y un toggle para ver todos
+      let provHtml = '';
+      try {
+        const provs = Array.isArray(it.proveedores) ? it.proveedores.slice() : [];
+        // Deduplicar por id
+        const seen = new Set();
+        const uniq = [];
+        for (const p of provs) {
+          const id = String(p.proveedor_id || p.id || p.proveedor || '').trim();
+          if (!id) continue;
+          if (seen.has(id)) continue;
+          seen.add(id);
+          uniq.push(p);
+        }
+
+        if (uniq.length === 0) {
+          provHtml = '<div class="small text-muted">-</div>';
+        } else {
+          // ordenar por nivel desc, luego rating desc
+          uniq.sort((a,b) => {
+            const na = Number(a.nivel || 0);
+            const nb = Number(b.nivel || 0);
+            if (nb !== na) return nb - na;
+            const ra = Number(a.rating_prom || a.rating || 0);
+            const rb = Number(b.rating_prom || b.rating || 0);
+            return rb - ra;
+          });
+
+          const primary = uniq[0];
+          const pname = escapeHtml(primary.proveedor_nombre || primary.nombre || primary.name || primary.proveedor_id || 'Proveedor');
+          const pnivel = primary.nivel ? `<span class="badge bg-secondary ms-1">nivel ${escapeHtml(primary.nivel)}</span>` : '';
+
+          // Only show the primary provider name (sin correo ni teléfono). No toggle ni lista completa.
+          provHtml = `<div><strong>${pname}</strong>${pnivel}</div>`;
+        }
+      } catch (e) {
+        console.error('Error renderizando proveedores', e);
+        provHtml = '<div class="small text-muted">-</div>';
+      }
+
       return `
         <tr>
-          <td>${String(title)}</td>
+          <td>${escapeHtml(title)}</td>
           <td>${it.cantidad || 1}</td>
           <td>${precioUnit ? (currencySymbol(moneda) + formatAmount(Number(precioUnit), moneda)) : '-'}</td>
+          <td>${provHtml}</td>
         </tr>
       `;
     }).join('');
@@ -1185,9 +1238,9 @@ async function showPaqueteDetalle(paqueteOrId) {
               <h6>Servicios incluidos</h6>
               <div class="table-responsive">
                 <table class="table table-sm">
-                  <thead><tr><th>Servicio / Opción</th><th>Cantidad</th><th>Precio unit.</th></tr></thead>
+                  <thead><tr><th>Servicio / Opción</th><th>Cantidad</th><th>Precio unit.</th><th>Proveedores</th></tr></thead>
                   <tbody>
-                    ${itemsHtml || '<tr><td colspan="3" class="text-muted">No hay items detallados.</td></tr>'}
+                    ${itemsHtml || '<tr><td colspan="4" class="text-muted">No hay items detallados.</td></tr>'}
                   </tbody>
                 </table>
               </div>
@@ -2140,35 +2193,89 @@ async function loadUsers() {
   tbody.innerHTML = "";
   err.textContent = "";
   try {
-    const data = await IAM.adminUsers(adminLimit, adminOffset);
-    const items = (data && data.items) ? data.items : data;
-    adminTotal =
-      data && (data.total || data.count || (data.meta && data.meta.total)) ||
-      null;
+    const emailFilterEl = document.getElementById("admin-filter-email");
+    const emailFilter = emailFilterEl && String(emailFilterEl.value || "").trim();
 
-    (items ?? []).forEach((u) => {
-      const tr = document.createElement("tr");
-      const id = u.id ?? "";
-      const email = u.email ?? "";
-      const role = u.role ?? "";
-      const status = Number(u.status) === 1 ? "Activo" : "Inactivo";
+    // Si hay un filtro por email, haremos una recolección paginada de resultados
+    // para cubrir "todas las hojas" (todas las páginas). Esto asegura que
+    // la búsqueda encuentre coincidencias en todo el dataset aunque el backend
+    // no aplique filtros server-side. Hay un tope de seguridad para evitar loops.
+    async function fetchAllUsersByEmail(email) {
+      const perPage = 200; // chunk size
+      const maxRecords = 5000; // safety cap
+      let offsetLocal = 0;
+      const all = [];
+      while (all.length < maxRecords) {
+        const dataChunk = await IAM.adminUsers(perPage, offsetLocal, email || undefined);
+        const itemsChunk = (dataChunk && dataChunk.items) ? dataChunk.items : dataChunk;
+        if (!itemsChunk || itemsChunk.length === 0) break;
+        all.push(...itemsChunk);
+        if (itemsChunk.length < perPage) break; // última página
+        offsetLocal += perPage;
+      }
+      return all.slice(0, maxRecords);
+    }
 
-      tr.innerHTML = `
-        <td>${id}</td>
-        <td>${email}</td>
-        <td>${role}</td>
-        <td>${status}</td>
-        <td class="text-end">
-          <button class="btn btn-sm btn-outline-primary me-1 edit-user" data-id="${id}" title="Editar">
-            <i class="bi bi-pencil"></i>
-          </button>
-          <button class="btn btn-sm btn-outline-danger delete-user" data-id="${id}" title="Eliminar">
-            <i class="bi bi-trash"></i>
-          </button>
-        </td>
-      `;
-      tbody.appendChild(tr);
+    let items;
+    if (emailFilter) {
+      // Mostrar indicador simple mientras buscamos
+      err.textContent = "Buscando usuarios...";
+      items = await fetchAllUsersByEmail(emailFilter);
+      adminTotal = Array.isArray(items) ? items.length : null;
+      adminOffset = 0; // resetear paginación
+      err.textContent = "";
+    } else {
+      const data = await IAM.adminUsers(adminLimit, adminOffset);
+      items = (data && data.items) ? data.items : data;
+      adminTotal =
+        data && (data.total || data.count || (data.meta && data.meta.total)) ||
+        adminTotal;
+    }
+
+    // Fallback client-side: si el backend no aplicó el filtro, aplicar aquí
+    let filteredItems = items;
+    if (emailFilter && Array.isArray(items)) {
+      const q = String(emailFilter).toLowerCase();
+      filteredItems = items.filter(u => (u && u.email && String(u.email).toLowerCase().includes(q)));
+    }
+
+    console.log("[loadUsers] items received:", Array.isArray(items) ? items.length : items);
+
+    let appended = 0;
+    (filteredItems ?? []).forEach((u, idx) => {
+      try {
+        const tr = document.createElement("tr");
+        const id = u.id ?? "";
+        const email = u.email ?? "";
+        const role = u.role ?? "";
+        const status = Number(u.status) === 1 ? "Activo" : "Inactivo";
+
+        tr.innerHTML = `
+          <td>${id}</td>
+          <td>${email}</td>
+          <td>${role}</td>
+          <td>${status}</td>
+          <td class="text-end">
+            <button class="btn btn-sm btn-outline-primary me-1 edit-user" data-id="${id}" title="Editar">
+              <i class="bi bi-pencil"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger delete-user" data-id="${id}" title="Eliminar">
+              <i class="bi bi-trash"></i>
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+        appended++;
+      } catch (rowErr) {
+        console.error("[loadUsers] error rendering row index", idx, rowErr);
+        // show a lightweight debug row so the admin sees something
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td colspan="5" class="text-danger small">Error renderizando usuario en fila ${idx}</td>`;
+        tbody.appendChild(tr);
+      }
     });
+
+    console.log("[loadUsers] rows appended:", appended);
 
     tbody.querySelectorAll(".edit-user").forEach((btn) => {
       btn.addEventListener("click", async (e) => {
@@ -2253,6 +2360,7 @@ async function openEditModal(id) {
   const err = document.getElementById("edit-error");
   err.textContent = "";
   try {
+    console.log('[openEditModal] loading user', id);
     const u = await IAM.adminGetUser(id);
     form["id"].value = u.id;
     form["nombre"].value = u.nombre || "";
@@ -2260,7 +2368,25 @@ async function openEditModal(id) {
     form["role"].value = u.role || "CLIENTE";
     form["status"].value = String(u.status ?? 1);
     if (form["password"]) form["password"].value = "";
+    // Ensure the submit button is enabled and shows default text (in case a previous save left it disabled)
+    try {
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Guardar cambios';
+        submitBtn.classList.remove('btn-success');
+      }
+    } catch (btnErr) { console.warn('Could not reset submit button', btnErr); }
+
     editUserModal?.show();
+    // focus first input when modal shown
+    try {
+      const modalEl = document.getElementById('editUserModal');
+      modalEl?.addEventListener('shown.bs.modal', () => {
+        const first = form.querySelector('input[name="nombre"]') || form.querySelector('input');
+        try { first && first.focus(); } catch(e){}
+      }, { once: true });
+    } catch(e){}
   } catch (e) {
     alert("Error al cargar usuario: " + e.message);
   }
@@ -2588,6 +2714,20 @@ window.addEventListener("hashchange", router);
     if (filterStatus && !filterStatus._bound) {
       filterStatus.addEventListener("change", aplicarFiltrosAdmin);
       filterStatus._bound = true;
+    }
+
+    // Filtro por email (debounced)
+    const adminFilterEmail = document.getElementById("admin-filter-email");
+    if (adminFilterEmail && !adminFilterEmail._bound) {
+      let _admEmailTimeout = null;
+      adminFilterEmail.addEventListener("input", (ev) => {
+        if (_admEmailTimeout) clearTimeout(_admEmailTimeout);
+        _admEmailTimeout = setTimeout(() => {
+          adminOffset = 0; // resetear paginación al cambiar filtro
+          loadUsers();
+        }, 400);
+      });
+      adminFilterEmail._bound = true;
     }
 
     const clearFiltersBtn = document.getElementById("admin-clear-filters");
