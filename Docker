@@ -1,4 +1,4 @@
-docker build -t iam-service:1.0.0 -f services/iam-service/Dockerfile .
+docker build -t emeday17/iam-service:1.0.0 -f services/iam-service/Dockerfile .
 
 
 docker push emeday17/iam-service:1.0.0

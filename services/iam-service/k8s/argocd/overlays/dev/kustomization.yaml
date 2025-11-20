@@ -10,11 +10,11 @@ images:
     newTag: "1.0.0"
   - name: catalogo
     newName: emeday17/eventos-catalogo
-    newTag: "0.1.0"
+    newTag: "1.0.0"
   - name: proveedores
     newName: emeday17/eventos-proveedores
-    newTag: "0.1.0"
+    newTag: "1.0.0"
   - name: contratacion
     newName: emeday17/eventos-contratacion
-    newTag: "0.1.0"
+    newTag: "1.0.0"
 

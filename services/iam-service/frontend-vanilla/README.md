@@ -38,3 +38,5 @@ python -m http.server 8000
 
 docker build -t emeday17/eventos-iam-frontend:1.0.0 .
 docker push emeday17/eventos-iam-frontend:1.0.0
+
+docker build -t emeday17/eventos-iam-frontend:1.0.0 -f services/iam-service/Dockerfile E:\eventos-peru-hexagonal

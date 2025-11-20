@@ -674,3 +674,233 @@ FLUSH PRIVILEGES;
 -- SHOW GRANTS FOR 'app_api'@'%';
 -- SELECT * FROM ev_paquetes.v_paquete_precio_vigente_total;
 -- SELECT COUNT(*) FROM ev_mensajeria.email_outbox WHERE status=0;
+/* ============================================================
+   NUEVAS ESTRUCTURAS PARA FILTROS POR TIPO DE EVENTO 
+   (COMPATIBLE CON CÓDIGO EXISTENTE - NO ROMPE NADA)
+   ============================================================ */
+
+/* ============================================================
+   12.1) NUEVA TABLA: Relación Paquete-TipoEvento (Segura)
+   ============================================================ */
+CREATE TABLE IF NOT EXISTS ev_paquetes.paquete_tipo_evento (
+  id CHAR(36) PRIMARY KEY,
+  paquete_id CHAR(36) NOT NULL,
+  tipo_evento_id CHAR(36) NOT NULL,
+  es_principal TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_by CHAR(36) NULL,
+  UNIQUE KEY uq_paquete_tipo (paquete_id, tipo_evento_id),
+  INDEX idx_paquete_tipo_paquete (paquete_id),
+  INDEX idx_paquete_tipo_evento (tipo_evento_id),
+  INDEX idx_paquete_tipo_principal (es_principal),
+  INDEX idx_paquete_tipo_actor (created_by)
+) ENGINE=InnoDB;
+
+/* ============================================================
+   12.2) NUEVOS ÍNDICES PARA OPTIMIZACIÓN (Seguros)
+   ============================================================ */
+-- Índices para búsquedas rápidas por tipo de evento
+CREATE INDEX IF NOT EXISTS idx_servicio_tipo_filtro 
+ON ev_catalogo.servicio (tipo_evento_id, status, is_deleted);
+
+CREATE INDEX IF NOT EXISTS idx_opcion_servicio_activa 
+ON ev_catalogo.opcion_servicio (servicio_id, status, is_deleted);
+
+CREATE INDEX IF NOT EXISTS idx_paquete_filtro 
+ON ev_paquetes.paquete (status, is_deleted);
+
+/* ============================================================
+   12.3) NUEVAS VISTAS PARA FILTROS (Seguras - No reemplazan existentes)
+   ============================================================ */
+
+-- Vista: Servicios con información completa del tipo de evento
+CREATE OR REPLACE VIEW ev_catalogo.v_servicios_con_tipo AS
+SELECT 
+  s.id,
+  s.nombre,
+  s.descripcion,
+  s.tipo_evento_id,
+  te.nombre AS tipo_evento_nombre,
+  te.descripcion AS tipo_evento_descripcion,
+  s.status,
+  s.created_at
+FROM ev_catalogo.servicio s
+JOIN ev_catalogo.tipo_evento te ON s.tipo_evento_id = te.id
+WHERE s.is_deleted = 0 
+  AND s.status = 1
+  AND te.is_deleted = 0 
+  AND te.status = 1;
+
+-- Vista: Paquetes con tipos de evento (usando la nueva tabla de relación)
+CREATE OR REPLACE VIEW ev_paquetes.v_paquetes_con_tipo AS
+SELECT 
+  p.id,
+  p.codigo,
+  p.nombre,
+  p.descripcion,
+  p.status,
+  pte.tipo_evento_id,
+  te.nombre AS tipo_evento_nombre,
+  te.descripcion AS tipo_evento_descripcion,
+  COALESCE(pp.monto, vpp.monto_total_vigente) AS precio_actual,
+  COALESCE(pp.moneda, vpp.moneda) AS moneda
+FROM ev_paquetes.paquete p
+LEFT JOIN ev_paquetes.paquete_tipo_evento pte ON pte.paquete_id = p.id AND pte.es_principal = 1
+LEFT JOIN ev_catalogo.tipo_evento te ON te.id = pte.tipo_evento_id
+LEFT JOIN ev_paquetes.precio_paquete pp ON pp.paquete_id = p.id 
+  AND pp.vigente_desde <= CURRENT_DATE() 
+  AND (pp.vigente_hasta IS NULL OR pp.vigente_hasta >= CURRENT_DATE())
+LEFT JOIN ev_paquetes.v_paquete_precio_vigente_total vpp ON vpp.paquete_id = p.id
+WHERE p.is_deleted = 0 
+  AND p.status = 1;
+
+-- Vista: Catálogo completo filtrable por tipo de evento
+CREATE OR REPLACE VIEW ev_catalogo.v_catalogo_completo AS
+-- Servicios individuales
+SELECT 
+  'SERVICIO' AS tipo_producto,
+  s.id,
+  s.nombre,
+  s.descripcion,
+  s.tipo_evento_id,
+  te.nombre AS tipo_evento_nombre,
+  NULL AS paquete_id,
+  ops.precio_promedio,
+  ops.moneda,
+  s.created_at
+FROM ev_catalogo.servicio s
+JOIN ev_catalogo.tipo_evento te ON s.tipo_evento_id = te.id
+JOIN (
+  SELECT 
+    os.servicio_id,
+    AVG(ps.monto) AS precio_promedio,
+    ps.moneda
+  FROM ev_catalogo.opcion_servicio os
+  JOIN ev_catalogo.precio_servicio ps ON ps.opcion_servicio_id = os.id
+  WHERE ps.vigente_desde <= CURRENT_DATE() 
+    AND (ps.vigente_hasta IS NULL OR ps.vigente_hasta >= CURRENT_DATE())
+    AND os.is_deleted = 0 
+    AND os.status = 1
+  GROUP BY os.servicio_id, ps.moneda
+) ops ON ops.servicio_id = s.id
+WHERE s.is_deleted = 0 
+  AND s.status = 1
+  AND te.is_deleted = 0 
+  AND te.status = 1
+
+UNION ALL
+
+-- Paquetes
+SELECT 
+  'PAQUETE' AS tipo_producto,
+  p.id,
+  p.nombre,
+  p.descripcion,
+  pte.tipo_evento_id,
+  te.nombre AS tipo_evento_nombre,
+  p.id AS paquete_id,
+  COALESCE(pp.monto, vpp.monto_total_vigente) AS precio_promedio,
+  COALESCE(pp.moneda, vpp.moneda) AS moneda,
+  p.created_at
+FROM ev_paquetes.paquete p
+LEFT JOIN ev_paquetes.paquete_tipo_evento pte ON pte.paquete_id = p.id AND pte.es_principal = 1
+LEFT JOIN ev_catalogo.tipo_evento te ON te.id = pte.tipo_evento_id
+LEFT JOIN ev_paquetes.precio_paquete pp ON pp.paquete_id = p.id 
+  AND pp.vigente_desde <= CURRENT_DATE() 
+  AND (pp.vigente_hasta IS NULL OR pp.vigente_hasta >= CURRENT_DATE())
+LEFT JOIN ev_paquetes.v_paquete_precio_vigente_total vpp ON vpp.paquete_id = p.id
+WHERE p.is_deleted = 0 
+  AND p.status = 1;
+
+/* ============================================================
+   12.4) POBLAR NUEVA TABLA CON DATOS EXISTENTES
+   ============================================================ */
+
+-- Relacionar paquetes existentes con tipos de evento basado en sus servicios
+INSERT IGNORE INTO ev_paquetes.paquete_tipo_evento (id, paquete_id, tipo_evento_id, es_principal, created_by)
+SELECT 
+  UUID(),
+  p.id,
+  (
+    SELECT s.tipo_evento_id 
+    FROM ev_paquetes.item_paquete ip
+    JOIN ev_catalogo.opcion_servicio os ON ip.opcion_servicio_id = os.id
+    JOIN ev_catalogo.servicio s ON os.servicio_id = s.id
+    WHERE ip.paquete_id = p.id
+    GROUP BY s.tipo_evento_id
+    ORDER BY COUNT(*) DESC
+    LIMIT 1
+  ) AS tipo_evento_id,
+  1,
+  p.created_by
+FROM ev_paquetes.paquete p
+WHERE p.is_deleted = 0 
+  AND p.status = 1;
+
+-- Para el paquete premium existente, asignar explícitamente a "Matrimonio"
+UPDATE ev_paquetes.paquete_tipo_evento pte
+JOIN ev_paquetes.paquete p ON pte.paquete_id = p.id
+SET pte.tipo_evento_id = '11111111-1111-1111-1111-111111111111'
+WHERE p.codigo = 'PKG-PREMIUM-100';
+
+/* ============================================================
+   12.5) NUEVOS PERMISOS PARA LAS ESTRUCTURAS NUEVAS
+   ============================================================ */
+
+-- Permisos para la nueva tabla
+GRANT SELECT, INSERT, UPDATE ON ev_paquetes.paquete_tipo_evento TO 'app_paquetes'@'%';
+GRANT SELECT ON ev_paquetes.paquete_tipo_evento TO 'app_catalogo'@'%';
+GRANT SELECT ON ev_paquetes.paquete_tipo_evento TO 'app_api'@'%';
+GRANT SELECT ON ev_paquetes.paquete_tipo_evento TO 'app_contratacion'@'%';
+
+/* ============================================================
+   12.6) CONSULTAS DE EJEMPLO PARA USAR LOS FILTROS NUEVOS
+   ============================================================ */
+
+-- Ejemplo 1: Servicios por tipo de evento
+-- SELECT * FROM ev_catalogo.v_servicios_con_tipo 
+-- WHERE tipo_evento_id = '11111111-1111-1111-1111-111111111111';
+
+-- Ejemplo 2: Paquetes por tipo de evento  
+-- SELECT * FROM ev_paquetes.v_paquetes_con_tipo 
+-- WHERE tipo_evento_id = '11111111-1111-1111-1111-111111111111';
+
+-- Ejemplo 3: Catálogo completo filtrado por tipo
+-- SELECT * FROM ev_catalogo.v_catalogo_completo 
+-- WHERE tipo_evento_id = '11111111-1111-1111-1111-111111111111'
+-- ORDER BY tipo_producto, precio_promedio;
+
+-- Ejemplo 4: Búsqueda por nombre de tipo de evento
+-- SELECT * FROM ev_catalogo.v_catalogo_completo 
+-- WHERE tipo_evento_nombre LIKE '%Matrimonio%';
+
+/* ============================================================
+   12.7) VERIFICACIÓN DE LAS NUEVAS ESTRUCTURAS
+   ============================================================ */
+
+-- Verificar que las nuevas vistas funcionen
+SELECT 
+  'Servicios con tipo' as verificación,
+  COUNT(*) as total 
+FROM ev_catalogo.v_servicios_con_tipo
+UNION ALL
+SELECT 
+  'Paquetes con tipo',
+  COUNT(*) 
+FROM ev_paquetes.v_paquetes_con_tipo
+UNION ALL
+SELECT 
+  'Relaciones paquete-tipo',
+  COUNT(*) 
+FROM ev_paquetes.paquete_tipo_evento;
+
+-- Mostrar algunos ejemplos
+SELECT 'Ejemplos de servicios por tipo:' as info;
+SELECT tipo_evento_nombre, COUNT(*) as cantidad
+FROM ev_catalogo.v_servicios_con_tipo
+GROUP BY tipo_evento_nombre;
+
+SELECT 'Ejemplos de paquetes por tipo:' as info;
+SELECT tipo_evento_nombre, COUNT(*) as cantidad
+FROM ev_paquetes.v_paquetes_con_tipo
+GROUP BY tipo_evento_nombre;

@@ -359,8 +359,18 @@ async function loadCatalogo() {
   if (carouselWrap) carouselWrap.classList.add("d-none");
 
   try {
-    const paquetes = await CATALOGO.paquetes();
-    const list = Array.isArray(paquetes) ? paquetes : paquetes?.items ?? [];
+  const paquetes = await CATALOGO.paquetes();
+  const list = Array.isArray(paquetes) ? paquetes : paquetes?.items ?? [];
+
+  // cache for client-side filtering
+  window.__cachedCatalogoPaquetes = list;
+
+  // ensure filter UI exists and is wired
+  try { ensureCatalogFilters(); } catch(e) { console.error('Error inicializando filtros', e); }
+
+  // apply any currently selected filters before rendering
+  const activeFilters = getActiveCatalogFilters();
+  const filteredList = applyCatalogFiltersToList(list, activeFilters);
 
     if (!list.length) {
       if (alertBox) {
@@ -375,7 +385,7 @@ async function loadCatalogo() {
 
     // --- Tarjetas estilo grid / watchlist ---
     const fragment = document.createDocumentFragment();
-    list.forEach((p, idx) => {
+  filteredList.forEach((p, idx) => {
       const col = document.createElement("div");
       col.className = "col-12 col-md-6 col-lg-4";
 
@@ -533,7 +543,7 @@ async function loadCatalogo() {
 
     // --- Carrusel basado en los mismos paquetes (resumen) ---
     if (carouselInner && carouselWrap) {
-      list.forEach((p, idx) => {
+      filteredList.forEach((p, idx) => {
         const item = document.createElement("div");
         item.className = "carousel-item" + (idx === 0 ? " active" : "");
 
@@ -596,7 +606,7 @@ async function loadCatalogo() {
         carouselInner.appendChild(item);
       });
 
-      if (list.length > 1) {
+      if (filteredList.length > 1) {
         carouselWrap.classList.remove("d-none");
       } else {
         carouselWrap.classList.add("d-none");
@@ -614,6 +624,413 @@ async function loadCatalogo() {
   } finally {
     const reloadBtn2 = document.getElementById("btn-catalogo-reload");
     if (reloadBtn2) reloadBtn2.disabled = false;
+  }
+}
+
+// ---- FILTROS CLIENT-SIDE ----
+// List provided by the user (event types / service tags)
+const CATALOG_FILTERS = [
+  "Boda", "Matrimonio", "Cena de gala", "Conferencia", "Congreso", "Feria", "Convención",
+  "Exposición", "Lanzamiento de producto", "Concierto", "Festival", "Evento deportivo",
+  "Desfile", "Reunión corporativa", "Inauguración", "Cocktail", "Cumpleaños", "Aniversario",
+  "Baby shower", "Bautizo", "Primera comunión", "Grados", "Promoción", "Cena privada",
+  "Team building", "Capacitación", "Workshop", "Seminario", "Webinar", "Pixels", "Stand",
+  "Decoración", "Ambientación", "Audiovisuales", "Sonido", "Iluminación", "Fotografía", "Video",
+  "Catering", "Banquete", "Bar", "Mixología", "Torta", "Mesa de postres", "Mobiliario",
+  "Transporte", "Logística", "Seguridad", "Recepción", "Hostess", "Animación", "Show",
+  "Maestro de ceremonias", "DJ", "Banda en vivo", "Artista", "Montaje", "Desmontaje", "Limpieza",
+  "Invitaciones", "Registro", "Control de acceso", "Streaming", "Traducción simultánea", "Tarimas",
+  "Escenografía", "Pantallas", "Proyección", "Publicidad", "Merchandising", "Merch", "Photobooth"
+];
+
+function ensureCatalogFilters() {
+  const container = document.getElementById('catalogo-filters');
+  if (!container) return;
+  if (container._initialized) return;
+
+  // Build nested combobox UI: Tipo Evento (searchable) -> Servicio (searchable, filtered)
+  const row = document.createElement('div');
+  row.className = 'd-flex flex-column flex-md-row gap-2 align-items-start';
+
+  // Tipo evento select + Servicio select (enhanced with TomSelect when available)
+  const tipoWrap = document.createElement('div');
+  tipoWrap.className = 'flex-grow-1';
+  const tipoLabel = document.createElement('label');
+  tipoLabel.className = 'form-label small mb-1';
+  tipoLabel.textContent = 'Tipo de evento';
+  const tipoSelect = document.createElement('select');
+  tipoSelect.className = 'form-select form-select-sm';
+  tipoSelect.id = 'catalogo-filter-tipo-select';
+  tipoWrap.appendChild(tipoLabel);
+  tipoWrap.appendChild(tipoSelect);
+
+  // Servicio select
+  const servicioWrap = document.createElement('div');
+  servicioWrap.className = 'flex-grow-1';
+  const servicioLabel = document.createElement('label');
+  servicioLabel.className = 'form-label small mb-1';
+  servicioLabel.textContent = 'Tipo de servicio';
+  const servicioSelect = document.createElement('select');
+  servicioSelect.className = 'form-select form-select-sm';
+  servicioSelect.id = 'catalogo-filter-servicio-select';
+  servicioWrap.appendChild(servicioLabel);
+  servicioWrap.appendChild(servicioSelect);
+
+  // Controls (clear only; filtering is live)
+  const controlsWrap = document.createElement('div');
+  controlsWrap.className = 'd-flex flex-column gap-1';
+  const clearBtn2 = document.createElement('button');
+  clearBtn2.type = 'button';
+  clearBtn2.className = 'btn btn-sm btn-outline-secondary';
+  clearBtn2.textContent = 'Limpiar';
+  controlsWrap.appendChild(clearBtn2);
+
+  // active count
+  const count = document.createElement('div');
+  count.id = 'catalogo-filters-count';
+  count.className = 'small text-secondary mt-1';
+  controlsWrap.appendChild(count);
+
+  row.appendChild(tipoWrap);
+  row.appendChild(servicioWrap);
+  row.appendChild(controlsWrap);
+
+  container.appendChild(row);
+
+  // fill datalists using meta when available, otherwise fall back to static tags
+  function populateTipoOptions() {
+    const tipos = window.__catalogMetaTipos || CATALOG_FILTERS.map(x => ({ nombre: x, id: x }));
+    // if TomSelect is available, use it, otherwise populate the <select>
+    const selectEl = document.getElementById('catalogo-filter-tipo-select');
+    if (window.__catalogoTipoTS && typeof window.__catalogoTipoTS.clearOptions === 'function') {
+      window.__catalogoTipoTS.clearOptions();
+      tipos.forEach(t => {
+        const val = t.nombre || t.name || String(t.id || t);
+        window.__catalogoTipoTS.addOption({ value: val, text: val });
+      });
+      window.__catalogoTipoTS.refreshOptions(false);
+    } else if (selectEl) {
+      selectEl.innerHTML = '';
+      tipos.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.nombre || t.name || String(t.id || t);
+        opt.textContent = t.nombre || t.name || String(t.id || t);
+        selectEl.appendChild(opt);
+      });
+    }
+  }
+
+  function populateServicioOptions(selectedTipo) {
+    const servicios = window.__catalogMetaServicios || [];
+    let list = servicios || [];
+    if (selectedTipo) {
+      const sel = selectedTipo.toString().toLowerCase();
+      list = servicios.filter(s => String(s.tipo_evento_id || s.tipo_id || '').toLowerCase() === sel || (s.tipo_nombre || s.tipo || '').toString().toLowerCase().includes(sel) || (s.nombre || s.name || '').toString().toLowerCase().includes(sel));
+      if (!list.length) {
+        list = servicios.filter(s => (s.nombre || s.name || '').toString().toLowerCase().includes(sel));
+      }
+    }
+
+    const selectEl = document.getElementById('catalogo-filter-servicio-select');
+    if (!list.length && (!window.__catalogMetaServicios || !window.__catalogMetaServicios.length)) {
+      // fallback static tags
+      if (window.__catalogoServicioTS && typeof window.__catalogoServicioTS.clearOptions === 'function') {
+        window.__catalogoServicioTS.clearOptions();
+        (CATALOG_FILTERS || []).forEach(lbl => window.__catalogoServicioTS.addOption({ value: lbl, text: lbl }));
+        window.__catalogoServicioTS.refreshOptions(false);
+      } else if (selectEl) {
+        selectEl.innerHTML = '';
+        (CATALOG_FILTERS || []).forEach(lbl => {
+          const opt = document.createElement('option'); opt.value = lbl; opt.textContent = lbl; selectEl.appendChild(opt);
+        });
+      }
+      return;
+    }
+
+    if (window.__catalogoServicioTS && typeof window.__catalogoServicioTS.clearOptions === 'function') {
+      window.__catalogoServicioTS.clearOptions();
+      list.forEach(s => {
+        const val = s.nombre || s.name || s.id || '';
+        window.__catalogoServicioTS.addOption({ value: val, text: val });
+      });
+      window.__catalogoServicioTS.refreshOptions(false);
+    } else if (selectEl) {
+      selectEl.innerHTML = '';
+      list.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.nombre || s.name || s.id || '';
+        opt.textContent = s.nombre || s.name || s.id || '';
+        selectEl.appendChild(opt);
+      });
+    }
+  }
+
+  // events: live filtering while selecting
+  function onTipoChange(val) {
+    populateServicioOptions(val);
+    rerenderCatalogWithFilters(getActiveCatalogFilters());
+  }
+
+  function onServicioChange() {
+    rerenderCatalogWithFilters(getActiveCatalogFilters());
+  }
+
+  // wire enhanced controls (TomSelect) if available
+  try {
+    const tipoSel = document.getElementById('catalogo-filter-tipo-select');
+    const servSel = document.getElementById('catalogo-filter-servicio-select');
+    if (window.TomSelect) {
+      if (window.__catalogoTipoTS) try { window.__catalogoTipoTS.destroy(); } catch (e) {}
+      if (window.__catalogoServicioTS) try { window.__catalogoServicioTS.destroy(); } catch (e) {}
+
+      window.__catalogoTipoTS = new TomSelect(tipoSel, {
+        valueField: 'value', labelField: 'text', searchField: ['text'], maxItems: 1,
+        create: false, placeholder: 'Buscar tipo de evento...', allowEmptyOption: true
+      });
+      window.__catalogoServicioTS = new TomSelect(servSel, {
+        valueField: 'value', labelField: 'text', searchField: ['text'], maxItems: 1,
+        create: false, placeholder: 'Buscar tipo de servicio...', allowEmptyOption: true
+      });
+
+      window.__catalogoTipoTS.on('change', v => onTipoChange(v));
+      window.__catalogoServicioTS.on('change', v => onServicioChange());
+    } else {
+      // fallback to native select/input
+      const tipoNative = document.getElementById('catalogo-filter-tipo-select');
+      const servNative = document.getElementById('catalogo-filter-servicio-select');
+      if (tipoNative) tipoNative.addEventListener('input', (e) => onTipoChange(e.target.value || ''));
+      if (servNative) servNative.addEventListener('input', onServicioChange);
+    }
+  } catch (e) {
+    console.error('Error inicializando TomSelect para filtros', e);
+  }
+
+  // clear button
+  clearBtn2.addEventListener('click', () => {
+    try {
+      if (window.__catalogoTipoTS) window.__catalogoTipoTS.clear(true);
+      if (window.__catalogoServicioTS) window.__catalogoServicioTS.clear(true);
+    } catch (e) {
+      const t = document.getElementById('catalogo-filter-tipo-select'); if (t) t.value = '';
+      const s = document.getElementById('catalogo-filter-servicio-select'); if (s) s.value = '';
+    }
+    populateServicioOptions('');
+    rerenderCatalogWithFilters({});
+  });
+
+  // initial population
+  populateTipoOptions();
+  populateServicioOptions('');
+
+  container._initialized = true;
+}
+
+function getActiveCatalogFilters() {
+  let tipo = '';
+  let servicio = '';
+  try {
+    if (window.__catalogoTipoTS && typeof window.__catalogoTipoTS.getValue === 'function') {
+      tipo = window.__catalogoTipoTS.getValue() || '';
+    } else {
+      tipo = (document.getElementById('catalogo-filter-tipo-select') || {}).value || '';
+    }
+    if (window.__catalogoServicioTS && typeof window.__catalogoServicioTS.getValue === 'function') {
+      servicio = window.__catalogoServicioTS.getValue() || '';
+    } else {
+      servicio = (document.getElementById('catalogo-filter-servicio-select') || {}).value || '';
+    }
+  } catch (e) {
+    tipo = (document.getElementById('catalogo-filter-tipo-select') || {}).value || '';
+    servicio = (document.getElementById('catalogo-filter-servicio-select') || {}).value || '';
+  }
+  const countEl = document.getElementById('catalogo-filters-count');
+  const count = (tipo ? 1 : 0) + (servicio ? 1 : 0);
+  if (countEl) countEl.textContent = count ? `${count} filtro(s) activos` : '';
+  return { tipo: tipo || null, servicio: servicio || null };
+}
+
+function applyCatalogFiltersToList(list, activeFilters) {
+  if (!activeFilters) return list;
+  const tipo = (activeFilters.tipo || '').toString().toLowerCase();
+  const servicio = (activeFilters.servicio || '').toString().toLowerCase();
+  if (!tipo && !servicio) return list;
+
+  return list.filter(p => {
+    let okTipo = true;
+    let okServicio = true;
+
+    // Tipo filtering: try structured fields first, otherwise text-search
+    if (tipo) {
+      okTipo = false;
+      // check direct package tipo fields
+      if (String(p.tipo_evento_id || p.tipo_id || '').toLowerCase() === tipo) okTipo = true;
+      if (!okTipo && String(p.tipo_nombre || p.tipo || '').toLowerCase().includes(tipo)) okTipo = true;
+      // check servicios entries
+      if (!okTipo && Array.isArray(p.servicios)) {
+        okTipo = p.servicios.some(s => String(s.tipo_evento_id || s.tipo_id || '').toLowerCase() === tipo || (s.tipo_nombre || s.tipo || '').toString().toLowerCase().includes(tipo));
+      }
+      // fallback: search in name/description
+      if (!okTipo) {
+        const text = ((p.nombre||'') + ' ' + (p.descripcion||'')).toLowerCase();
+        if (text.indexOf(tipo) !== -1) okTipo = true;
+      }
+    }
+
+    if (servicio) {
+      okServicio = false;
+      // check servicios entries names/ids
+      if (Array.isArray(p.servicios)) {
+        okServicio = p.servicios.some(s => String(s.id || s.opcion_servicio_id || s.servicio_id || s.nombre || s.name || '').toLowerCase().includes(servicio));
+      }
+      // check package-level fields
+      if (!okServicio) {
+        const text = ((p.nombre||'') + ' ' + (p.descripcion||'') + ' ' + JSON.stringify(p.servicios || [])).toLowerCase();
+        if (text.indexOf(servicio) !== -1) okServicio = true;
+      }
+    }
+
+    return okTipo && okServicio;
+  });
+}
+
+function rerenderCatalogWithFilters(activeFilters) {
+  try {
+    const all = window.__cachedCatalogoPaquetes || [];
+    const filtered = applyCatalogFiltersToList(all, activeFilters);
+    // clear current DOM elements and re-render by calling loadCatalogoRender helpers
+    // Instead of duplicating rendering code, call a lightweight renderer: we set a flag and call loadCatalogo() but avoid re-fetch
+    renderCatalogFromCache(filtered);
+  } catch (e) { console.error('Error aplicando filtros', e); }
+}
+
+function renderCatalogFromCache(list) {
+  // minimal rendering: rebuild cards and carousel using same logic as loadCatalogo but without network calls
+  const cardsRow = document.getElementById("catalogo-cards");
+  const carouselInner = document.getElementById("catalogo-carousel-inner");
+  const carouselWrap = document.getElementById("catalogo-carousel-wrapper");
+  if (!cardsRow) return;
+  cardsRow.innerHTML = '';
+  if (carouselInner) carouselInner.innerHTML = '';
+  if (carouselWrap) carouselWrap.classList.add('d-none');
+
+  if (!list || !list.length) {
+    const alertBox = document.getElementById('catalogo-alert');
+    if (alertBox) {
+      alertBox.className = 'alert alert-warning';
+      alertBox.textContent = 'No hay paquetes que coincidan con los filtros seleccionados.';
+      alertBox.classList.remove('d-none');
+    }
+    return;
+  } else {
+    const alertBox = document.getElementById('catalogo-alert');
+    if (alertBox) alertBox.classList.add('d-none');
+  }
+
+  // reuse existing code paths by temporarily mapping list into the same DOM creation used in loadCatalogo
+  // We'll call the same card creation code by emulating the inner forEach used previously.
+  const fragment = document.createDocumentFragment();
+  list.forEach((p, idx) => {
+    const col = document.createElement("div");
+    col.className = "col-12 col-md-6 col-lg-4";
+    const card = document.createElement("div");
+    card.className = "card mb-3 shadow-sm position-relative";
+    const body = document.createElement("div");
+    body.className = "card-body d-flex flex-column";
+    const title = document.createElement("h5");
+    title.className = "card-title mb-1";
+    title.textContent = p.nombre || p.name || `Paquete ${idx + 1}`;
+    const desc = document.createElement("p");
+    desc.className = "card-text small text-muted mb-2";
+    desc.textContent = p.descripcion || p.description || "Sin descripción.";
+
+    // price resolution (reuse small helper from loadCatalogo)
+    function resolvePrice(obj) {
+      if (!obj) return null;
+      const direct = obj.monto_total ?? obj.monto ?? obj.precio ?? obj.precio_min ?? obj.precio_unitario ?? obj.amount ?? obj.price ?? null;
+      if (direct != null && !Number.isNaN(Number(direct))) {
+        return { amount: Number(direct), currency: obj.moneda ?? obj.currency ?? 'PEN' };
+      }
+      const pp = obj.precio_paquete ?? obj.precio_paquetes ?? obj.precios ?? obj.price_list ?? null;
+      if (pp) {
+        const rows = Array.isArray(pp) ? pp.slice() : [pp];
+        let sel = rows.find(r => r.vigente_hasta == null) || rows.sort((a,b) => new Date(b.vigente_desde) - new Date(a.vigente_desde))[0];
+        if (sel) {
+          const m = sel.monto ?? sel.amount ?? sel.price ?? null;
+          const c = sel.moneda ?? sel.currency ?? obj.moneda ?? 'PEN';
+          if (m != null && !Number.isNaN(Number(m))) return { amount: Number(m), currency: c };
+        }
+      }
+      return null;
+    }
+    function currencySymbol(code) { if (!code) return 'S/'; const c = String(code).toUpperCase(); if (c === 'PEN' || c === 'PEN-S' || c === 'PESO') return 'S/'; if (c === 'USD' || c === 'US' || c === 'DOLAR' || c === 'USD$') return '$'; return c + ' '; }
+    function formatAmount(amount) { try { return new Intl.NumberFormat('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount); } catch (e) { return Number(amount).toFixed(2); } }
+
+    const priceInfo = resolvePrice(p);
+    const priceBadge = document.createElement("div");
+    priceBadge.className = "position-absolute top-0 end-0 m-2 badge rounded-pill";
+    if (priceInfo && priceInfo.amount != null) {
+      priceBadge.classList.add( "text-white");
+      priceBadge.style.fontSize = "0.95rem";
+      priceBadge.textContent = `${currencySymbol(priceInfo.currency)}${formatAmount(priceInfo.amount)}`;
+    } else {
+      priceBadge.classList.add("bg-secondary", "text-white");
+      priceBadge.style.fontSize = "0.85rem";
+      priceBadge.textContent = "Consultar precio";
+    }
+
+    const priceContainer = document.createElement("div");
+    priceContainer.className = "card-price mb-2";
+    const priceBox = document.createElement("div");
+    priceBox.className = "mb-2 d-flex align-items-baseline gap-2";
+    const priceMain = document.createElement("div");
+    priceMain.className = "h5 fw-bold mb-0";
+    if (priceInfo && priceInfo.amount != null) { priceMain.classList.add('text-success'); priceMain.textContent = `Desde ${currencySymbol(priceInfo.currency)}${formatAmount(priceInfo.amount)}`; } else { priceMain.textContent = 'Precio a consultar'; }
+    priceBox.appendChild(priceMain);
+    priceContainer.appendChild(priceBox);
+
+    const meta = document.createElement("div");
+    const servicios = p.servicios || p.services || [];
+    if (Array.isArray(servicios) && servicios.length) {
+      const snippet = servicios.slice(0, 2).map(s => s.nombre || s.name || String(s)).join(', ');
+      meta.textContent = `Incluye: ${snippet}` + (servicios.length > 2 ? ` +${servicios.length - 2} más` : '');
+    } else {
+      meta.textContent = "Servicios no detallados.";
+    }
+
+    const footer = document.createElement('div');
+    footer.className = 'mt-3 mt-auto d-flex justify-content-between align-items-center small gap-2 card-footer-cta';
+    const codeBadge = document.createElement('span'); codeBadge.className = 'badge text-bg-primary ms-auto'; codeBadge.textContent = p.codigo || p.code || p.id || `PK-${idx + 1}`;
+    const cta = document.createElement('div'); cta.className = 'd-flex gap-2 align-items-center';
+    const verBtn = document.createElement('button'); verBtn.className = 'btn btn-sm btn-outline-secondary'; verBtn.textContent = 'Ver detalle'; verBtn.addEventListener('click', (ev) => { ev.preventDefault(); showPaqueteDetalle(p); });
+    const btn = document.createElement('button'); btn.className = 'btn btn-sm btn-primary'; btn.textContent = 'Reservar / Contratar'; btn.addEventListener('click', () => solicitarContratacionDesdeCatalogo(p));
+    cta.appendChild(verBtn); cta.appendChild(btn);
+
+    body.appendChild(title); body.appendChild(desc); body.appendChild(priceContainer); body.appendChild(meta); footer.appendChild(codeBadge); footer.appendChild(cta); body.appendChild(footer);
+    card.appendChild(body); card.appendChild(priceBadge); col.appendChild(card); fragment.appendChild(col);
+  });
+  cardsRow.appendChild(fragment);
+
+  if (carouselInner && carouselWrap) {
+    list.forEach((p, idx) => {
+      const item = document.createElement('div');
+      item.className = 'carousel-item' + (idx === 0 ? ' active' : '');
+      const inner = document.createElement('div');
+      inner.className = 'd-flex flex-column flex-md-row align-items-stretch p-4 bg-white border rounded-3 shadow-sm gap-3';
+      inner.style.minHeight = '160px';
+      const left = document.createElement('div'); left.className = 'flex-grow-1';
+      const title = document.createElement('h5'); title.className = 'mb-1'; title.textContent = p.nombre || p.name || `Paquete ${idx + 1}`;
+      const desc = document.createElement('p'); desc.className = 'mb-2 small text-muted'; desc.textContent = p.descripcion || p.description || 'Sin descripción.';
+      const meta = document.createElement('div'); meta.className = 'small text-secondary'; const servicios = p.servicios || p.services || []; if (Array.isArray(servicios) && servicios.length) { meta.textContent = `Incluye ${servicios.length} servicio(s).`; } else { meta.textContent = 'Servicios no detallados.'; }
+      left.appendChild(title); left.appendChild(desc); left.appendChild(meta);
+      const right = document.createElement('div'); right.className = 'd-flex flex-column justify-content-end align-items-end';
+      const cta = document.createElement('button'); cta.className = 'btn btn-sm btn-outline-primary'; cta.textContent = 'Contratar ahora'; cta.addEventListener('click', () => solicitarContratacionDesdeCatalogo(p)); right.appendChild(cta);
+      inner.appendChild(left); inner.appendChild(right); item.appendChild(inner); carouselInner.appendChild(item);
+    });
+    if (list.length > 1) {
+      carouselWrap.classList.remove('d-none');
+    } else {
+      carouselWrap.classList.add('d-none');
+    }
   }
 }
 let loadingCatalogoMeta = false;
@@ -643,8 +1060,12 @@ async function loadCatalogoMeta() {
       CATALOGO.servicios(),   // GET /v1/catalogo/servicios
     ]);
 
-    const tiposList      = Array.isArray(tipos)     ? tipos     : (tipos?.items ?? []);
-    const serviciosList  = Array.isArray(servicios) ? servicios : (servicios?.items ?? []);
+  const tiposList      = Array.isArray(tipos)     ? tipos     : (tipos?.items ?? []);
+  const serviciosList  = Array.isArray(servicios) ? servicios : (servicios?.items ?? []);
+
+  // expose meta for filters to use
+  window.__catalogMetaTipos = tiposList;
+  window.__catalogMetaServicios = serviciosList;
 
     // ---------- TIPOS ----------
     if (tiposListEl) {
