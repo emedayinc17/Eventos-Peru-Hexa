@@ -3,3 +3,7 @@ docker build -t emeday17/iam-service:1.0.0 -f services/iam-service/Dockerfile .
 
 docker push emeday17/iam-service:1.0.0
 docker push emeday17/iam-service:latest
+
+docker build -t emeday17/catalogo-service:1.0.0 -f services/catalogo-service/Dockerfile .
+
+docker push emeday17/catalogo-service:1.0.0

@@ -8,7 +8,7 @@ resources:
   - ingress/ingress.yaml
   - services/db_mysql
   - services/iam/deploy-svc.yaml
-#  - services/catalogo/deploy-svc.yaml
+  - services/catalogo/deploy-svc.yaml
 #  - services/proveedores/deploy-svc.yaml
 #  - services/contratacion/deploy-svc.yaml
 

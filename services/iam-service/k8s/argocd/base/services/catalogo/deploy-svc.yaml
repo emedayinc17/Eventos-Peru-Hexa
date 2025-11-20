@@ -41,19 +41,19 @@ spec:
             - name: PYTHONPATH
               value: /app/libs:/app/services/catalogo-service
             - name: PORT
-              value: "8000"
+              value: "8020"
           command: ["uvicorn"]
           args:
             - app.main:app
             - --host
             - 0.0.0.0
             - --port
-            - "8000"
+            - "8020"
             - --app-dir
             - /app/services/catalogo-service
           ports:
             - name: http
-              containerPort: 8000
+              containerPort: 8020
           resources:
             requests: { cpu: "50m",  memory: "128Mi" }
             limits:   { cpu: "250m", memory: "256Mi" }
@@ -75,5 +75,5 @@ spec:
   selector: { app: catalogo-service }
   ports:
     - name: http
-      port: 80
-      targetPort: 8000
+      port: 8020
+      targetPort: 8020
