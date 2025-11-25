@@ -15,7 +15,7 @@ app = FastAPI(title="Contratacion Service", version="0.1.0", docs_url="/docs", r
 # 🔥 CORS ABIERTO (solo desarrollo)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],      # <--- IMPORTANTE
+    allow_origins=settings.CORS_ORIGINS.split(","),      # <--- IMPORTANTE
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

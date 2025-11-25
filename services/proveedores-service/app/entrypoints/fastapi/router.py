@@ -13,6 +13,19 @@ from ev_shared.db import session_scope
 # 👉 HTTP Bearer para endpoints protegidos (muestra Authorize en Swagger)
 bearer_scheme = HTTPBearer(auto_error=True)
 
+# === MIDDLEWARE DE VALIDACIÓN INTERNA ===
+def validate_internal_request(
+    x_service_token: str = Header(None, alias="X-Service-Token"),
+    settings: Settings = Depends(lambda: Settings()),
+):
+    """
+    Valida requests internas de otros servicios.
+    Usa API Key compartida (env: INTERNAL_SERVICE_TOKEN).
+    """
+    if x_service_token != settings.INTERNAL_SERVICE_TOKEN:
+        raise HTTPException(status_code=403, detail="Token de servicio inválido")
+    return True
+
 def validate_token(
     creds: HTTPAuthorizationCredentials = Security(bearer_scheme),
     settings: Settings = Depends(lambda: Settings()),
@@ -42,6 +55,7 @@ class CrearHoldIn(BaseModel):
     fin: str = Field(..., description="Datetime ISO, ej: 2025-10-14T18:00:00")
     ttl_min: int = Field(default=30, ge=5, le=1440, description="Minutos hasta expiración (default 30)")
     correlation_id: Optional[str] = Field(default=None)
+    created_by: Optional[str] = Field(default="contratacion-service", description="Identificador del servicio que crea el hold")
 
 class HoldOut(BaseModel):
     id: str
@@ -73,10 +87,11 @@ def build_api_router(settings: Settings) -> APIRouter:
     def health():
         return {"status": "ok"}
 
-    # GET /v1/proveedores?servicio_id=...&fecha=... (público)
+    # GET /v1/proveedores/disponibles?servicio_id=...&fecha=... (público)
+    # Consulta proveedores disponibles (renombrado para claridad semántica)
     # Intenta chequear reservas confirmadas (ev_contratacion.reserva).
     # Si MySQL devuelve 1142 (permiso denegado), cae a un fallback sin ese chequeo.
-    @r.get("/v1/proveedores", openapi_extra={"security": []})
+    @r.get("/v1/proveedores/disponibles", openapi_extra={"security": []})
     def buscar_disponibles(
         servicio_id: str,
         fecha: str,
@@ -168,21 +183,42 @@ def build_api_router(settings: Settings) -> APIRouter:
 
         return [dict(r) for r in rows]
 
-    # POST /v1/proveedores/reservas (protegido)
-    @r.post("/v1/proveedores/reservas", status_code=status.HTTP_201_CREATED, response_model=HoldOut)
-    def crear_reserva_temporal(
+    # POST /internal/holds (INTERNO - solo service-to-service)
+    @r.post("/internal/holds", status_code=status.HTTP_201_CREATED, response_model=HoldOut)
+    def crear_hold_interno(
         body: CrearHoldIn = Body(...),
-        user=Depends(validate_token),
+        _valid=Depends(validate_internal_request),
     ):
         if body.inicio >= body.fin:
             raise HTTPException(status_code=400, detail="Rango de tiempo inválido (fin > inicio)")
 
-        # Get user ID from JWT payload (use "sub" or "id")
-        user_id = user.get("id") or user.get("sub")
-        if not user_id:
-            raise HTTPException(status_code=401, detail="Token inválido: falta user ID")
-
         with session_scope(settings) as s:
+            # IDEMPOTENCIA: si ya existe hold con mismo correlation_id + proveedor, retornar existente
+            existing = s.execute(
+                text("""
+                    SELECT id, proveedor_id, opcion_servicio_id, inicio, fin, expira_en, status
+                    FROM ev_proveedores.reserva_temporal
+                    WHERE proveedor_id = :pid
+                      AND correlation_id = :corr
+                      AND status IN (0, 1)
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """),
+                {"pid": body.proveedor_id, "corr": body.correlation_id},
+            ).mappings().first()
+
+            if existing:
+                return HoldOut(
+                    id=existing["id"],
+                    proveedor_id=existing["proveedor_id"],
+                    opcion_servicio_id=existing["opcion_servicio_id"],
+                    inicio=str(existing["inicio"]),
+                    fin=str(existing["fin"]),
+                    expira_en=str(existing["expira_en"]),
+                    status=existing["status"],
+                )
+
+            # Continuar con validaciones de conflictos
             # Conflictos con holds
             conflict_hold = s.execute(
                 text("""
@@ -239,7 +275,7 @@ def build_api_router(settings: Settings) -> APIRouter:
                     INSERT INTO ev_proveedores.reserva_temporal
                       (id, proveedor_id, opcion_servicio_id, inicio, fin, status, expira_en, correlation_id, created_by)
                     VALUES
-                      (UUID(), :pid, :oid, :ini, :fin, 0, DATE_ADD(NOW(), INTERVAL :ttl MINUTE), :corr, :uid)
+                      (UUID(), :pid, :oid, :ini, :fin, 0, DATE_ADD(NOW(), INTERVAL :ttl MINUTE), :corr, :creator)
                 """),
                 {
                     "pid": body.proveedor_id,
@@ -248,7 +284,7 @@ def build_api_router(settings: Settings) -> APIRouter:
                     "fin": body.fin,
                     "ttl": body.ttl_min,
                     "corr": body.correlation_id,
-                    "uid": user_id,
+                    "creator": body.created_by or "contratacion-service",
                 },
             )
 
@@ -257,11 +293,11 @@ def build_api_router(settings: Settings) -> APIRouter:
                     SELECT id, proveedor_id, opcion_servicio_id, inicio, fin, expira_en, status
                     FROM ev_proveedores.reserva_temporal
                     WHERE proveedor_id = :pid
-                      AND opcion_servicio_id = :oid
+                      AND correlation_id = :corr
                     ORDER BY created_at DESC
                     LIMIT 1
                 """),
-                {"pid": body.proveedor_id, "oid": body.opcion_servicio_id},
+                {"pid": body.proveedor_id, "corr": body.correlation_id},
             ).mappings().first()
 
         return HoldOut(
@@ -274,41 +310,86 @@ def build_api_router(settings: Settings) -> APIRouter:
             status=row["status"],
         )
 
-    # DELETE /v1/proveedores/reservas/{id} (protegido)
-    @r.delete("/v1/proveedores/reservas/{id}", status_code=status.HTTP_204_NO_CONTENT)
-    def liberar_reserva_temporal(
-        id: str = Path(..., description="ID del hold"),
-        user=Depends(validate_token),
+    # DELETE /internal/holds/{id} (INTERNO)
+    @r.delete("/internal/holds/{hold_id}", status_code=status.HTTP_204_NO_CONTENT)
+    def liberar_hold_interno(
+        hold_id: str = Path(...),
+        _valid=Depends(validate_internal_request),
     ):
+        """Liberar hold temporal (cancelación o compensación)"""
         with session_scope(settings) as s:
             hold = s.execute(
-                text("""
-                    SELECT id, created_by, status
-                    FROM ev_proveedores.reserva_temporal
-                    WHERE id = :hid
-                    LIMIT 1
-                """),
-                {"hid": id},
+                text("""SELECT id, status FROM ev_proveedores.reserva_temporal WHERE id = :hid LIMIT 1"""),
+                {"hid": hold_id},
             ).mappings().first()
 
             if not hold:
                 raise HTTPException(status_code=404, detail="Hold no encontrado")
 
-            role = (user.get("role") or "").upper()
-            if str(hold["created_by"]) != str(user["id"]) and role != "ADMIN":
-                raise HTTPException(status_code=403, detail="No puedes liberar este hold")
+            # Idempotencia: si ya está liberado (status=3), no hacer nada
+            if hold["status"] == 3:
+                return
 
-            if hold["status"] != 0:
-                raise HTTPException(status_code=409, detail="Hold no está activa")
+            if hold["status"] not in (0, 1):
+                raise HTTPException(status_code=409, detail="Hold no puede ser liberado (estado inválido)")
 
             s.execute(
-                text("""
-                    UPDATE ev_proveedores.reserva_temporal
-                    SET status = 3  -- liberada
-                    WHERE id = :hid AND status = 0
-                """),
-                {"hid": id},
+                text("UPDATE ev_proveedores.reserva_temporal SET status = 3 WHERE id = :hid"),
+                {"hid": hold_id},
             )
         return
+
+    # PATCH /internal/holds/{hold_id}/confirm (INTERNO)
+    @r.patch("/internal/holds/{hold_id}/confirm", status_code=status.HTTP_200_OK)
+    def confirmar_hold_interno(
+        hold_id: str = Path(...),
+        _valid=Depends(validate_internal_request),
+    ):
+        """Confirmar hold temporal (marca como confirmado antes de crear reserva definitiva)"""
+        with session_scope(settings) as s:
+            hold = s.execute(
+                text("SELECT id, status, expira_en FROM ev_proveedores.reserva_temporal WHERE id = :hid LIMIT 1"),
+                {"hid": hold_id},
+            ).mappings().first()
+
+            if not hold:
+                raise HTTPException(status_code=404, detail="Hold no encontrado")
+            
+            if hold["status"] != 0:
+                raise HTTPException(status_code=409, detail="Hold no está en estado activo (status=0)")
+
+            from datetime import datetime
+            if hold["expira_en"] < datetime.now():
+                raise HTTPException(status_code=410, detail="Hold expirado")
+
+            s.execute(
+                text("UPDATE ev_proveedores.reserva_temporal SET status = 1 WHERE id = :hid AND status = 0"),
+                {"hid": hold_id},
+            )
+
+        return {"id": hold_id, "status": 1, "message": "Hold confirmado"}
+
+    # GET /internal/holds/{hold_id} (INTERNO)
+    @r.get("/internal/holds/{hold_id}")
+    def obtener_hold_interno(
+        hold_id: str = Path(...),
+        _valid=Depends(validate_internal_request),
+    ):
+        """Consultar estado de un hold (verificación antes de confirmar)"""
+        with session_scope(settings) as s:
+            hold = s.execute(
+                text("""
+                    SELECT id, proveedor_id, opcion_servicio_id, inicio, fin, status, expira_en, created_at, correlation_id
+                    FROM ev_proveedores.reserva_temporal
+                    WHERE id = :hid
+                    LIMIT 1
+                """),
+                {"hid": hold_id},
+            ).mappings().first()
+
+            if not hold:
+                raise HTTPException(status_code=404, detail="Hold no encontrado")
+
+        return dict(hold)
 
     return r

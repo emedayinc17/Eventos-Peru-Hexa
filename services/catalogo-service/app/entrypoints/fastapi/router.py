@@ -1,11 +1,24 @@
-# router.py — Catalogo Service (MVP: endpoints públicos)
+"""
+Router del Catálogo (Hexagonal Architecture)
+CAPA DE ORQUESTACIÓN - SIN lógica de negocio
+Responsabilidad: transformar HTTP ↔ Domain Models
+"""
+from dataclasses import asdict
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import text
 from typing import Any, Dict, List, Optional
 
 from ev_shared.config import Settings
-from ev_shared.db import session_scope
+
+from ...domain.exceptions import PaqueteNoEncontrado
+from .dependencies import (
+    get_db_session,
+    get_list_tipos_evento_use_case,
+    get_list_servicios_por_tipo_use_case,
+    get_list_opciones_servicio_use_case,
+    get_list_paquetes_use_case,
+    get_get_paquete_detalle_use_case,
+)
 
 
 class Health(BaseModel):
@@ -13,160 +26,116 @@ class Health(BaseModel):
 
 
 def build_api_router(settings: Settings) -> APIRouter:
-    # Todos los endpoints del catálogo son públicos en el MVP
+    """
+    Construye el router de Catálogo con inyección de dependencias.
+    Todos los endpoints son públicos en el MVP.
+    """
     r = APIRouter(tags=["catalogo"])
 
-    # HEALTH (público)
-    @r.get("/health", response_model=Health, operation_id="catalogo_health", openapi_extra={"security": []})
+    # === HEALTH CHECK ===
+    @r.get(
+        "/health",
+        response_model=Health,
+        operation_id="catalogo_health",
+        openapi_extra={"security": []}
+    )
     def health():
+        """Health check del servicio de catálogo"""
         return {"status": "ok"}
 
-    # GET /v1/catalogo/tipos  (público)
+    # === GET /v1/catalogo/tipos ===
     @r.get("/v1/catalogo/tipos", openapi_extra={"security": []})
-    def tipos(
+    def list_tipos_evento(
         limit: int = Query(50, ge=1, le=500),
         offset: int = Query(0, ge=0),
     ) -> List[Dict[str, Any]]:
-        with session_scope(settings) as s:
-            rows = s.execute(
-                text("""
-                    SELECT id, nombre, descripcion, status
-                    FROM ev_catalogo.tipo_evento
-                    WHERE is_deleted = 0 AND status = 1
-                    ORDER BY created_at DESC
-                    LIMIT :lim OFFSET :off
-                """),
-                {"lim": limit, "off": offset},
-            ).mappings().all()
-        return [dict(r) for r in rows]
+        """Lista todos los tipos de evento activos"""
+        session = next(get_db_session(settings))
+        use_case = get_list_tipos_evento_use_case()
+        tipos = use_case.execute(session, limit=limit, offset=offset)
+        return [asdict(t) for t in tipos]
 
-    # GET /v1/catalogo/servicios  (público)
+    # === GET /v1/catalogo/servicios ===
     @r.get("/v1/catalogo/servicios", openapi_extra={"security": []})
-    def servicios(
+    def list_servicios(
         tipo_evento_id: Optional[str] = None,
         limit: int = Query(50, ge=1, le=500),
         offset: int = Query(0, ge=0),
     ) -> List[Dict[str, Any]]:
-        sql = """
-            SELECT id, nombre, descripcion, tipo_evento_id, status
-            FROM ev_catalogo.servicio
-            WHERE is_deleted = 0 AND status = 1
-        """
-        params: Dict[str, Any] = {}
-        if tipo_evento_id:
-            sql += " AND tipo_evento_id = :teid"
-            params["teid"] = tipo_evento_id
-        sql += " ORDER BY created_at DESC LIMIT :lim OFFSET :off"
-        params.update({"lim": limit, "off": offset})
+        """Lista servicios, opcionalmente filtrados por tipo de evento"""
+        session = next(get_db_session(settings))
+        use_case = get_list_servicios_por_tipo_use_case()
+        servicios = use_case.execute(
+            session,
+            tipo_evento_id=tipo_evento_id,
+            limit=limit,
+            offset=offset
+        )
+        return [asdict(s) for s in servicios]
 
-        with session_scope(settings) as s:
-            rows = s.execute(text(sql), params).mappings().all()
-        return [dict(r) for r in rows]
-
-    # GET /v1/catalogo/opciones  (público) — precios vigentes por vista
+    # === GET /v1/catalogo/opciones ===
     @r.get("/v1/catalogo/opciones", openapi_extra={"security": []})
-    def opciones(
+    def list_opciones(
         servicio_id: str,
         limit: int = Query(50, ge=1, le=500),
         offset: int = Query(0, ge=0),
     ) -> List[Dict[str, Any]]:
-        with session_scope(settings) as s:
-            rows = s.execute(
-                text("""
-                    SELECT o.id,
-                           o.servicio_id,
-                           o.nombre,
-                           o.detalles,
-                           v.moneda,
-                           v.monto
-                    FROM ev_catalogo.opcion_servicio o
-                    JOIN ev_catalogo.v_opcion_con_precio_vigente v
-                      ON v.opcion_id = o.id
-                    WHERE o.is_deleted = 0
-                      AND o.status = 1
-                      AND o.servicio_id = :sid
-                    ORDER BY o.created_at DESC
-                    LIMIT :lim OFFSET :off
-                """),
-                {"sid": servicio_id, "lim": limit, "off": offset},
-            ).mappings().all()
-        return [dict(r) for r in rows]
+        """Lista opciones de un servicio con precios vigentes"""
+        session = next(get_db_session(settings))
+        use_case = get_list_opciones_servicio_use_case()
+        opciones = use_case.execute(
+            session,
+            servicio_id=servicio_id,
+            limit=limit,
+            offset=offset
+        )
+        # Convertir Decimal a float para JSON serialization
+        result = []
+        for op in opciones:
+            d = asdict(op)
+            d["monto"] = float(d["monto"])
+            result.append(d)
+        return result
 
-    # GET /v1/catalogo/paquetes  (público)
-    # 🔁 Robusto: calculamos el total vigente agregando sobre v_paquete_detalle
+    # === GET /v1/catalogo/paquetes ===
     @r.get("/v1/catalogo/paquetes", openapi_extra={"security": []})
-    def paquetes(
+    def list_paquetes(
         limit: int = Query(50, ge=1, le=500),
         offset: int = Query(0, ge=0),
     ) -> List[Dict[str, Any]]:
-        with session_scope(settings) as s:
-            rows = s.execute(
-                text("""
-                    SELECT
-                      d.paquete_id      AS id,
-                      MIN(d.codigo)     AS codigo,
-                      MIN(d.nombre)     AS nombre,
-                      MIN(d.descripcion) AS descripcion,
-                      MIN(d.status)     AS status,
-                      MIN(d.moneda)     AS moneda,
-                      SUM(d.cantidad * d.monto) AS monto_total
-                    FROM ev_paquetes.v_paquete_detalle d
-                    GROUP BY d.paquete_id
-                    ORDER BY codigo ASC
-                    LIMIT :lim OFFSET :off
-                """),
-                {"lim": limit, "off": offset},
-            ).mappings().all()
-        return [dict(r) for r in rows]
+        """Lista paquetes con monto total calculado"""
+        session = next(get_db_session(settings))
+        use_case = get_list_paquetes_use_case()
+        paquetes = use_case.execute(session, limit=limit, offset=offset)
+        # Convertir Decimal a float
+        result = []
+        for p in paquetes:
+            d = asdict(p)
+            d["monto_total"] = float(d["monto_total"])
+            result.append(d)
+        return result
 
-    # GET /v1/catalogo/paquetes/{id}  (público)
-    # 🔁 Robusto: cabecera agregada + ítems desde v_paquete_detalle
+    # === GET /v1/catalogo/paquetes/{id} ===
     @r.get("/v1/catalogo/paquetes/{id}", openapi_extra={"security": []})
-    def paquete_detalle(id: str) -> Dict[str, Any]:
-        with session_scope(settings) as s:
-            head = s.execute(
-                text("""
-                    SELECT
-                      d.paquete_id      AS id,
-                      MIN(d.codigo)     AS codigo,
-                      MIN(d.nombre)     AS nombre,
-                      MIN(d.descripcion) AS descripcion,
-                      MIN(d.status)     AS status,
-                      MIN(d.moneda)     AS moneda,
-                      SUM(d.cantidad * d.monto) AS monto_total
-                    FROM ev_paquetes.v_paquete_detalle d
-                    WHERE d.paquete_id = :pid
-                    GROUP BY d.paquete_id
-                    LIMIT 1
-                """),
-                {"pid": id},
-            ).mappings().first()
-            if not head:
-                raise HTTPException(status_code=404, detail="Paquete no encontrado")
+    def get_paquete_detalle(
+        id: str,
+    ) -> Dict[str, Any]:
+        """Obtiene detalle completo de un paquete con items y proveedores"""
+        session = next(get_db_session(settings))
+        use_case = get_get_paquete_detalle_use_case()
+        try:
+            paquete = use_case.execute(session, paquete_id=id)
+        except PaqueteNoEncontrado:
+            raise HTTPException(status_code=404, detail="Paquete no encontrado")
 
-            items = s.execute(
-                text("""
-                                        SELECT
-                                            d.opcion_servicio_id,
-                                            d.cantidad,
-                                            d.moneda,
-                                            d.monto AS precio_unit_vigente,
-                                            o.nombre AS opcion_nombre,
-                                            o.detalles AS opcion_detalles,
-                                            s.id AS servicio_id,
-                                            s.nombre AS servicio_nombre,
-                                            s.descripcion AS servicio_descripcion
-                                        FROM ev_paquetes.v_paquete_detalle d
-                                        LEFT JOIN ev_catalogo.opcion_servicio o ON o.id = d.opcion_servicio_id
-                                        LEFT JOIN ev_catalogo.servicio s ON s.id = o.servicio_id
-                                        WHERE d.paquete_id = :pid
-                """),
-                {"pid": id},
-            ).mappings().all()
-
-        return {
-            **dict(head),
-            "items": [dict(i) for i in items],
-        }
+        # Convertir a dict y serializar Decimals
+        result = asdict(paquete)
+        result["monto_total"] = float(result["monto_total"])
+        
+        # Convertir items
+        for item in result["items"]:
+            item["precio_unit_vigente"] = float(item["precio_unit_vigente"])
+        
+        return result
 
     return r

@@ -11,27 +11,29 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR ${APP_HOME}
 
-# ===== Copia de código necesario =====
-# Solo copiamos la librería compartida y el servicio IAM
-# Estructura esperada:
-#   /app/libs/shared/ev_shared/...
-#   /app/services/iam-service/app/...
+# ===== Optimización de Caché: Dependencias primero =====
+# Copiamos primero el requirements para aprovechar la caché de Docker
+COPY services/iam-service/requirements.txt ./services/iam-service/requirements.txt
+
+# Instalamos dependencias antes de copiar el código fuente
+RUN pip install --no-cache-dir -r services/iam-service/requirements.txt
+
+# ===== Copia de código fuente =====
+# Copiamos la librería compartida y el código del servicio
 COPY libs/shared ./libs/shared
 COPY services/iam-service ./services/iam-service
 
 # ===== PYTHONPATH para que funcione ev_shared y el IAM =====
 ENV PYTHONPATH=/app/libs/shared:/app/services/iam-service
 
+# ===== Seguridad: Usuario no-root =====
+RUN addgroup --system appgroup && adduser --system --group appuser
+USER appuser
+
 # Entramos a la carpeta del servicio IAM
 WORKDIR ${APP_HOME}/services/iam-service
 
-# ===== Instalación de dependencias =====
-# Usa el requirements.txt propio del iam-service
-RUN pip install --no-cache-dir -r requirements.txt
-
-# ===== Variables por defecto (se sobreescriben en K8s/Vault) =====
-# Aquí solo ponemos defaults seguros; en Kubernetes las reemplazas
-# con ConfigMap/Secret + Vault.
+# ===== Variables por defecto =====
 ENV APP_ENV=prod \
     SERVICE_NAME=iam-service \
     APP_HOST=0.0.0.0 \
@@ -42,5 +44,4 @@ ENV APP_ENV=prod \
 EXPOSE 8010
 
 # ===== Comando de arranque =====
-# Igual que tu run.bat pero para contenedor
 CMD ["uvicorn", "app.entrypoints.fastapi.main:app", "--host", "0.0.0.0", "--port", "8010"]

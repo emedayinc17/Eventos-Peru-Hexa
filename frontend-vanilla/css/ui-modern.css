@@ -1,0 +1,137 @@
+/* Modern UI overrides and utility tokens for the MVP
+   This file provides a subtle, modern theme and an improved navbar.
+*/
+:root{
+  --primary-500: #0062FF;
+  --primary-400: #1977FF;
+  --info-500: #00C2FF;
+  --success-500: #12B886;
+  --danger-500: #FF6B6B;
+  --bg-100: #f8fafc;
+  --muted: #6c757d;
+  --card-radius: 0.6rem;
+  --surface-1: #ffffff;
+}
+
+html,body{
+  height:100%;
+  background:var(--bg-100);
+  color:#222;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+}
+
+/* Container width used across the app */
+.app-container{
+  max-width:1100px;
+  margin-left:auto;
+  margin-right:auto;
+}
+
+/* Navbar: sticky, subtle shadow, clearer brand */
+.navbar{
+  position:sticky;
+  top:0;
+  z-index:1030;
+  background:var(--surface-1) !important;
+  transition:box-shadow .18s ease, background-color .18s ease;
+}
+.navbar.scrolled{
+  box-shadow:0 6px 18px rgba(16,24,40,0.06);
+  background:linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.94));
+}
+.navbar-brand{
+  font-weight:700;
+  font-size:1.05rem;
+  letter-spacing:0.2px;
+  color:var(--primary-500) !important;
+}
+.navbar .nav-link{
+  color:#445 !important;
+  padding-left:.6rem;
+  padding-right:.6rem;
+  font-weight:500;
+}
+.navbar .nav-link:hover{
+  color:var(--primary-400) !important;
+}
+
+/* Buttons subtle modern look */
+.btn-primary{
+  background:var(--primary-500);
+  border-color:transparent;
+  box-shadow:0 6px 18px rgba(3,102,255,0.08);
+  border-radius:0.55rem;
+}
+.btn-outline-secondary{
+  border-radius:0.55rem;
+}
+
+/* Cards: softer corners and elevated shadows */
+.card{
+  border-radius:var(--card-radius);
+  box-shadow: 0 6px 18px rgba(15,23,42,0.04);
+}
+.card .card-header{ background:transparent; }
+
+/* Alerts and badges: rounded */
+.alert{ border-radius:0.5rem; }
+.badge{ border-radius:0.6rem; }
+
+/* Carousel controls slightly refined */
+#catalogoCarousel .carousel-control-prev-icon,
+#catalogoCarousel .carousel-control-next-icon{
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.12));
+}
+
+/* Make modals a bit more airy */
+.modal-content{ border-radius:0.7rem; }
+
+/* Helper: subtle small text */
+.small-muted{ color:var(--muted); font-size:0.9rem; }
+
+/* Responsive tweaks */
+@media (max-width:767px){
+  .navbar-brand{ font-size:1rem; }
+  .app-container{ padding-left:10px; padding-right:10px; }
+}
+
+/* Toast container spacing */
+#toast-container{ z-index:1200; }
+
+/* Login specific styles */
+.login-card{ overflow:hidden; }
+.login-avatar{ font-size:1.05rem; }
+.login-card .input-group .form-control{
+  border-left: 0;
+}
+.login-card .input-group .input-group-text{
+  border-right:0;
+  border-radius:0.45rem 0 0 0.45rem;
+}
+.login-card .form-control:focus{
+  box-shadow:0 6px 18px rgba(3,102,255,0.08);
+  border-color:var(--primary-500);
+}
+.login-card .card-header{ padding-bottom:1.1rem; }
+.login-card .card-body{ padding-top:1rem }
+
+.login-card .btn-primary{ padding: .75rem 1rem; font-size:1rem; }
+
+.login-card .small-muted{ color:rgba(255,255,255,0.9); }
+
+.login-card .text-muted a{ color:var(--primary-400); text-decoration:underline; }
+
+/* Animaciones para la entrada del login */
+.login-card{
+  transform: translateY(8px);
+  opacity: 0;
+  transition: transform 260ms cubic-bezier(.2,.9,.2,1), opacity 260ms ease;
+}
+.login-card.showing{
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.login-card .form-control{
+  transition: box-shadow 160ms ease, border-color 160ms ease;
+}

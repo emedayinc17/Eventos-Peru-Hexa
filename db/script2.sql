@@ -408,3 +408,89 @@ SELECT nombre, detalles->>'$.descripcion_detallada' as descripcion
 FROM ev_catalogo.opcion_servicio 
 WHERE detalles->>'$.descripcion_detallada' IS NOT NULL
 LIMIT 10;
+
+/* ============================================================
+     BLOQUE ADICIONAL PARA PRUEBAS DE FLUJO DE PROVEEDORES
+     Inserta un servicio, una opción de servicio y un proveedor
+     con IDs conocidos para facilitar pruebas de búsqueda y holds
+     (usar estos IDs en el script de verificación).
+     Se usan INSERT IGNORE para no duplicar si ya existen.
+ ============================================================ */
+
+-- IDs determinísticos para pruebas
+-- SERVICE_ID: ev_catalogo.servicio.id
+-- OPTION_ID: ev_catalogo.opcion_servicio.id
+-- PROVIDER_ID: ev_proveedores.proveedor.id
+SET @TEST_SERVICE_ID = 'aaaaaaaa-1111-2222-3333-aaaaaaaaaaaa';
+SET @TEST_OPTION_ID  = 'bbbbbbbb-2222-3333-4444-bbbbbbbbbbbb';
+SET @TEST_PROVIDER_ID = 'cccccccc-3333-4444-5555-cccccccccccc';
+
+-- 1) Servicio de prueba (tipo_evento usa uno de los tipos ya insertados)
+INSERT IGNORE INTO ev_catalogo.servicio (id, nombre, descripcion, tipo_evento_id, status, created_by)
+VALUES (
+    @TEST_SERVICE_ID,
+    'Servicio Prueba Verificacion',
+    'Servicio creado por script2.sql para pruebas de verificación de proveedores',
+    '44444444-1111-1111-1111-111111111111',
+    1,
+    'ee111111-1111-4111-8111-aaaaaaaaaaa1'
+);
+
+-- 2) Opción de servicio de prueba (vinculada al servicio anterior)
+INSERT IGNORE INTO ev_catalogo.opcion_servicio (id, servicio_id, nombre, detalles, status, created_by)
+VALUES (
+    @TEST_OPTION_ID,
+    @TEST_SERVICE_ID,
+    'Opcion Prueba Verificacion',
+    JSON_OBJECT('capacidad', 100, 'duracion_horas', 4, 'personal', 2, 'equipos', 'estandar', 'descripcion_detallada', 'Opción creada para pruebas de flujo (holds).'),
+    1,
+    'ee111111-1111-4111-8111-aaaaaaaaaaa1'
+);
+
+-- 3) Precio vigente para la opción (necesario si el frontend muestra precio)
+INSERT IGNORE INTO ev_catalogo.precio_servicio (id, opcion_servicio_id, moneda, monto, vigente_desde, vigente_hasta, created_by)
+VALUES (
+    UUID(),
+    @TEST_OPTION_ID,
+    'PEN',
+    1500.00,
+    CURRENT_DATE(),
+    NULL,
+    'ee111111-1111-4111-8111-aaaaaaaaaaa1'
+);
+
+-- 4) Proveedor de prueba
+INSERT IGNORE INTO ev_proveedores.proveedor (id, nombre, email, telefono, rating_prom, status, created_by)
+VALUES (
+    @TEST_PROVIDER_ID,
+    'Proveedor Prueba Verificacion',
+    'prueba@proveedor.local',
+    '+51 900000000',
+    4.5,
+    1,
+    'ee111111-1111-4111-8111-aaaaaaaaaaa1'
+);
+
+-- 5) Habilidad: vincula proveedor con el servicio (permite que la búsqueda lo encuentre)
+INSERT IGNORE INTO ev_proveedores.habilidad_proveedor (id, proveedor_id, servicio_id, nivel)
+VALUES (
+    UUID(),
+    @TEST_PROVIDER_ID,
+    @TEST_SERVICE_ID,
+    5
+);
+
+-- 6) Calendario del proveedor: añadir un bloque de disponibilidad/descanso lejano para evitar conflictos (tipo=1 es disponibilidad, tipo=2 sería descanso)
+INSERT IGNORE INTO ev_proveedores.calendario_proveedor (id, proveedor_id, inicio, fin, tipo, created_by)
+VALUES (
+    UUID(),
+    @TEST_PROVIDER_ID,
+    DATE_ADD(CURRENT_DATE(), INTERVAL 90 DAY),
+    DATE_ADD(CURRENT_DATE(), INTERVAL 91 DAY),
+    1,
+    'ee111111-1111-4111-8111-aaaaaaaaaaa1'
+);
+
+-- Nota: Usa los siguientes valores en tu script de verificación o pruebas:
+-- SAMPLE_SERVICIO_ID = aaaaaaaa-1111-2222-3333-aaaaaaaaaaaa
+-- SAMPLE_PROVEEDOR_ID = cccccccc-3333-4444-5555-cccccccccccc

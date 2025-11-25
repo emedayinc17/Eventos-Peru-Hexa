@@ -7,12 +7,20 @@ class Health(BaseModel):
     status: str = "ok"
 
 # ---------- Cliente: crear pedido ----------
+class ProveedorSeleccionado(BaseModel):
+    opcion_servicio_id: str
+    proveedor_id: str
+
 class CrearPedidoDesdePaquete(BaseModel):
     paquete_id: str
+    tipo_evento_id: str
     fecha_evento: date
-    hora_inicio: time
-    hora_fin: Optional[time] = None
+    hora_inicio: str  # HH:MM format
+    hora_fin: Optional[str] = None  # HH:MM format
+    num_personas: int = Field(ge=1)
     ubicacion: str
+    notas: Optional[str] = None
+    proveedores_seleccionados: Optional[List[ProveedorSeleccionado]] = None
     request_id: Optional[str] = None
     correlation_id: Optional[str] = None
 
@@ -26,6 +34,7 @@ class CrearPedidoCustom(BaseModel):
     fecha_evento: date
     hora_inicio: time
     hora_fin: Optional[time] = None
+    num_personas: int = Field(ge=1, default=1)  # AGREGADO: requerido por la BD
     ubicacion: str
     request_id: Optional[str] = None
     correlation_id: Optional[str] = None
@@ -87,8 +96,11 @@ class AdminDeleteItemsRequest(BaseModel):
 
 class AdminAsignarProveedorRequest(BaseModel):
     proveedor_id: str
+    item_pedido_id: str  # AGREGADO: necesario para asignar proveedor a un item específico
+    opcion_servicio_id: str  # AGREGADO: necesario para crear la reserva
     fecha_inicio: datetime   # mapea a ev_contratacion.reserva.inicio
     fecha_fin: datetime      # mapea a ev_contratacion.reserva.fin
+    monto: float  # AGREGADO: monto de la reserva
     hold_id: Optional[str] = None
 
 

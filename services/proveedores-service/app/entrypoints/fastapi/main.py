@@ -1,9 +1,10 @@
-# created by emeday 2025 - corrected hex alignment
+# Proveedores Service - Hexagonal Architecture
 from fastapi import FastAPI
 from ev_shared.config import load_settings, Settings
 from ev_shared.logger import get_logger
 from ev_shared.http_debug import build_debug_router
-from .router import build_api_router
+from .router_public import build_public_router
+from .router_internal import build_internal_router
 from fastapi.middleware.cors import CORSMiddleware
 
 settings: Settings = load_settings(service_name="proveedores-service")
@@ -16,12 +17,7 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-origins = [
-    "http://localhost:8080",
-    "http://localhost:8000",
-    "http://127.0.0.1:8080",
-    "http://localhost:63343",
-]
+origins = settings.CORS_ORIGINS.split(",")
 
 app.add_middleware(
     CORSMiddleware,
@@ -31,8 +27,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Routers (primary + debug)
-app.include_router(build_api_router(settings), prefix="/proveedores")
+# Routers (public + internal + debug)
+app.include_router(build_public_router(settings), prefix="/proveedores")
+app.include_router(build_internal_router(settings), prefix="/proveedores")
 app.include_router(build_debug_router(settings), prefix="/proveedores/_debug")
 
 @app.on_event("startup")
@@ -41,3 +38,12 @@ async def on_startup():
              settings.SERVICE_NAME,
              settings.APP_HOST,
              settings.APP_PORT)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "app.entrypoints.fastapi.main:app",
+        host=settings.APP_HOST,
+        port=settings.APP_PORT,
+        reload=True
+    )

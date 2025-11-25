@@ -7,6 +7,20 @@ import datetime
 # IMPORT corregido: NUNCA uses "contratacion-service" con guion en imports
 # Usa import absoluto dentro del paquete app (o relativo si prefieres).
 from app.infrastructure.db.sqlalchemy.repositories import EmailOutboxSql
+from app.infrastructure.http.proveedores_client import ProveedoresClient
+
+
+# ========= Rollback de holds =========
+
+def _rollback_holds(hold_ids: List[str], proveedores_client: ProveedoresClient) -> None:
+    """Libera todos los holds creados en caso de error (best-effort)."""
+    for hold_id in hold_ids:
+        try:
+            proveedores_client.liberar_hold(hold_id)
+            print(f"🔄 [ROLLBACK] Hold {hold_id} liberado exitosamente")
+        except Exception as e:
+            # Loggear pero no lanzar - queremos intentar liberar todos
+            print(f"⚠️ [ROLLBACK] Error al liberar hold {hold_id}: {e}")
 
 
 # ========= Helpers de cálculo =========
@@ -87,36 +101,86 @@ def crear_pedido_desde_paquete(settings: Settings, cliente_id: str, payload: Dic
     print(f"🔍 [DEBUG crear_pedido_desde_paquete] Iniciando - Cliente: {cliente_id}")
     print(f"🔍 [DEBUG] Payload completo: {payload}")
     
+    proveedores_client = ProveedoresClient(settings)
+    hold_ids_creados = []
+    
     try:
         # 1. Calcular total del paquete
         print(f"🔍 [DEBUG] Calculando total para paquete: {payload['paquete_id']}")
         tot = _calcular_total_paquete(settings, payload["paquete_id"])
         print(f"🔍 [DEBUG] Total calculado: {tot}")
         
-        status_inicial = 1  # COTIZADO
+        # Si hay proveedores seleccionados, cambiar a COTIZADO; si no, DRAFT
+        proveedores_seleccionados = payload.get("proveedores_seleccionados", [])
+        status_inicial = 1 if proveedores_seleccionados else 0  # COTIZADO si hay proveedores, DRAFT si no
 
-        # 2. Obtener tipo de evento
-        sql_tipo = text("""
-            SELECT s.tipo_evento_id
+        # 2. Obtener items del paquete y tipo de evento
+        sql_items_paquete = text("""
+            SELECT ip.opcion_servicio_id, ip.cantidad, s.tipo_evento_id
             FROM ev_paquetes.item_paquete ip
             JOIN ev_catalogo.opcion_servicio o ON o.id = ip.opcion_servicio_id
             JOIN ev_catalogo.servicio s ON s.id = o.servicio_id
             WHERE ip.paquete_id = :pid
-            LIMIT 1
         """)
         
-        print(f"🔍 [DEBUG] Obteniendo tipo de evento...")
+        print(f"🔍 [DEBUG] Obteniendo items del paquete...")
         with session_scope(settings) as s:
-            trow = s.execute(sql_tipo, {"pid": payload["paquete_id"]}).first()
-            print(f"🔍 [DEBUG] Resultado tipo evento: {trow}")
+            items_rows = s.execute(sql_items_paquete, {"pid": payload["paquete_id"]}).mappings().all()
+            print(f"🔍 [DEBUG] Items encontrados: {len(items_rows)}")
             
-            if not trow:
+            if not items_rows:
                 raise ValueError("PAQUETE_SIN_ITEMS")
 
-            tipo_evento_id = trow[0]
+            tipo_evento_id = items_rows[0]["tipo_evento_id"]
             print(f"🔍 [DEBUG] Tipo evento ID: {tipo_evento_id}")
+        
+        # 3. CREAR HOLDS para proveedores seleccionados (si los hay)
+        if proveedores_seleccionados:
+            correlation_id = payload.get("correlation_id") or payload.get("request_id") or f"pedido-{datetime.datetime.now().timestamp()}"
+            print(f"🔍 [DEBUG] Creando holds para {len(proveedores_seleccionados)} proveedores - correlation_id: {correlation_id}")
+            
+            for idx, prov_sel in enumerate(proveedores_seleccionados):
+                # Normalizar inicio/fin a ISO strings para el client HTTP
+                inicio_val = payload["fecha_evento"]
+                fin_val = payload.get("fecha_fin") or payload["fecha_evento"]
+                if hasattr(inicio_val, "isoformat"):
+                    inicio_val = inicio_val.isoformat()
+                else:
+                    inicio_val = str(inicio_val)
+                if hasattr(fin_val, "isoformat"):
+                    fin_val = fin_val.isoformat()
+                else:
+                    fin_val = str(fin_val)
 
-        # 3. Preparar datos para inserción
+                hold_payload = {
+                    "proveedor_id": prov_sel["proveedor_id"],
+                    "opcion_servicio_id": prov_sel["opcion_servicio_id"],
+                    "inicio": inicio_val,
+                    "fin": fin_val,
+                    "ttl_min": 30,
+                    "correlation_id": f"{correlation_id}-item-{idx}",
+                    "created_by": "contratacion-service"
+                }
+                
+                try:
+                    print(f"🔍 [DEBUG] Creando hold para proveedor {prov_sel['proveedor_id']} - opción {prov_sel['opcion_servicio_id']}...")
+                    hold_creado = proveedores_client.crear_hold(hold_payload)
+                    hold_ids_creados.append(hold_creado["id"])
+                    print(f"✅ [DEBUG] Hold creado: {hold_creado['id']}")
+                except ValueError as e:
+                    print(f"❌ [ERROR] Fallo al crear hold: {e}")
+                    # ROLLBACK: liberar todos los holds ya creados
+                    _rollback_holds(hold_ids_creados, proveedores_client)
+                    raise ValueError(f"NO_SE_PUDO_CREAR_HOLD: {e}")
+                except Exception as e:
+                    print(f"💥 [ERROR] Error inesperado creando hold: {e}")
+                    _rollback_holds(hold_ids_creados, proveedores_client)
+                    raise
+        else:
+            print(f"⚠️ [DEBUG] Sin proveedores seleccionados - pedido en DRAFT (admin asignará después)")
+            correlation_id = payload.get("correlation_id") or payload.get("request_id")
+
+        # 4. Preparar datos para inserción del pedido
         insert_data = {
             "cliente_id": cliente_id,
             "tipo_evento_id": tipo_evento_id,
@@ -127,7 +191,7 @@ def crear_pedido_desde_paquete(settings: Settings, cliente_id: str, payload: Dic
             "monto_total": float(tot["monto_total_vigente"]),
             "moneda": tot["moneda"],
             "status": status_inicial,
-            "correlation_id": payload.get("correlation_id"),
+            "correlation_id": correlation_id,
             "request_id": payload.get("request_id"),
         }
         
@@ -151,7 +215,7 @@ def crear_pedido_desde_paquete(settings: Settings, cliente_id: str, payload: Dic
             VALUES (UUID(), :pedido_id, 2, :paquete_id, 1, :precio_unit, :precio_total, CURRENT_TIMESTAMP)
         """)
 
-        # 4. Ejecutar en transacción
+        # 5. Ejecutar en transacción
         with session_scope(settings) as s:
             try:
                 print(f"🔍 [DEBUG] Insertando pedido...")
@@ -160,35 +224,77 @@ def crear_pedido_desde_paquete(settings: Settings, cliente_id: str, payload: Dic
                 
             except IntegrityError as e:
                 print(f"🔍 [ERROR] IntegrityError: {e}")
-                # Si hay duplicado, retornar el existente
+                # Si hay duplicado, liberar holds y retornar el existente
+                _rollback_holds(hold_ids_creados, proveedores_client)
                 if payload.get("request_id"):
                     row = s.execute(sql_get_by_req, {"req": payload.get("request_id")}).mappings().first()
                     if row:
                         print(f"🔍 [DEBUG] Pedido duplicado encontrado: {dict(row)}")
                         return dict(row)
                 raise
+            except Exception as e:
+                print(f"💥 [ERROR] Error al insertar pedido: {e}")
+                _rollback_holds(hold_ids_creados, proveedores_client)
+                raise
 
             # Obtener el pedido insertado
             print(f"🔍 [DEBUG] Obteniendo pedido creado...")
             prow = s.execute(sql_get_by_req, {"req": payload.get("request_id")}).mappings().first()
             if not prow:
+                _rollback_holds(hold_ids_creados, proveedores_client)
                 raise ValueError("NO_SE_PUDO_RECUPERAR_PEDIDO_CREADO")
                 
             pedido_id = prow["id"]
             print(f"🔍 [DEBUG] Pedido ID creado: {pedido_id}")
 
-            # Insertar item del paquete
-            print(f"🔍 [DEBUG] Insertando item del paquete...")
-            item_result = s.execute(sql_insert_item, {
-                "pedido_id": pedido_id,
-                "paquete_id": payload["paquete_id"],
-                "precio_unit": float(tot["monto_total_vigente"]),
-                "precio_total": float(tot["monto_total_vigente"]),
-            })
-            print(f"🔍 [DEBUG] Resultado inserción item: {item_result.rowcount} filas")
+            # Insertar items individuales por opción_servicio (tipo 'SERVICIO')
+            print(f"🔍 [DEBUG] Insertando items por opción de servicio...")
+            try:
+                for item_row in items_rows:
+                    opcion_id = item_row["opcion_servicio_id"]
+                    cantidad = item_row.get("cantidad") or 1
 
-            print(f"✅ [DEBUG] Pedido creado exitosamente: {dict(prow)}")
-            return dict(prow)
+                    # Obtener nombre de la opción
+                    name_row = s.execute(
+                        text("SELECT nombre FROM ev_catalogo.opcion_servicio WHERE id = :oid LIMIT 1"),
+                        {"oid": opcion_id},
+                    ).mappings().first()
+                    nombre_servicio = name_row["nombre"] if name_row else None
+
+                    # Obtener precio vigente de la opción
+                    price_row = s.execute(
+                        text("SELECT monto FROM ev_catalogo.v_opcion_con_precio_vigente WHERE opcion_id = :oid LIMIT 1"),
+                        {"oid": opcion_id},
+                    ).mappings().first()
+                    precio_unit = float(price_row["monto"]) if price_row and price_row["monto"] is not None else 0.0
+                    subtotal = cantidad * precio_unit
+
+                    insert_item_sql = text("""
+                        INSERT INTO ev_contratacion.item_pedido_evento
+                          (id, pedido_id, opcion_servicio_id, nombre_servicio, cantidad, precio_unitario, subtotal, tipo_item, referencia_id, created_at)
+                        VALUES (UUID(), :pedido_id, :opcion_id, :nombre_servicio, :cantidad, :precio_unitario, :subtotal, 'SERVICIO', :ref_id, CURRENT_TIMESTAMP)
+                    """)
+
+                    s.execute(insert_item_sql, {
+                        "pedido_id": pedido_id,
+                        "opcion_id": opcion_id,
+                        "nombre_servicio": nombre_servicio,
+                        "cantidad": cantidad,
+                        "precio_unitario": precio_unit,
+                        "subtotal": subtotal,
+                        "ref_id": opcion_id,
+                    })
+
+                print(f"🔍 [DEBUG] Items insertados para pedido: {pedido_id}")
+            except Exception as e:
+                print(f"💥 [ERROR] Error al insertar items: {e}")
+                _rollback_holds(hold_ids_creados, proveedores_client)
+                raise
+
+            print(f"✅ [DEBUG] Pedido creado exitosamente con {len(hold_ids_creados)} holds")
+            result = dict(prow)
+            result["holds_creados"] = hold_ids_creados
+            return result
 
     except ValueError as e:
         print(f"❌ [ERROR] ValueError en crear_pedido_desde_paquete: {e}")
@@ -201,61 +307,132 @@ def crear_pedido_desde_paquete(settings: Settings, cliente_id: str, payload: Dic
 
 
 def crear_pedido_custom(settings: Settings, cliente_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-    calc = _calcular_items_custom(settings, [dict(x) for x in payload["items"]])
-    status_inicial = 1 if calc["total"] > 0 else 0  # COTIZADO si hay total; DRAFT si no
+    proveedores_client = ProveedoresClient(settings)
+    hold_ids_creados = []
+    
+    try:
+        calc = _calcular_items_custom(settings, [dict(x) for x in payload["items"]])
+        status_inicial = 1 if calc["total"] > 0 else 0  # COTIZADO si hay total; DRAFT si no
 
-    sql_insert_pedido = text("""
-        INSERT INTO ev_contratacion.pedido_evento
-            (id, cliente_id, tipo_evento_id, fecha_evento, hora_inicio, hora_fin, ubicacion,
-             monto_total, moneda, status, correlation_id, request_id, created_at)
-        VALUES (UUID(), :cliente_id, :tipo_evento_id, :fecha_evento, :hora_inicio, :hora_fin, :ubicacion,
-                :monto_total, :moneda, :status, :correlation_id, :request_id, CURRENT_TIMESTAMP)
-    """)
+        # 1. CREAR HOLDS para cada item custom (OPCIONAL - solo si viene proveedor_id)
+        proveedor_id = payload.get("proveedor_id")
+        
+        if proveedor_id:
+            correlation_id = payload.get("correlation_id") or payload.get("request_id") or f"pedido-custom-{datetime.datetime.now().timestamp()}"
+            print(f"🔍 [DEBUG crear_pedido_custom] Creando holds con correlation_id: {correlation_id} para proveedor: {proveedor_id}")
+            
+                for idx, item in enumerate(calc["items_calculados"]):
+                # Normalizar inicio/fin a ISO strings para el client HTTP
+                inicio_val = payload["fecha_evento"]
+                fin_val = payload.get("fecha_fin") or payload["fecha_evento"]
+                if hasattr(inicio_val, "isoformat"):
+                    inicio_val = inicio_val.isoformat()
+                else:
+                    inicio_val = str(inicio_val)
+                if hasattr(fin_val, "isoformat"):
+                    fin_val = fin_val.isoformat()
+                else:
+                    fin_val = str(fin_val)
 
-    sql_get_by_req = text("""
-        SELECT * FROM ev_contratacion.pedido_evento WHERE request_id=:req LIMIT 1
-    """)
+                hold_payload = {
+                    "proveedor_id": proveedor_id,
+                    "opcion_servicio_id": item["opcion_servicio_id"],
+                    "inicio": inicio_val,
+                    "fin": fin_val,
+                    "ttl_min": 30,
+                    "correlation_id": f"{correlation_id}-item-{idx}",
+                    "created_by": "contratacion-service"
+                }
+                
+                try:
+                    print(f"🔍 [DEBUG] Creando hold para opción {item['opcion_servicio_id']}...")
+                    hold_creado = proveedores_client.crear_hold(hold_payload)
+                    hold_ids_creados.append(hold_creado["id"])
+                    print(f"✅ [DEBUG] Hold creado: {hold_creado['id']}")
+                except ValueError as e:
+                    print(f"❌ [ERROR] Fallo al crear hold: {e}")
+                    _rollback_holds(hold_ids_creados, proveedores_client)
+                    raise ValueError(f"NO_SE_PUDO_CREAR_HOLD: {e}")
+                except Exception as e:
+                    print(f"💥 [ERROR] Error inesperado creando hold: {e}")
+                    _rollback_holds(hold_ids_creados, proveedores_client)
+                    raise
+        else:
+            print(f"⚠️ [DEBUG] Sin proveedor_id - pedido sin holds (admin asignará después)")
+            correlation_id = payload.get("correlation_id") or payload.get("request_id")
 
-    sql_insert_item = text("""
-        INSERT INTO ev_contratacion.item_pedido_evento
-            (id, pedido_id, tipo_item, referencia_id, cantidad, precio_unit, precio_total, created_at)
-        VALUES (UUID(), :pedido_id, 1, :opcion_servicio_id, :cantidad, :precio_unit, :precio_total, CURRENT_TIMESTAMP)
-    """)
+        # 2. Crear pedido en BD
+        sql_insert_pedido = text("""
+            INSERT INTO ev_contratacion.pedido_evento
+                (id, cliente_id, tipo_evento_id, fecha_evento, hora_inicio, hora_fin, ubicacion,
+                 monto_total, moneda, status, correlation_id, request_id, created_at)
+            VALUES (UUID(), :cliente_id, :tipo_evento_id, :fecha_evento, :hora_inicio, :hora_fin, :ubicacion,
+                    :monto_total, :moneda, :status, :correlation_id, :request_id, CURRENT_TIMESTAMP)
+        """)
 
-    with session_scope(settings) as s:
-        try:
-            s.execute(sql_insert_pedido, {
-                "cliente_id": cliente_id,
-                "tipo_evento_id": payload["tipo_evento_id"],
-                "fecha_evento": payload["fecha_evento"],
-                "hora_inicio": payload["hora_inicio"],
-                "hora_fin": payload.get("hora_fin"),
-                "ubicacion": payload["ubicacion"],
-                "monto_total": float(calc["total"]),
-                "moneda": calc["moneda"],
-                "status": status_inicial,
-                "correlation_id": payload.get("correlation_id"),
-                "request_id": payload.get("request_id"),
-            })
-        except IntegrityError:
-            row = s.execute(sql_get_by_req, {"req": payload.get("request_id")}).mappings().first()
-            if row:
-                return dict(row)
-            raise
+        sql_get_by_req = text("""
+            SELECT * FROM ev_contratacion.pedido_evento WHERE request_id=:req LIMIT 1
+        """)
 
-        prow = s.execute(sql_get_by_req, {"req": payload.get("request_id")}).mappings().first()
-        pedido_id = prow["id"]
+        sql_insert_item = text("""
+            INSERT INTO ev_contratacion.item_pedido_evento
+                (id, pedido_id, tipo_item, referencia_id, cantidad, precio_unit, precio_total, created_at)
+            VALUES (UUID(), :pedido_id, 1, :opcion_servicio_id, :cantidad, :precio_unit, :precio_total, CURRENT_TIMESTAMP)
+        """)
 
-        for it in calc["items_calculados"]:
-            s.execute(sql_insert_item, {
-                "pedido_id": pedido_id,
-                "opcion_servicio_id": it["opcion_servicio_id"],
-                "cantidad": it["cantidad"],
-                "precio_unit": it["precio_unit"],
-                "precio_total": it["precio_total"],
-            })
+        with session_scope(settings) as s:
+            try:
+                s.execute(sql_insert_pedido, {
+                    "cliente_id": cliente_id,
+                    "tipo_evento_id": payload["tipo_evento_id"],
+                    "fecha_evento": payload["fecha_evento"],
+                    "hora_inicio": payload["hora_inicio"],
+                    "hora_fin": payload.get("hora_fin"),
+                    "ubicacion": payload["ubicacion"],
+                    "monto_total": float(calc["total"]),
+                    "moneda": calc["moneda"],
+                    "status": status_inicial,
+                    "correlation_id": correlation_id,
+                    "request_id": payload.get("request_id"),
+                })
+            except IntegrityError:
+                _rollback_holds(hold_ids_creados, proveedores_client)
+                row = s.execute(sql_get_by_req, {"req": payload.get("request_id")}).mappings().first()
+                if row:
+                    return dict(row)
+                raise
+            except Exception as e:
+                _rollback_holds(hold_ids_creados, proveedores_client)
+                raise
 
-        return dict(prow)
+            prow = s.execute(sql_get_by_req, {"req": payload.get("request_id")}).mappings().first()
+            if not prow:
+                _rollback_holds(hold_ids_creados, proveedores_client)
+                raise ValueError("NO_SE_PUDO_RECUPERAR_PEDIDO_CREADO")
+            
+            pedido_id = prow["id"]
+
+            try:
+                for it in calc["items_calculados"]:
+                    s.execute(sql_insert_item, {
+                        "pedido_id": pedido_id,
+                        "opcion_servicio_id": it["opcion_servicio_id"],
+                        "cantidad": it["cantidad"],
+                        "precio_unit": it["precio_unit"],
+                        "precio_total": it["precio_total"],
+                    })
+            except Exception as e:
+                _rollback_holds(hold_ids_creados, proveedores_client)
+                raise
+
+            result = dict(prow)
+            result["holds_creados"] = hold_ids_creados
+            return result
+            
+    except Exception as e:
+        # Último catch-all para asegurar rollback
+        _rollback_holds(hold_ids_creados, proveedores_client)
+        raise
 
 
 def listar_mis_pedidos(settings: Settings, cliente_id: str) -> List[Dict[str, Any]]:
@@ -662,6 +839,9 @@ def _hold_valido(settings: Settings, hold_id: str, proveedor_id: str, inicio: st
 def admin_asignar_proveedor(settings: Settings, pedido_id: str,
                             proveedor_id: str, fecha_inicio: str, fecha_fin: str,
                             hold_id: Optional[str] = None) -> Dict[str, Any]:
+    from ..infrastructure.http.proveedores_client import ProveedoresClient
+    proveedores = ProveedoresClient(settings)
+    
     ped = _get_pedido_row(settings, pedido_id)
     if not ped:
         raise ValueError("PEDIDO_NO_ENCONTRADO")
@@ -670,25 +850,79 @@ def admin_asignar_proveedor(settings: Settings, pedido_id: str,
     if int(ped["status"]) < 2:
         raise ValueError("ESTADO_NO_PERMITE_ASIGNACION")
 
-    if hold_id and not _hold_valido(settings, hold_id, proveedor_id, fecha_inicio, fecha_fin):
-        raise ValueError("HOLD_INVALIDO")
-
-    if _hay_conflicto_asignacion(settings, proveedor_id, fecha_inicio, fecha_fin):
-        raise ValueError("CONFLICTO_PROVEEDOR")
-
     # La tabla ev_contratacion.reserva exige item_pedido_id.
     # Para MVP: usamos el PRIMER item del pedido.
     sql_item = text("""
-        SELECT id
-          FROM ev_contratacion.item_pedido_evento
-         WHERE pedido_id = :pid
-         ORDER BY created_at ASC
-         LIMIT 1
+        SELECT id, referencia_id, tipo_item
+        FROM ev_contratacion.item_pedido_evento
+        WHERE pedido_id = :pid
+        ORDER BY created_at ASC
+        LIMIT 1
     """)
+    
     with session_scope(settings) as s:
         item = s.execute(sql_item, {"pid": pedido_id}).mappings().first()
         if not item:
             raise ValueError("PEDIDO_SIN_ITEMS")
+
+        # Obtener opcion_servicio_id (si es paquete, tomar primer item del paquete)
+        if item["tipo_item"] == 2:  # Paquete
+            opcion_id = s.execute(
+                text("SELECT opcion_servicio_id FROM ev_paquetes.item_paquete WHERE paquete_id = :pid LIMIT 1"),
+                {"pid": item["referencia_id"]}
+            ).scalar()
+        else:  # Opción directa
+            opcion_id = item["referencia_id"]
+
+        # FLUJO: Crear o validar hold
+        hold_final_id = hold_id
+        
+        if hold_id:
+            # Validar hold existente
+            hold_data = proveedores.obtener_hold(hold_id)
+            if not hold_data:
+                raise ValueError("HOLD_INVALIDO")
+            
+            from datetime import datetime
+            expira_str = hold_data["expira_en"]
+            # Parsear fecha (puede venir con o sin 'Z')
+            if isinstance(expira_str, str):
+                expira_str = expira_str.replace("Z", "").replace("+00:00", "")
+                expira_dt = datetime.fromisoformat(expira_str)
+            else:
+                expira_dt = expira_str
+                
+            if expira_dt < datetime.now():
+                raise ValueError("HOLD_EXPIRADO")
+            
+            # Confirmar hold
+            try:
+                proveedores.confirmar_hold(hold_id)
+            except ValueError as e:
+                if "HOLD_EXPIRADO" in str(e):
+                    raise ValueError("HOLD_EXPIRADO")
+                raise
+        else:
+            # Crear nuevo hold
+            hold_payload = {
+                "proveedor_id": proveedor_id,
+                "opcion_servicio_id": opcion_id,
+                "inicio": fecha_inicio,
+                "fin": fecha_fin,
+                "ttl_min": 30,
+                "correlation_id": f"{pedido_id}-asignacion",
+                "created_by": "contratacion-service"
+            }
+            
+            try:
+                hold_creado = proveedores.crear_hold(hold_payload)
+                hold_final_id = hold_creado["id"]
+                # Confirmar inmediatamente
+                proveedores.confirmar_hold(hold_final_id)
+            except ValueError as e:
+                if "PROVEEDOR_NO_DISPONIBLE" in str(e):
+                    raise ValueError("CONFLICTO_PROVEEDOR")
+                raise
 
         sql_ins = text("""
             INSERT INTO ev_contratacion.reserva
@@ -700,7 +934,7 @@ def admin_asignar_proveedor(settings: Settings, pedido_id: str,
             "prov": proveedor_id,
             "ini": fecha_inicio,
             "fin": fecha_fin,
-            "hold": hold_id,
+            "hold": hold_final_id,
         })
 
         s.execute(text("""

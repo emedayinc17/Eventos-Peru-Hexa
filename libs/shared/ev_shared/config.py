@@ -28,10 +28,19 @@ class Settings(BaseSettings):
     JWT_ALG: str = Field(default="HS256")
     JWT_EXPIRES_MIN: int = Field(default=60)
 
+    # Service-to-Service Communication
+    INTERNAL_SERVICE_TOKEN: str = Field(default="dev-internal-token-change-in-production")
+    PROVEEDORES_SERVICE_URL: str = Field(default="http://127.0.0.1:8030/proveedores")
+    CATALOGO_SERVICE_URL: str = Field(default="http://127.0.0.1:8020/catalogo")
+    CONTRATACION_SERVICE_URL: str = Field(default="http://127.0.0.1:8040/contratacion")
+
     # Vault (placeholder para despliegue)
     VAULT_ENABLED: bool = Field(default=False)
     VAULT_ADDR: Optional[str] = None
     VAULT_TOKEN: Optional[str] = None
+
+    # CORS
+    CORS_ORIGINS: str = Field(default="http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000,http://127.0.0.1:8000", description="Comma separated list of allowed origins")
 
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8', extra='ignore')
 

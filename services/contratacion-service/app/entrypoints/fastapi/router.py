@@ -1,10 +1,15 @@
-# services/contratacion-service/app/entrypoints/fastapi/router.py
-
+"""
+Router de Contratación - Hexagonal Architecture REFACTORIZADO
+Capa de orquestación HTTP - SIN lógica de negocio, SIN SQL
+"""
 from typing import Dict, Any
+from dataclasses import asdict
+from datetime import datetime
 from fastapi import APIRouter, HTTPException, status, Depends
+
 from ev_shared.config import Settings
 
-# === DTOs (entrypoint) ===
+# DTOs (Pydantic schemas)
 from .schemas import (
     Health,
     CrearPedidoDesdePaquete,
@@ -12,7 +17,6 @@ from .schemas import (
     PedidoEventoOut,
     EnviarResumenRequest,
     EnviarResumenResponse,
-    # Admin
     AdminPatchEstadoRequest,
     AdminAddItemsRequest,
     AdminDeleteItemsRequest,
@@ -20,19 +24,60 @@ from .schemas import (
     AdminListaPedidosResponse,
 )
 
-# === Seguridad (entrypoint) ===
+# Seguridad
 from .security import get_current_user, require_role
 
-# === Casos de uso (application/commands) — aquí está tu SQL real ===
-from ...application import commands
+# Dependencies (Use Cases Factories)
+from .dependencies import (
+    get_settings,
+    get_db_session,
+    get_crear_pedido_desde_paquete_use_case,
+    get_crear_pedido_custom_use_case,
+    get_listar_pedidos_cliente_use_case,
+    get_listar_pedidos_admin_use_case,
+    get_obtener_pedido_detalle_use_case,
+    get_admin_cambiar_estado_use_case,
+    get_admin_asignar_proveedor_use_case,
+)
+
+# Domain Exceptions
+from ...domain.exceptions import (
+    PedidoNoEncontrado,
+    ItemPedidoNoEncontrado,
+    TransicionEstadoInvalida,
+    PaqueteNoEncontrado,
+    OpcionServicioNoEncontrada,
+    ErrorCotizacion,
+    ErrorAsignacionProveedor,
+    ErrorServicioExterno,
+)
 
 router = APIRouter(tags=["contratacion"])
 
-# Callable para evitar que FastAPI intente documentar Settings en OpenAPI
-def get_settings() -> Settings:
-    return Settings()
 
-# --- Infra ---
+# ============================================================================
+# UTILIDADES
+# ============================================================================
+
+def _serialize_decimal(obj: Any) -> Any:
+    """Convierte Decimal a float recursivamente para JSON serialization"""
+    from decimal import Decimal
+    
+    if isinstance(obj, Decimal):
+        return float(obj)
+    elif isinstance(obj, dict):
+        return {k: _serialize_decimal(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_serialize_decimal(item) for item in obj]
+    elif isinstance(obj, datetime):
+        return obj.isoformat()
+    return obj
+
+
+# ============================================================================
+# ENDPOINTS PÚBLICOS
+# ============================================================================
+
 @router.get(
     "/health",
     response_model=Health,
@@ -40,16 +85,16 @@ def get_settings() -> Settings:
     openapi_extra={"security": []},
 )
 def health():
-    """Ping rápido sin tocar DB."""
+    """Health check sin tocar BD"""
     return {"status": "ok"}
 
 
-# ===========================
-#     CLIENTE (protegido)
-# ===========================
+# ============================================================================
+# ENDPOINTS CLIENTE (Autenticados)
+# ============================================================================
 
 @router.post(
-    "/v1/contratacion/pedidos",
+    "/pedidos",
     response_model=Dict[str, Any],
     status_code=status.HTTP_201_CREATED,
     operation_id="contratacion_crear_pedido",
@@ -57,57 +102,183 @@ def health():
 )
 def crear_pedido(
     body: Dict[str, Any],
+    current_user: dict = Depends(get_current_user),
     settings: Settings = Depends(get_settings),
-    user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    Acepta oneOf:
-      - CrearPedidoDesdePaquete
-      - CrearPedidoCustom
+    Crear pedido - Hexagonal pattern
+    - OneOf: paquete_id (desde paquete) o items (custom)
+    - Llama a CatalogoClient para validar precios
+    - Estado inicial: DRAFT (0)
     """
+    cliente_id = current_user["id"]
+    
+    # Determinar use case según tipo de body
+    if "paquete_id" in body:
+        # Crear desde paquete
+        try:
+            payload = CrearPedidoDesdePaquete(**body)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "VALIDACION_ERROR", "message": str(e)}
+            )
+        
+        use_case = get_crear_pedido_desde_paquete_use_case()
+        
+        # Convertir date + time strings a datetime y strings
+        from datetime import datetime
+        fecha_dt = datetime.combine(payload.fecha_evento, datetime.min.time())
+        
+        # Convertir proveedores_seleccionados a dict si existe
+        proveedores = None
+        if payload.proveedores_seleccionados:
+            proveedores = [p.dict() for p in payload.proveedores_seleccionados]
+        
+        params = {
+            "cliente_id": cliente_id,
+            "paquete_id": payload.paquete_id,
+            "tipo_evento_id": payload.tipo_evento_id,
+            "num_personas": payload.num_personas,
+            "fecha_evento": fecha_dt,
+            "hora_inicio": payload.hora_inicio,
+            "hora_fin": payload.hora_fin,
+            "ubicacion": payload.ubicacion,
+            "notas": payload.notas,
+            "proveedores_seleccionados": proveedores,
+            # Note: use case doesn't accept request_id/correlation_id
+        }
+    else:
+        # Crear custom
+        try:
+            payload = CrearPedidoCustom(**body)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "VALIDACION_ERROR", "message": str(e)}
+            )
+        
+        use_case = get_crear_pedido_custom_use_case()
+        params = {
+            "cliente_id": cliente_id,
+            "items": [item.dict() for item in payload.items],
+            "tipo_evento_id": payload.tipo_evento_id,
+            "num_personas": payload.num_personas,
+            "fecha_evento": payload.fecha_evento,
+            "hora_inicio": payload.hora_inicio,
+            "hora_fin": payload.hora_fin,
+            "ubicacion": payload.ubicacion,
+        }
+    
     try:
-        if "paquete_id" in body:
-            payload = CrearPedidoDesdePaquete(**body).model_dump()
-            return commands.crear_pedido_desde_paquete(settings, user["id"], payload)
-        else:
-            payload = CrearPedidoCustom(**body).model_dump()
-            return commands.crear_pedido_custom(settings, user["id"], payload)
-    except ValueError as e:
-        # errores de validación de negocio
-        raise HTTPException(status_code=400, detail={"code": str(e)})
-    except Exception:
-        raise HTTPException(status_code=500, detail={"code": "ERR_CREAR_PEDIDO"})
+        for session in get_db_session(settings):
+            pedido = use_case.execute(session, **params)
+            
+            # Serializar a dict
+            pedido_dict = asdict(pedido)
+            return _serialize_decimal(pedido_dict)
+            
+    except PaqueteNoEncontrado:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "PAQUETE_NO_ENCONTRADO"}
+        )
+    except OpcionServicioNoEncontrada:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "OPCION_SERVICIO_NO_ENCONTRADA"}
+        )
+    except ErrorCotizacion as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "ERROR_COTIZACION", "message": str(e)}
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "ERROR_INTERNO", "message": str(e)}
+        )
 
 
 @router.get(
-    "/v1/contratacion/pedidos/mios",
+    "/pedidos/mios",
     response_model=Dict[str, Any],
     operation_id="contratacion_listar_mis_pedidos",
     openapi_extra={"security": [{"HTTPBearer": []}]},
 )
 def mis_pedidos(
+    limit: int = 50,
+    offset: int = 0,
+    current_user: dict = Depends(get_current_user),
     settings: Settings = Depends(get_settings),
-    user: Dict[str, Any] = Depends(get_current_user),
 ):
-    data = commands.listar_mis_pedidos(settings, user["id"])
-    return {"items": data}
+    """Listar pedidos del cliente actual - Hexagonal pattern"""
+    cliente_id = current_user["id"]
+    use_case = get_listar_pedidos_cliente_use_case()
+    
+    try:
+        for session in get_db_session(settings):
+            pedidos = use_case.execute(
+                session,
+                cliente_id=cliente_id,
+                limit=limit,
+                offset=offset
+            )
+            
+            # Serializar lista
+            pedidos_list = [_serialize_decimal(asdict(p)) for p in pedidos]
+            return {"items": pedidos_list}
+            
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "ERROR_INTERNO", "message": str(e)}
+        )
 
 
 @router.get(
-    "/v1/contratacion/pedidos/{pedido_id}",
-    response_model=PedidoEventoOut,
+    "/pedidos/{pedido_id}",
+    response_model=Dict[str, Any],
     operation_id="contratacion_detalle_pedido",
     openapi_extra={"security": [{"HTTPBearer": []}]},
 )
 def detalle_pedido(
     pedido_id: str,
+    current_user: dict = Depends(get_current_user),
     settings: Settings = Depends(get_settings),
-    user: Dict[str, Any] = Depends(get_current_user),
 ):
+    """
+    Detalle del pedido con items y reservas - Hexagonal pattern
+    Retorna: {pedido, items[], reservas[], estado_nombre, total_items, total_reservas}
+    """
+    cliente_id = current_user["id"]
+    use_case = get_obtener_pedido_detalle_use_case()
+    
     try:
-        return commands.obtener_pedido(settings, user["id"], pedido_id)
-    except ValueError:
-        raise HTTPException(status_code=404, detail={"code": "PEDIDO_NO_ENCONTRADO"})
+        for session in get_db_session(settings):
+            detalle = use_case.execute(session, pedido_id=pedido_id)
+            
+            # Verificar ownership
+            if detalle["pedido"]["cliente_id"] != cliente_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={"code": "ACCESO_DENEGADO"}
+                )
+            
+            return _serialize_decimal(detalle)
+            
+    except PedidoNoEncontrado:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "PEDIDO_NO_ENCONTRADO"}
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "ERROR_INTERNO", "message": str(e)}
+        )
 
 
 @router.post(
@@ -120,50 +291,72 @@ def detalle_pedido(
 def enviar_resumen(
     pedido_id: str,
     body: EnviarResumenRequest,
+    current_user: dict = Depends(get_current_user),
     settings: Settings = Depends(get_settings),
-    user: Dict[str, Any] = Depends(get_current_user),
 ):
-    try:
-        return commands.enviar_resumen_pedido(settings, user["id"], pedido_id, body.to_email)
-    except ValueError:
-        raise HTTPException(status_code=404, detail={"code": "PEDIDO_NO_ENCONTRADO"})
-    except Exception:
-        raise HTTPException(status_code=500, detail={"code": "ERR_OUTBOX"})
+    """
+    TODO: Enviar resumen por email - DEFERRED (Mensajería feature)
+    Esta funcionalidad requiere integración con ev_mensajeria
+    Por ahora retorna 202 Accepted sin acción
+    """
+    return {
+        "message": f"Resumen pendiente de envío a {body.to_email}",
+        "pedido_id": pedido_id,
+    }
 
 
-# ===========================
-#       ADMIN (protegido)
-# ===========================
+# ============================================================================
+# ENDPOINTS ADMIN (Autenticados + Role)
+# ============================================================================
 
 @router.get(
-    "/v1/contratacion/admin/pedidos",
+    "/admin/pedidos",
     response_model=AdminListaPedidosResponse,
     operation_id="contratacion_admin_listar_pedidos",
     openapi_extra={"security": [{"HTTPBearer": []}]},
 )
 def admin_listar_pedidos(
+    estado: int | None = None,
     limit: int = 100,
     offset: int = 0,
     settings: Settings = Depends(get_settings),
     admin=Depends(require_role("admin")),
 ):
     """
-    Lista TODOS los pedidos del sistema (solo ADMIN)
+    Lista TODOS los pedidos del sistema - SOLO ADMIN
+    Hexagonal pattern con filtro opcional por estado
     """
+    use_case = get_listar_pedidos_admin_use_case()
+    
     try:
-        items = commands.listar_todos_pedidos_admin(settings, limit, offset)
-        return {
-            "items": items,
-            "limit": limit,
-            "offset": offset,
-            "total": len(items)  # Para paginación simple, podrías agregar COUNT después
-        }
-    except Exception:
-        raise HTTPException(status_code=500, detail={"code": "ERR_LISTAR_PEDIDOS"})
+        for session in get_db_session(settings):
+            pedidos = use_case.execute(
+                session,
+                status=estado,
+                limit=limit,
+                offset=offset
+            )
+            
+            # Serializar lista
+            pedidos_list = [_serialize_decimal(asdict(p)) for p in pedidos]
+            return {
+                "items": pedidos_list,
+                "total": len(pedidos_list),
+                "limit": limit,
+                "offset": offset,
+            }
+            
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "ERROR_INTERNO", "message": str(e)}
+        )
+
 
 @router.patch(
-    "/v1/contratacion/admin/pedidos/{pedido_id}",
-    operation_id="contratacion_admin_patch_estado",
+    "/admin/pedidos/{pedido_id}",
+    response_model=Dict[str, Any],
+    operation_id="admin_contratacion_cambiar_estado",
     openapi_extra={"security": [{"HTTPBearer": []}]},
 )
 def admin_patch_estado(
@@ -172,20 +365,42 @@ def admin_patch_estado(
     settings: Settings = Depends(get_settings),
     admin=Depends(require_role("admin")),
 ):
+    """
+    Cambiar estado del pedido - SOLO ADMIN
+    Hexagonal pattern con validación de transiciones
+    Estado 5 (CANCELADO) libera todos los holds automáticamente
+    """
+    use_case = get_admin_cambiar_estado_use_case()
+    
     try:
-        return commands.admin_cambiar_estado(settings, pedido_id, body.estado)
-    except ValueError as e:
-        msg = str(e)
-        if msg.startswith("TRANSICION_INVALIDA") or msg in ("TOTAL_INVALIDO",):
-            raise HTTPException(status_code=400, detail={"code": msg})
-        if msg == "PEDIDO_NO_ENCONTRADO":
-            raise HTTPException(status_code=404, detail={"code": msg})
-        raise HTTPException(status_code=500, detail={"code": "ERR_PATCH_ESTADO"})
+        for session in get_db_session(settings):
+            pedido = use_case.execute(session, pedido_id=pedido_id, nuevo_estado=body.estado)
+            
+            # Serializar
+            pedido_dict = asdict(pedido)
+            return _serialize_decimal(pedido_dict)
+            
+    except PedidoNoEncontrado:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "PEDIDO_NO_ENCONTRADO"}
+        )
+    except TransicionEstadoInvalida as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "TRANSICION_INVALIDA", "message": str(e)}
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "ERROR_INTERNO", "message": str(e)}
+        )
 
 
 @router.post(
-    "/v1/contratacion/admin/pedidos/{pedido_id}/items",
-    status_code=status.HTTP_200_OK,
+    "/admin/pedidos/{pedido_id}/items",
+    response_model=Dict[str, Any],
+    status_code=status.HTTP_201_CREATED,
     operation_id="contratacion_admin_add_items",
     openapi_extra={"security": [{"HTTPBearer": []}]},
 )
@@ -195,21 +410,20 @@ def admin_add_items(
     settings: Settings = Depends(get_settings),
     admin=Depends(require_role("admin")),
 ):
-    try:
-        payload = [i.model_dump() for i in body.items]
-        return commands.admin_agregar_items(settings, pedido_id, payload)
-    except ValueError as e:
-        msg = str(e)
-        if msg in ("ITEMS_VACIOS", "OPCION_SIN_PRECIO_VIGENTE"):
-            raise HTTPException(status_code=400, detail={"code": msg})
-        if msg == "PEDIDO_NO_ENCONTRADO":
-            raise HTTPException(status_code=404, detail={"code": msg})
-        raise HTTPException(status_code=500, detail={"code": "ERR_ADD_ITEMS"})
+    """
+    TODO: Agregar items a pedido - DEFERRED (Additional feature)
+    Solo permitido en estados DRAFT (0) o COTIZADO (1)
+    Por ahora retorna 201 sin acción
+    """
+    return {
+        "message": "Funcionalidad pendiente de implementación",
+        "pedido_id": pedido_id,
+    }
 
 
 @router.delete(
-    "/v1/contratacion/admin/pedidos/{pedido_id}/items",
-    status_code=status.HTTP_200_OK,
+    "/admin/pedidos/{pedido_id}/items",
+    response_model=Dict[str, Any],
     operation_id="contratacion_admin_delete_items",
     openapi_extra={"security": [{"HTTPBearer": []}]},
 )
@@ -219,20 +433,21 @@ def admin_delete_items(
     settings: Settings = Depends(get_settings),
     admin=Depends(require_role("admin")),
 ):
-    try:
-        return commands.admin_eliminar_items(settings, pedido_id, body.item_ids)
-    except ValueError as e:
-        msg = str(e)
-        if msg in ("ITEM_IDS_VACIOS",):
-            raise HTTPException(status_code=400, detail={"code": msg})
-        if msg == "PEDIDO_NO_ENCONTRADO":
-            raise HTTPException(status_code=404, detail={"code": msg})
-        raise HTTPException(status_code=500, detail={"code": "ERR_DELETE_ITEMS"})
+    """
+    TODO: Eliminar items de pedido - DEFERRED (Additional feature)
+    Solo permitido en estados DRAFT (0) o COTIZADO (1)
+    Por ahora retorna 200 sin acción
+    """
+    return {
+        "message": "Funcionalidad pendiente de implementación",
+        "pedido_id": pedido_id,
+    }
 
 
 @router.post(
-    "/v1/contratacion/admin/pedidos/{pedido_id}/asignar-proveedor",
-    status_code=status.HTTP_200_OK,
+    "/admin/pedidos/{pedido_id}/asignar-proveedor",
+    response_model=Dict[str, Any],
+    status_code=status.HTTP_201_CREATED,
     operation_id="contratacion_admin_asignar_proveedor",
     openapi_extra={"security": [{"HTTPBearer": []}]},
 )
@@ -242,28 +457,69 @@ def admin_asignar_proveedor(
     settings: Settings = Depends(get_settings),
     admin=Depends(require_role("admin")),
 ):
+    """
+    Asignar proveedor a item de pedido - SOLO ADMIN
+    Hexagonal pattern - ORCHESTRATOR CRÍTICO
+    
+    Workflow:
+    1. Valida pedido en estado APROBADO (2)
+    2. Valida item existe y no tiene reserva
+    3. Si hold_id → confirma hold existente
+       Si no hold_id → crea hold + confirma
+    4. Crea reserva permanente
+    5. Si todos los items tienen reserva → actualiza pedido a ASIGNADO (3)
+    
+    Integra con Proveedores Service vía HTTP internal
+    """
+    use_case = get_admin_asignar_proveedor_use_case()
+    
     try:
-        return commands.admin_asignar_proveedor(
-            settings,
-            pedido_id=pedido_id,
-            proveedor_id=body.proveedor_id,
-            fecha_inicio=body.fecha_inicio,
-            fecha_fin=body.fecha_fin,
-            hold_id=body.hold_id,
+        for session in get_db_session(settings):
+            result = use_case.execute(
+                session,
+                pedido_id=pedido_id,
+                item_pedido_id=body.item_pedido_id,
+                proveedor_id=body.proveedor_id,
+                opcion_servicio_id=body.opcion_servicio_id,
+                fecha_inicio=body.fecha_inicio,
+                fecha_fin=body.fecha_fin,
+                monto=body.monto,
+                hold_id=body.hold_id,
+            )
+            
+            return _serialize_decimal(result)
+            
+    except PedidoNoEncontrado:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "PEDIDO_NO_ENCONTRADO"}
         )
-    except ValueError as e:
-        msg = str(e)
-        if msg in ("PEDIDO_NO_ENCONTRADO",):
-            raise HTTPException(status_code=404, detail={"code": msg})
-        if msg in ("ESTADO_NO_PERMITE_ASIGNACION", "HOLD_INVALIDO", "CONFLICTO_PROVEEDOR"):
-            raise HTTPException(status_code=400, detail={"code": msg})
-        raise HTTPException(status_code=500, detail={"code": "ERR_ASIGNAR_PROVEEDOR"})
+    except ItemPedidoNoEncontrado:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "ITEM_PEDIDO_NO_ENCONTRADO"}
+        )
+    except ErrorAsignacionProveedor as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "ERROR_ASIGNACION", "message": str(e)}
+        )
+    except ErrorServicioExterno as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={"code": "ERROR_SERVICIO_EXTERNO", "message": str(e)}
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "ERROR_INTERNO", "message": str(e)}
+        )
 
 
 @router.get(
-    "/v1/contratacion/admin/pedidos/{pedido_id}",
-    response_model=PedidoEventoOut,
-    operation_id="contratacion_admin_detalle_pedido", 
+    "/admin/pedidos/{pedido_id}",
+    response_model=Dict[str, Any],
+    operation_id="contratacion_admin_detalle_pedido",
     openapi_extra={"security": [{"HTTPBearer": []}]},
 )
 def admin_detalle_pedido(
@@ -272,14 +528,35 @@ def admin_detalle_pedido(
     admin=Depends(require_role("admin")),
 ):
     """
-    Detalle de cualquier pedido del sistema (solo ADMIN)
+    Detalle del pedido para ADMIN - Hexagonal pattern
+    Mismo use case que detalle_pedido pero sin validación de ownership
     """
+    use_case = get_obtener_pedido_detalle_use_case()
+    
     try:
-        return commands.admin_obtener_pedido(settings, pedido_id)
-    except ValueError:
-        raise HTTPException(status_code=404, detail={"code": "PEDIDO_NO_ENCONTRADO"})
+        for session in get_db_session(settings):
+            detalle = use_case.execute(session, pedido_id=pedido_id)
+            return _serialize_decimal(detalle)
+            
+    except PedidoNoEncontrado:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "PEDIDO_NO_ENCONTRADO"}
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "ERROR_INTERNO", "message": str(e)}
+        )
 
-def build_api_router(settings: Settings) -> APIRouter:
-    # Mantén la firma por consistencia; si más adelante quieres usar settings,
-    # podrás extender esta función sin tocar main.py.
+
+# ============================================================================
+# EXPORT FUNCTION (Compatibility con main.py)
+# ============================================================================
+
+def build_api_router(settings: Settings | None = None) -> APIRouter:
+    """
+    Factory function para compatibilidad con main.py
+    Retorna el router configurado
+    """
     return router
