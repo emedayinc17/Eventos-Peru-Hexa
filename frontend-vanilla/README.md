@@ -344,8 +344,31 @@ docker run -d -p 8080:80 emeday17/eventos-frontend:1.0.0
 Este proyecto es parte de un MVP académico para demostración de arquitectura hexagonal con microservicios.
 
 ---
+**Configuración recomendada para despliegue (ConfigMap / render de config.js)**
+
+- Resumen: monta o inyecta `config.js` en el contenedor en runtime en vez de reconstruir la imagen.
+- Archivo `config.js` mínimo:
+```javascript
+window.IAM_API_BASE = "https://mi-domino/iam";
+window.API_BASE = window.IAM_API_BASE;
+```
+- Ejemplo rápido de ConfigMap:
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: iam-frontend-config
+data:
+  config.js: |
+    window.IAM_API_BASE = "https://eventos.emeday.inc/iam/iam";
+    window.API_BASE = window.IAM_API_BASE;
+```
+
+ - Nota: la forma recomendada en Kubernetes es montar un `ConfigMap` que provea `config.js` al contenedor (sin reempaquetar la imagen).
+ - Opcional (requiere modificar la imagen): un script `render-config.sh` puede escribir `config.js` desde variables de entorno en el entrypoint; esto sí implica cambiar el `Dockerfile` y volver a construir la imagen.
+
 
 **Versión:** Phase 3 Complete  
 **Última Actualización:** 2025-11-22  
 **Autor:** emedayinc17  
-**Asistente:** GitHub Copilot (Claude Sonnet 4.5)
+**Asistente:** GitHub Copilot

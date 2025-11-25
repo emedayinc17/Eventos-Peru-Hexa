@@ -2,6 +2,7 @@
 import { Auth } from "./auth.js";
 import { IAM, CATALOGO, getToken } from "./api.js";
 import { PROVEEDORES, CONTRATACION } from "./services.js";
+import { verifyAllServices, resultsToHtml } from "./healthcheck.js";
 
 console.log("[app] module loaded");
 
@@ -79,6 +80,34 @@ function bindNavLink(id, hash) {
 bindNavLink("nav-catalogo", "#/catalogo");
 bindNavLink("nav-proveedores", "#/proveedores");
 bindNavLink("nav-contratacion", "#/contratacion");
+
+// Botón para ejecutar verificación de servicios (modo local)
+const btnVerifyServices = document.getElementById('btn-verify-services');
+if (btnVerifyServices) {
+  btnVerifyServices.addEventListener('click', async (ev) => {
+    ev.preventDefault();
+    const modalEl = document.getElementById('servicesVerificationModal');
+    if (!modalEl || !window.bootstrap?.Modal) {
+      alert('No se pudo abrir la verificación (modal no disponible)');
+      return;
+    }
+
+    const modal = new bootstrap.Modal(modalEl);
+    const body = document.getElementById('services-verification-body');
+    if (body) {
+      body.innerHTML = '<div class="text-center py-4"><div class="spinner-border" role="status"></div><div class="small text-muted mt-2">Ejecutando comprobaciones...</div></div>';
+    }
+    modal.show();
+
+    try {
+      const results = await verifyAllServices();
+      if (body) body.innerHTML = resultsToHtml(results);
+    } catch (err) {
+      console.error('Error verificando servicios', err);
+      if (body) body.innerHTML = `<div class="alert alert-danger">Error ejecutando comprobaciones: ${escapeHtml(err?.message || String(err))}</div>`;
+    }
+  });
+}
 
 // Modal público (se inicializa on-demand)
 let publicRegisterModal = null;

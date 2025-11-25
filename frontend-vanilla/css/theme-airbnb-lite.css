@@ -1,0 +1,98 @@
+/* theme-airbnb-lite.css
+   Tema ligero inspirado en la paleta de Airbnb pero conservando la estética y utilidades de Bootstrap.
+   - Colores: rosa principal
+   - Overrides mínimos: navbar, botones primarios, search-pill, cards y badges
+   - Evita reescribir todas las utilidades de Bootstrap
+*/
+:root{
+  --primary-500: #FF385C;
+  --primary-400: #FF6B87;
+  --bg-100: #f7f7f7;
+  --text-900: #22272A;
+  --muted: #6c757d;
+  --card-radius: 0.6rem;
+  --control-shadow: 0 6px 18px rgba(16,24,40,0.06);
+}
+
+html,body{
+  background:var(--bg-100);
+  color:var(--text-900);
+  -webkit-font-smoothing:antialiased;
+}
+
+/* Navbar: estilo sutil que usa Bootstrap pero con color primario para brand */
+.navbar{ background: #fff; }
+.navbar-brand{ color:var(--primary-500) !important; font-weight:700; }
+.navbar .nav-link{ color:var(--muted) !important; font-weight:600; }
+.navbar .nav-link:hover{ color:var(--primary-500) !important; }
+
+/* Botón primario: pill, sombra ligera */
+.btn-primary{
+  background: var(--primary-500);
+  border-color: transparent;
+  border-radius: 0.65rem;
+  box-shadow: var(--control-shadow);
+  padding: .55rem 1rem;
+  font-weight:600;
+}
+
+/* Search pill ligero (no rompe el layout) */
+.search-pill{
+  display:flex; align-items:center; gap:8px; background:#fff;
+  padding:6px 10px; border-radius:999px; box-shadow: 0 6px 18px rgba(16,24,40,0.04);
+  border:1px solid rgba(16,24,40,0.04);
+}
+.search-pill input{ border:0; outline:0; width:100%; padding:.35rem 0; }
+.search-pill .search-btn{ background:var(--primary-500); color:#fff; border-radius:999px; padding:.4rem .6rem; border:0; }
+
+/* Cards: keep bootstrap default but nicer image handling */
+.card{ border-radius: var(--card-radius); overflow:hidden; }
+.card img{ width:100%; height:220px; object-fit:cover; display:block; }
+.card .card-body{ padding: .9rem; }
+
+/* Price badge simple y legible */
+.price-badge{ position:absolute; top:12px; right:12px; background: rgba(0,0,0,0.65); color:#fff; padding:6px 10px; border-radius:999px; font-weight:700; font-size:0.95rem; }
+
+/* Favorito circular discreto */
+.favorite-icon{ width:36px; height:36px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:rgba(255,56,92,0.08); color:var(--primary-500); }
+
+/* Filters as pills (light) */
+.filter-pill{ border-radius:999px; padding:.45rem .7rem; border:1px solid rgba(16,24,40,0.04); background:#fff; margin-right:6px; font-weight:600; }
+
+/* Modal slight rounding */
+.modal-content{ border-radius:0.6rem; }
+
+/* Login tweaks kept minimal */
+.login-card .form-control:focus{ box-shadow:0 6px 18px rgba(255,56,92,0.06); border-color: var(--primary-500); }
+
+/* Small util */
+.small-muted{ color:var(--muted); }
+
+/* Hover lift for cards */
+.card:hover{ transform: translateY(-6px); transition: transform 220ms ease; box-shadow: 0 12px 30px rgba(16,24,40,0.08); }
+
+/* Elevated Controls: Variant C header styles */
+.navbar-elevated{
+  padding-top: .5rem;
+  padding-bottom: .5rem;
+  box-shadow: 0 10px 30px rgba(16,24,40,0.06);
+  border-bottom: none;
+}
+.navbar-elevated .navbar-brand{ color:var(--primary-500); font-weight:800; }
+.navbar-elevated .nav-link{ color:var(--muted); font-weight:600; }
+.navbar-elevated .nav-link:hover{ color:var(--text-900); }
+
+.control-pill{ border-radius:0.6rem; padding:.35rem .6rem; display:inline-flex; gap:.5rem; align-items:center; font-weight:700; }
+.control-pill i{ font-size:1rem; }
+
+/* Slightly stronger shadow for the centered search on large screens */
+.navbar-elevated .search-pill{ box-shadow: 0 14px 40px rgba(16,24,40,0.06); border:1px solid rgba(16,24,40,0.04); padding:8px 10px; }
+.navbar-elevated .search-pill input{ border:0; outline:0; background:transparent; }
+.navbar-elevated .search-pill .search-btn{ background:var(--primary-500); color:#fff; border-radius:999px; padding:.4rem .6rem; border:0; }
+
+/* On small screens allow the pill inside collapse to be full width */
+.search-pill.w-100{ width:100%; }
+
+@media (max-width: 992px){
+  .navbar-elevated .search-pill{ box-shadow: none; border:1px solid rgba(0,0,0,0.03); }
+}

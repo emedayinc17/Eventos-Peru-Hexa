@@ -3,16 +3,26 @@
 // Cliente ligero para el servicio IAM (fetch)
 // ==========================================
 
-// --- Base URL (se puede sobreescribir con window.API_BASE) ---
-const RAW_BASE = (typeof window !== "undefined" && window.API_BASE)
-  ? window.API_BASE
-  : "http://127.0.0.1:8010/iam";
+// --- Base URL (se puede sobreescribir con window.IAM_API_BASE o window.API_BASE) ---
+// En arquitectura hexagonal el frontend actúa como un adapter (puerto externo) y
+// debe apuntar al puerto HTTP del servicio IAM mediante configuración externa.
+const RAW_IAM_BASE = (typeof window !== "undefined" && window.IAM_API_BASE) ? window.IAM_API_BASE : null;
+const RAW_FALLBACK_BASE = (typeof window !== "undefined" && window.API_BASE) ? window.API_BASE : "http://127.0.0.1:8010/iam";
+const RAW_BASE = RAW_IAM_BASE || RAW_FALLBACK_BASE;
 
 // Normaliza para evitar // al concatenar paths
 function normalizeBase(base) {
   return String(base || "").replace(/\/+$/, "");
 }
 export const API_BASE = normalizeBase(RAW_BASE);
+
+// Runtime: advertencia si seguimos usando el valor por defecto local (útil en staging/producción)
+(function checkApiBase() {
+  const defaultLocal = normalizeBase("http://127.0.0.1:8010/iam");
+  if (API_BASE === defaultLocal) {
+    console.warn("[config] `API_BASE` está en el valor por defecto (localhost). Inyecta `config.js` desde un ConfigMap o monta un archivo `config.js` para apuntar al IAM real.");
+  }
+})();
 
 // --- Base URL catálogo (se puede sobreescribir con window.CATALOGO_API_BASE) ---
 const RAW_CATALOGO_BASE = (typeof window !== "undefined" && window.CATALOGO_API_BASE)

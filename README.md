@@ -1,257 +1,130 @@
+# Eventos Per� - Arquitectura Hexagonal (Microservicios)
 
-# Eventos Perú — MVP (Arquitectura Hexagonal)
+**Autor:** Emeday@2025  
+**Versi�n:** Phase 3 Complete  
+**Estado:** En Desarrollo Activo
 
-Microservicios en Python + FastAPI + MySQL siguiendo un enfoque **hexagonal**. Incluye IAM, Catálogo, Contratación, Proveedores, Paquetes y un módulo compartido (`ev_shared`). Se priorizan **buenas prácticas**: JWT, soft-delete, auditoría, consultas parametrizadas, y outbox para mensajería.
-
----
-
-## 🧭 TL;DR (arranque rápido)
-
-1) **Requisitos**  
-- Python 3.12+  
-- MySQL 8.x  
-- PowerShell / Bash
-
-2) **Base de datos**  
-- Importa el script consolidado (estructura + seeds + grants):  
-  `db/sql/soa_eventos_peru_mvp.sql` (o el archivo .sql consolidado que tengas).
-
-3) **Variables de entorno (.env por servicio)**  
-Crea/ajusta los `.env` en cada carpeta `services/<service>/.env` (ver ejemplos abajo).
-
-4) **Levantar servicios (PowerShell)**  
-```powershell
-# IAM
-.\services\iam-service
-run.bat
-
-# Catálogo
-.\services\catalogo-service
-run.bat
-
-# Contratación
-.\services\contratacion-service
-run.bat
-```
-(Usa los demás `run.bat` si aplica: proveedores, paquetes, mensajería).
-
-5) **Swagger (por servicio)**  
-- `http://localhost:<PUERTO>/docs`  
-- OpenAPI JSON: `/openapi.json`
+Este proyecto implementa un sistema de gesti�n de eventos utilizando una **Arquitectura Hexagonal** (Puertos y Adaptadores) distribuida en microservicios. El objetivo es desacoplar la l�gica de negocio de los detalles de infraestructura, permitiendo escalabilidad y mantenibilidad.
 
 ---
 
-## 🧱 Estructura del proyecto (resumen)
+##  Prerrequisitos
 
-```
+Para ejecutar este proyecto localmente, necesitas tener instalado:
+
+1.  **Python 3.12+**: Lenguaje base para todos los microservicios.
+2.  **MySQL 8.0**: Base de datos relacional principal.
+3.  **PowerShell**: Para la orquestaci�n de servicios en entorno Windows.
+4.  **Docker & Kubernetes (Opcional)**: Para despliegue en contenedores.
+
+---
+
+##  Arquitectura del Sistema
+
+El sistema est� dividido en 4 microservicios principales, cada uno con su propia responsabilidad y esquema de base de datos (aunque comparten instancia f�sica en desarrollo):
+
+### 1. IAM Service (Identidad y Acceso)
+*   **Puerto:** `8010`
+*   **Responsabilidad:** Gesti�n de usuarios, roles, autenticaci�n (JWT) y auditor�a.
+*   **Endpoints Clave:**
+    *   `POST /iam/auth/login`: Inicio de sesi�n y generaci�n de tokens.
+    *   `POST /iam/auth/register`: Registro de nuevos usuarios.
+    *   `GET /iam/users/me`: Perfil del usuario actual.
+
+### 2. Cat�logo Service
+*   **Puerto:** `8020`
+*   **Responsabilidad:** Gesti�n de servicios ofrecidos, paquetes y precios.
+*   **Endpoints Clave:**
+    *   `GET /catalogo/servicios`: Listado de servicios disponibles.
+    *   `GET /catalogo/paquetes`: Paquetes predefinidos para eventos.
+    *   `GET /catalogo/paquetes/{id}`: Detalle de un paquete espec�fico.
+
+### 3. Proveedores Service
+*   **Puerto:** `8030`
+*   **Responsabilidad:** Gesti�n de proveedores externos, sus habilidades y disponibilidad.
+*   **Endpoints Clave:**
+    *   `GET /proveedores`: B�squeda de proveedores.
+    *   `GET /proveedores/{id}/disponibilidad`: Verificar calendario.
+    *   `POST /proveedores/reservas-temporales`: Bloqueo temporal de agenda (Holds).
+
+### 4. Contrataci�n Service
+*   **Puerto:** `8040`
+*   **Responsabilidad:** Core del negocio. Gesti�n de pedidos, cotizaciones y reservas finales.
+*   **Endpoints Clave:**
+    *   `POST /contratacion/pedidos`: Crear un nuevo pedido de evento.
+    *   `GET /contratacion/pedidos/mis-pedidos`: Historial del cliente.
+    *   `PUT /contratacion/pedidos/{id}/estado`: Transiciones de estado (Draft -> Cotizado -> Aprobado -> Asignado).
+
+---
+## 📂 Estructura del Proyecto
+
+El repositorio está organizado para separar claramente el backend, frontend, infraestructura y documentación.
+
+```plaintext
 eventos-peru-hexagonal/
-├─ services/
-│  ├─ iam-service/
-│  │  ├─ app/
-│  │  │  └─ entrypoints/fastapi/
-│  │  │     ├─ main.py          # crea FastAPI app y registra router; seguridad HTTPBearer en OpenAPI
-│  │  │     ├─ router.py        # rutas IAM (auth, me, admin users) + auditoría + soft-delete
-│  │  │     └─ schemas.py       # DTOs Pydantic v2
-│  │  ├─ .env
-│  │  └─ run.bat
-│  ├─ catalogo-service/
-│  │  ├─ app/entrypoints/fastapi/ (main.py, router.py, schemas.py)
-│  │  ├─ .env
-│  │  └─ run.bat
-│  ├─ contratacion-service/
-│  │  ├─ app/
-│  │  │  ├─ entrypoints/fastapi/ (main.py, router.py, security.py, schemas.py)
-│  │  │  └─ application/commands.py   # casos de uso con SQL parametrizado
-│  │  ├─ .env
-│  │  └─ run.bat
-│  ├─ proveedores-service/ (opcional en este MVP)
-│  ├─ paquetes-service/ (opcional en este MVP)
-│  └─ mensajeria-service/ (opcional en este MVP)
-├─ ev_shared/
-│  ├─ __init__.py
-│  ├─ config.py               # Settings (dotenv) — DB URL, JWT, etc.
-│  ├─ db.py                   # session_scope()
-│  └─ security/passwords.py   # hash_password(), verify_password() (bcrypt)
-├─ db/
-│  └─ sql/
-│     └─ soa_eventos_peru_mvp.sql   # **Script consolidado**: esquemas, vistas, seeds, grants
-└─ README.md  (este archivo)
-```
-
-> **Nota:** la estructura exacta puede variar ligeramente según tu repo, pero lo importante es que cada servicio expone `main.py`, `router.py`, `schemas.py` y un `run.bat` con su `.env` correspondiente.
-
----
-
-## 🔐 Seguridad y JWT
-
-- **Login** (`/auth/login`) emite JWT **HS256** con claims:
-  - `sub` (user id), `username` (email), `role` (`ADMIN`/`CLIENTE`), `iat`, `exp`, `scope`.
-- **Protección**: rutas con `openapi_extra={"security": [{"HTTPBearer": []}]}` y dependencia `get_current_user` (valida Bearer).
-- **Roles**: helper `require_role("ADMIN")` en rutas admin.
-- **Auditoría** (IAM):
-  - Tabla `ev_iam.evento_audit`: acciones `LOGIN`, `USUARIO_CREAR`, `USUARIO_ACTUALIZAR`, `USUARIO_ELIMINAR` (con `metadata` JSON).
-  - Tabla `ev_iam.login_intento`: registra éxitos/fallos de login.
-- **Soft-delete**: `is_deleted=1` y `status=0`. Búsquedas filtran `is_deleted=0`.
-
----
-
-## 🗃️ Base de datos (resumen)
-
-### Esquemas
-- `ev_iam`: `usuario`, `rol`, `usuario_rol`, `sesion`, `evento_audit`, `login_intento`, (reset tokens opcional).
-- `ev_catalogo`: `tipo_evento`, `servicio`, `opcion_servicio`, `precio_servicio`, vistas: `v_opcion_con_precio_vigente`.
-- `ev_paquetes`: `paquete`, `item_paquete`, `precio_paquete`, vistas: `v_paquete_detalle`, `v_paquete_precio_vigente_total`.
-- `ev_contratacion`: `pedido_evento`, `item_pedido_evento`, `reserva`, vista `v_pedido_con_cliente`.
-- `ev_proveedores`: `proveedor`, `habilidad_proveedor`, `calendario_proveedor`, `reserva_temporal`.
-- `ev_mensajeria`: `email_outbox` (Outbox pattern).
-
-### Usuarios DB / Grants (por bounded context)
-- `app_iam`, `app_catalogo`, `app_paquetes`, `app_proveedores`, `app_contratacion`, `app_mensajeria`, `app_api`.
-- Cada servicio usa un **usuario y privilegios mínimos** sobre su esquema.
-
-> Aplica el **script SQL consolidado** para crear todo y sembrar datos mínimos (roles, usuario demo, catálogo base).
-
----
-
-## ⚙️ Configuración (.env por servicio)
-
-### Ejemplo: `services/iam-service/.env`
-```
-APP_NAME=iam-service
-APP_VERSION=0.1.0
-APP_HOST=0.0.0.0
-APP_PORT=8010
-
-# MySQL (usuario con permisos solo sobre ev_iam)
-DB_URL=mysql+pymysql://app_iam:IAM_2025@127.0.0.1:3306/ev_iam
-
-# JWT
-JWT_SECRET=super_secreto_largo_y_unico
-JWT_ALG=HS256
-JWT_EXPIRES_MIN=60
-```
-
-### Ejemplo: `services/catalogo-service/.env`
-```
-APP_NAME=catalogo-service
-APP_VERSION=0.1.0
-APP_HOST=0.0.0.0
-APP_PORT=8020
-
-DB_URL=mysql+pymysql://app_catalogo:Catalogo_2025@127.0.0.1:3306/ev_catalogo
-```
-
-### Ejemplo: `services/contratacion-service/.env`
-```
-APP_NAME=contratacion-service
-APP_VERSION=0.1.0
-APP_HOST=0.0.0.0
-APP_PORT=8040
-
-DB_URL=mysql+pymysql://app_contratacion:Contrata_2025@127.0.0.1:3306/ev_contratacion
-
-# Para consumir IAM (si aplica) o verificar JWT en entrypoint
-JWT_SECRET=super_secreto_largo_y_unico
-JWT_ALG=HS256
-```
-
-> Ajusta host/puerto/secret según tu entorno. Si usas Docker, reemplaza `127.0.0.1` por el nombre del servicio MySQL.
-
----
-
-## 🧩 Servicios (resumen funcional)
-
-### IAM
-- **Público**: `/health`, `/auth/login`, `/auth/register`
-- **Protegido**: `/me`
-- **Admin (Bearer + rol ADMIN)**: `/admin/users` (CRUD parcial)
-- **Prácticas**: soft-delete, auditoría, login_intento, SQL con parámetros, hash de contraseña.
-
-### Catálogo
-- Exposición de `tipo_evento`, `servicio`, `opcion_servicio` y `precio` vigente (solo lectura para público).
-- Usa vistas (`v_opcion_con_precio_vigente`) para aislar reglas de vigencia.
-
-### Contratación
-- **Cliente**: crear pedido desde paquete o custom items; listar/obtener; enviar resumen (outbox).
-- **Admin**: cambiar estado, agregar/eliminar ítems, asignar proveedor (reglas simples y conflictos).
-- SQL **parametrizado** con `sqlalchemy.text()` y `session_scope()` (evita inyecciones).
-
----
-
-## 🔎 Buenas prácticas aplicadas
-
-- **Nada hardcodeado** en queries: parámetros `:named` siempre.
-- **Separation of concerns**: `entrypoints` (API) vs `application` (casos de uso).
-- **Evitar SELECT ***: solo columnas necesarias.
-- **Índices** para filtros frecuentes (`status`, `is_deleted`, fechas).
-- **Vistas** para modelos de lectura (precio vigente, totales de paquete).
-- **Auditoría** y **outbox** para trazabilidad e integración.
-
----
-
-## 🧪 Ejemplos rápidos (curl)
-
-### Login
-```bash
-curl -X POST http://localhost:8010/auth/login   -H "Content-Type: application/json"   -d '{"email":"demo@eventos.pe","password":"<TU_PASSWORD_DEMO>"}'
-```
-
-### Usar token en una ruta protegida
-```bash
-TOKEN="<access_token>"
-curl http://localhost:8010/me -H "Authorization: Bearer $TOKEN"
-```
-
-### Crear usuario (ADMIN)
-```bash
-curl -X POST http://localhost:8010/admin/users   -H "Authorization: Bearer $TOKEN"   -H "Content-Type: application/json"   -d '{"email":"admin2@eventos.pe","password":"Admin_2025!","nombre":"Admin 2","telefono":"+51 999 111 222","role":"ADMIN"}'
-```
-
-### Soft-delete usuario (ADMIN)
-```bash
-curl -X DELETE http://localhost:8010/admin/users/<user_id>   -H "Authorization: Bearer $TOKEN"
+├── db/                 # Scripts SQL de inicialización y migración
+├── deploy/             # Configuraciones de Docker y Kubernetes
+├── docs/               # Documentación del proyecto (Roadmap, Test Data)
+├── frontend-vanilla/   # Cliente Web (HTML/JS/CSS)
+│   ├── css/            # Estilos (Bootstrap + Custom)
+│   ├── js/             # Lógica de cliente (API, Auth, App)
+│   └── config.js       # Configuración de endpoints
+├── libs/               # Librerías compartidas (Python)
+│   └── shared/         # Código común entre microservicios
+├── services/           # Microservicios Backend
+│   ├── catalogo-service/
+│   ├── contratacion-service/
+│   ├── iam-service/
+│   └── proveedores-service/
+├── tools/              # Scripts de utilidad y validación
+└── start-services.ps1  # Script de orquestación local
 ```
 
 ---
+##  Despliegue y Ejecuci�n
 
-## 🛠️ Troubleshooting
+### 1. Configuraci�n de Base de Datos
+El proyecto incluye scripts SQL para inicializar la estructura y datos de prueba.
+*   **Script Principal:** `db/bootstrap.sql` (Ejecutar en MySQL 8).
+*   **Credenciales por defecto:** Ver `docs/TEST_DATA.md`.
 
-- **Swagger /openapi.json 500 (Pydantic v2: “class-not-fully-defined”)**  
-  Revisa que no se inyecten tipos especiales en dependencias (`Annotated`/`Query`) sin `rebuild()`. En este repo ya se normalizó el uso de `Header`/`Depends` simples.
+### 2. Ejecuci�n Local (Windows)
+Utilizamos un script de PowerShell para orquestar el inicio de todos los servicios simult�neamente.
 
-- **Error Pydantic: “Fields must not use names with leading underscores”**  
-  Asegúrate de no definir campos de modelo que comiencen con `_`. Ya está corregido en `schemas.py`.
+```powershell
+.\start-services.ps1
+```
+Este script:
+1.  Activa el entorno virtual de Python.
+2.  Inicia cada microservicio en su puerto correspondiente.
+3.  Muestra logs en ventanas separadas.
 
-- **Cambios no reflejados**  
-  Limpia caché Python:
-  ```powershell
-  Get-ChildItem -Path . -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
-  Get-ChildItem -Path . -Recurse -Include *.pyc | Remove-Item -Force
-  ```
+### 3. Docker y Contenedores
+La estrategia de contenedorizaci�n se encuentra en la carpeta `deploy/`.
+*   **Dockerfile.api**: Definici�n base para las im�genes de los servicios Python.
+*   **docker-compose.yml**: Orquestaci�n local de contenedores (Base de datos + Servicios).
 
-- **401 en rutas admin**  
-  Verifica que el `role` del token sea `ADMIN`. Usa `/auth/login` con un usuario admin o asigna el rol vía `/admin/users`.
-
----
-
-## 📌 Roadmap (siguiente avance)
-
-- Rotación de **JWT_SECRET** y revocación por `sesion`/`jti`.
-- Idempotencia en endpoints críticos via `request_id` (Contratación ya lo usa en `pedido_evento`).
-- Workers para **email_outbox**.
-- Observabilidad: logs estructurados, trazas y métricas.
-- Tests automatizados (pytest + httpx).
-
----
-
-## 🤝 Contribuir
-
-1. Crea rama a partir de `main`.
-2. Asegúrate de pasar linters/formatters (black/isort) si los tienes configurados.
-3. Abre PR con descripción y pasos de prueba.
+### 4. Kubernetes (K8s)
+El despliegue en Kubernetes est� dise�ado para alta disponibilidad.
+*   Los manifiestos se encuentran en `frontend-vanilla/k8s/` y `deploy/k8s/` (en desarrollo).
+*   Se utiliza **Ingress** para enrutar el tr�fico a los diferentes servicios bas�ndose en el path (`/iam`, `/catalogo`, etc.).
 
 ---
 
-## 📄 Author
+##  Frontend
+El proyecto incluye un frontend en Vanilla JS (`frontend-vanilla/`) que consume estos microservicios.
+*   **Tecnolog�a:** HTML5, CSS3, JS (ES6+).
+*   **Configuraci�n:** `config.js` define las URLs base de los microservicios.
+*   **Ejecuci�n:** Puede servirse con cualquier servidor est�tico (ej. Live Server, Nginx).
 
-Emeday © 2025
+---
+
+##  Seguridad
+*   **Autenticaci�n:** Basada en Tokens JWT (JSON Web Tokens).
+*   **Contrase�as:** Almacenamiento seguro utilizando hashing (Bcrypt).
+*   **CORS:** Configurado para permitir peticiones desde el frontend autorizado.
+*   **Nota:** No se exponen credenciales reales en este repositorio. Consulte `docs/TEST_DATA.md` para cuentas de prueba en entorno local.
+
+---
+
+ 2025 Emeday Inc. Todos los derechos reservados.
