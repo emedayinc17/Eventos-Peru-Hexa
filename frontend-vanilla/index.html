@@ -62,15 +62,9 @@
 <body class="bg-light">
 <nav class="navbar navbar-expand-lg navbar-elevated bg-white">
   <div class="container app-container align-items-center">
-    <a class="navbar-brand fw-bold me-3" href="#/">Eventos Perú</a>
+    <a class="navbar-brand fw-bold me-3" href="index.html">Eventos Perú</a>
 
-    <!-- Centered search on large screens (Elevated Controls variant) -->
-    <div class="d-none d-lg-flex flex-fill justify-content-center">
-      <div class="search-pill" role="search" style="max-width:640px;width:100%;">
-        <input id="header-search-input" type="search" class="form-control form-control-sm" placeholder="Buscar paquetes, servicios, ubicaciones..." aria-label="Buscar">
-        <button id="header-search-btn" class="btn search-btn btn-sm" type="button"><i class="bi bi-search"></i></button>
-      </div>
-    </div>
+    <!-- Search pill removed (styles kept for future use) -->
 
     <button class="navbar-toggler ms-2" type="button" data-bs-toggle="collapse" data-bs-target="#navbarsExampleDefault" aria-controls="navbarsExampleDefault" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
@@ -78,31 +72,25 @@
 
     <div class="collapse navbar-collapse justify-content-end" id="navbarsExampleDefault">
       <ul class="navbar-nav align-items-center">
-        <!-- Mobile search: visible inside collapse on small screens -->
-        <li class="nav-item d-lg-none mb-2">
-          <div class="search-pill w-100">
-            <input id="header-search-input-mobile" type="search" class="form-control form-control-sm" placeholder="Buscar..." aria-label="Buscar">
-            <button id="header-search-btn-mobile" class="btn search-btn btn-sm" type="button"><i class="bi bi-search"></i></button>
-          </div>
-        </li>
+        <!-- Mobile search removed (keep CSS for future reuse) -->
 
         <li class="nav-item">
           <a class="nav-link" href="#" id="btn-verify-services">Verificar servicios</a>
         </li>
-        <li class="nav-item"><a class="nav-link" href="#/me">Mi Perfil</a></li>
-        <li class="nav-item"><a class="nav-link" href="#/catalogo" id="nav-catalogo">Catálogo</a></li>
-        <li class="nav-item"><a class="nav-link" href="#/proveedores" id="nav-proveedores">Proveedores</a></li>
-        <li class="nav-item"><a class="nav-link" href="#/contratacion" id="nav-contratacion">Contratación</a></li>
-        <li class="nav-item"><a class="nav-link" href="#/admin" id="nav-admin">Admin Usuarios</a></li>
-        <!-- Su comportamiento lo controla app.js con data-mode -->
-        <li class="nav-item"><a class="nav-link" href="#" id="nav-register" data-mode="public">Registrar</a></li>
+        <li class="nav-item"><a class="nav-link" href="service-iam.html">Mi Perfil</a></li>
+        <li class="nav-item"><a class="nav-link" href="service-catalogo.html" id="nav-catalogo">Catálogo</a></li>
+        <li class="nav-item"><a class="nav-link" href="service-proveedores.html" id="nav-proveedores">Proveedores</a></li>
+        <li class="nav-item"><a class="nav-link" href="service-contratacion.html" id="nav-contratacion">Contratación</a></li>
+        <li class="nav-item"><a class="nav-link" href="index.html#admin" id="nav-admin">Admin Usuarios</a></li>
+        <!-- Su comportamiento lo controla app.js with data-mode; register/login point to IAM preview -->
+        <li class="nav-item"><a class="nav-link" href="service-iam.html" id="nav-register" data-mode="public">Registrar</a></li>
 
         <!-- Right-side compact control pills (Login / Register / Logout) -->
         <li class="nav-item ms-2">
-          <a class="btn btn-outline-secondary btn-sm control-pill d-flex align-items-center" href="#/login" id="nav-login"><i class="bi bi-person"></i><span class="d-none d-md-inline ms-2">Login</span></a>
+          <a class="btn btn-outline-secondary btn-sm control-pill d-flex align-items-center" href="service-iam.html" id="nav-login"><i class="bi bi-person"></i><span class="d-none d-md-inline ms-2">Login</span></a>
         </li>
         <li class="nav-item ms-2">
-          <a class="btn btn-primary btn-sm control-pill d-flex align-items-center" href="#/register" id="nav-register-btn"><i class="bi bi-pencil-square"></i><span class="d-none d-md-inline ms-2">Registro</span></a>
+          <a class="btn btn-primary btn-sm control-pill d-flex align-items-center" href="service-iam.html" id="nav-register-btn"><i class="bi bi-pencil-square"></i><span class="d-none d-md-inline ms-2">Registro</span></a>
         </li>
         <li class="nav-item ms-2 d-none">
           <a class="btn btn-outline-danger btn-sm control-pill d-flex align-items-center" href="#" id="nav-logout"><i class="bi bi-box-arrow-right"></i><span class="d-none d-md-inline ms-2">Salir</span></a>
