@@ -33,7 +33,7 @@ spec:
       serviceAccountName: app-eventos
       containers:
         - name: app
-          image: emeday17/eventos-proveedores:0.1.0
+          image: eventos-proveedores:0.1.0
           imagePullPolicy: Always
           env:
             - name: BASE_PATH

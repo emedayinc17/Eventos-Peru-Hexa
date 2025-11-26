@@ -12,8 +12,4 @@ resources:
   - services/proveedores/deploy-svc.yaml
   - services/contratacion/deploy-svc.yaml
 
-images:
-  - name: eventos-iam
-  - name: emeday17/eventos-catalogo:0.1.0
-  - name: emeday17/eventos-proveedores:0.1.0
-  - name: emeday17/eventos-contratacion:0.1.0
+# Image overrides are handled in overlays (dev/prod) to keep base generic.

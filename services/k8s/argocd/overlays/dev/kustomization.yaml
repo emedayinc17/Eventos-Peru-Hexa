@@ -8,13 +8,13 @@ images:
   - name: eventos-iam
     newName: emeday17/iam-service
     newTag: "1.0.0"
-  - name: emeday17/eventos-catalogo
+  - name: eventos-catalogo
     newName: emeday17/eventos-catalogo
     newTag: "1.0.0"
-  - name: emeday17/eventos-proveedores
+  - name: eventos-proveedores
     newName: emeday17/eventos-proveedores
     newTag: "1.0.0"
-  - name: emeday17/eventos-contratacion
+  - name: eventos-contratacion
     newName: emeday17/eventos-contratacion
     newTag: "1.0.0"
 

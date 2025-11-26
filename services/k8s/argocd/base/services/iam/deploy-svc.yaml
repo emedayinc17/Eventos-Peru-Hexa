@@ -33,7 +33,7 @@ spec:
       serviceAccountName: app-eventos
       containers:
         - name: app
-          image: eventos-iam
+          image: eventos-iam:0.1.0
           imagePullPolicy: Always
           command: ["/bin/sh"]
           args:
