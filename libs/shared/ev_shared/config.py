@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     VAULT_TOKEN: Optional[str] = None
 
     # CORS
-    CORS_ORIGINS: str = Field(default="http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000,http://127.0.0.1:8000", description="Comma separated list of allowed origins")
+    CORS_ORIGINS: str = Field(default="http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000,http://127.0.0.1:8000,http://localhost:5500,http://127.0.0.1:5500", description="Comma separated list of allowed origins")
 
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8', extra='ignore')
 

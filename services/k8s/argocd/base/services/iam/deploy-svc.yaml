@@ -38,9 +38,11 @@ spec:
           command: ["/bin/sh"]
           args:
             - "-c"
-            - |
-              # Cargar secrets de Vault (Alpine compatible)
-              . /vault/secrets/config
+              - |
+              # Cargar secrets de Vault (Alpine compatible) si existen
+              if [ -f /vault/secrets/config ]; then
+                . /vault/secrets/config
+              fi
               # Forzar variables de entorno para sobreescribir los valores hardcodeados
               export DB_HOST="${DB_HOST}"
               export DB_PORT="${DB_PORT}"

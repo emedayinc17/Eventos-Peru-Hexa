@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Eventos Perú</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <style>
+        body {
+            background: linear-gradient(135deg, #0d6efd 0%, #0dcaf0 100%);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .brand-logo {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #0d6efd;
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="login-card">
+        <div class="brand-logo">Eventos Perú</div>
+
+        <div id="alert-container" class="d-none"></div>
+
+        <form id="login-form">
+            <div class="mb-3">
+                <label for="email" class="form-label">Correo Electrónico</label>
+                <input type="email" class="form-control" id="email" required placeholder="nombre@ejemplo.com">
+            </div>
+            <div class="mb-3">
+                <label for="password" class="form-label">Contraseña</label>
+                <input type="password" class="form-control" id="password" required>
+            </div>
+            <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-primary btn-lg" id="btn-login">Iniciar Sesión</button>
+            </div>
+        </form>
+
+        <div class="text-center mt-3">
+            <small>¿No tienes cuenta? <a href="register.html">Regístrate</a></small>
+        </div>
+
+        <div class="mt-4 p-3 bg-light rounded border">
+            <small class="d-block text-muted fw-bold mb-1">Credenciales Demo:</small>
+            <small class="d-block text-muted">Email: demo@eventos.pe</small>
+            <small class="d-block text-muted">Pass: Admin_2025!</small>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/adapters/http-adapter.js"></script>
+    <script src="js/adapters/auth-service.js"></script>
+
+    <script>
+        // Lógica de Login
+        document.addEventListener('DOMContentLoaded', () => {
+            SessionManager.redirectIfAuthenticated();
+
+            const form = document.getElementById('login-form');
+            const btnLogin = document.getElementById('btn-login');
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                UI.hideAlert('alert-container');
+
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+
+                // Loading state
+                const originalBtnText = btnLogin.innerHTML;
+                btnLogin.disabled = true;
+                btnLogin.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Entrando...';
+
+                try {
+                    await AuthService.login(email, password);
+                    window.location.href = Config.ROUTES.DASHBOARD;
+                } catch (error) {
+                    UI.showError('alert-container', error.message || 'Error al iniciar sesión');
+                    btnLogin.disabled = false;
+                    btnLogin.innerHTML = originalBtnText;
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>
