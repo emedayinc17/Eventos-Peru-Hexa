@@ -39,7 +39,7 @@ spec:
             - name: BASE_PATH
               value: "/catalogo"
             - name: PYTHONPATH
-              value: /app/libs:/app/services/catalogo-service
+              value: "/app/libs/shared:/app/services/catalogo-service"
             - name: PORT
               value: "8020"
           command: ["uvicorn"]
