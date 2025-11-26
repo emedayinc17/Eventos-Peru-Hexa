@@ -30,7 +30,7 @@
 #>
 
 param(
-  [string]$Tag = "1",
+  [string]$Tag = "1.0.0",
     [switch]$Push,
     [string[]]$Services
 )
