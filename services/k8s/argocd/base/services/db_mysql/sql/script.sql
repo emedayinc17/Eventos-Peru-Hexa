@@ -1,12 +1,26 @@
 /* ============================================================
    SOA EVENTOS PERÚ — MVP (Hexagonal)  — SQL CONSOLIDADO
    MySQL 8 — InnoDB, utf8mb4  — Estructura + Seeds + Grants
-   Ajustes clave:
+   
+   AJUSTES FASE 3 (Contratación Service Integration):
+     - item_pedido_evento: Campos adicionales para soporte de paquetes
+       * opcion_servicio_id: ID directo de la opción (NULL si es paquete completo)
+       * nombre_servicio: Nombre del servicio para auditoría y display
+       * precio_unitario: Precio por unidad del servicio
+       * subtotal: Cálculo cantidad * precio_unitario
+       * tipo_item: VARCHAR('SERVICIO'|'PAQUETE') en lugar de TINYINT
+       * Campos legacy (referencia_id, precio_unit, precio_total) mantenidos nullable
+     - Removido constraint chk_item_importe para permitir flexibilidad
+     - Todos los campos nullable para compatibilidad con diferentes flujos
+   
+   Ajustes clave originales:
      - Tokens de reset + rate limit (IAM)
      - Email Outbox (ev_mensajeria) p/ resumen de pedidos y notificaciones
      - Estados de pedido ajustados (DRAFT→COTIZADO→APROBADO→ASIGNADO→CERRADO/CANCELADO)
      - Checks de tiempos (inicio < fin)
      - Vistas de precio vigente total de paquetes
+     - NUEVO: Paquete ↔ Ítems ↔ Proveedores sugeridos por servicio
+     - NUEVO: Vistas cruzadas para filtros por tipo de evento, servicio, proveedor
    IDs: CHAR(36) (UUID)
    ============================================================ */
 
@@ -226,6 +240,19 @@ CREATE TABLE IF NOT EXISTS ev_paquetes.item_paquete (
   INDEX idx_item_opt (opcion_servicio_id)
 ) ENGINE=InnoDB;
 
+/* NUEVO: Proveedores sugeridos por ítem de paquete (por servicio) */
+CREATE TABLE IF NOT EXISTS ev_paquetes.paquete_item_proveedor (
+  id               CHAR(36) PRIMARY KEY,
+  item_paquete_id  CHAR(36) NOT NULL,
+  proveedor_id     CHAR(36) NOT NULL,
+  es_por_defecto   TINYINT(1) NOT NULL DEFAULT 1,
+  created_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_by       CHAR(36)  NULL,
+  INDEX idx_pip_item      (item_paquete_id),
+  INDEX idx_pip_proveedor (proveedor_id),
+  UNIQUE KEY uq_pip_item_prov (item_paquete_id, proveedor_id)
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS ev_paquetes.precio_paquete (
   id            CHAR(36) PRIMARY KEY,
   paquete_id    CHAR(36) NOT NULL,
@@ -363,30 +390,37 @@ CREATE TABLE IF NOT EXISTS ev_contratacion.pedido_evento (
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS ev_contratacion.item_pedido_evento (
-  id            CHAR(36) PRIMARY KEY,
-  pedido_id     CHAR(36) NOT NULL,
-  tipo_item     TINYINT  NOT NULL,        -- 1=OPCION_SERVICIO, 2=PAQUETE
-  referencia_id CHAR(36) NOT NULL,        -- opcion_servicio_id o paquete_id
-  cantidad      INT      NOT NULL DEFAULT 1,
-  precio_unit   DECIMAL(12,2) NOT NULL,
-  precio_total  DECIMAL(12,2) NOT NULL,
-  created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  created_by    CHAR(36)  NULL,
-  INDEX idx_item_pedido (pedido_id),
-  INDEX idx_item_ref    (referencia_id, tipo_item),
-  INDEX idx_item_actor  (created_by)
+  id                 CHAR(36) PRIMARY KEY,
+  pedido_id          CHAR(36) NOT NULL,
+  opcion_servicio_id CHAR(36) NULL,        -- ID de la opción de servicio (cuando viene de paquete o custom)
+  nombre_servicio    VARCHAR(200) NULL,    -- Nombre del servicio para auditoría
+  cantidad           INT      NOT NULL DEFAULT 1,
+  precio_unitario    DECIMAL(12,2) NULL,   -- Precio unitario del servicio
+  subtotal           DECIMAL(12,2) NULL,   -- cantidad * precio_unitario
+  tipo_item          VARCHAR(50) NOT NULL DEFAULT 'SERVICIO', -- 'SERVICIO' o 'PAQUETE'
+  referencia_id      CHAR(36) NULL,        -- opcion_servicio_id o paquete_id (legacy)
+  precio_unit        DECIMAL(12,2) NULL,   -- Legacy: precio unitario
+  precio_total       DECIMAL(12,2) NULL,   -- Legacy: precio total
+  created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_by         CHAR(36)  NULL,
+  INDEX idx_item_pedido     (pedido_id),
+  INDEX idx_item_opcion     (opcion_servicio_id),
+  INDEX idx_item_ref        (referencia_id, tipo_item),
+  INDEX idx_item_actor      (created_by),
+  INDEX idx_item_servicio   (nombre_servicio)
 ) ENGINE=InnoDB;
 
-SET @exists := (
-  SELECT COUNT(*) FROM information_schema.table_constraints
-  WHERE constraint_schema='ev_contratacion'
-    AND table_name='item_pedido_evento'
-    AND constraint_name='chk_item_importe'
-    AND constraint_type='CHECK'
-);
-SET @sql := IF(@exists=0,
-  'ALTER TABLE ev_contratacion.item_pedido_evento ADD CONSTRAINT chk_item_importe CHECK (precio_total = precio_unit * cantidad)',
-  'SELECT 1'); PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
+/* CHECK constraint eliminado - permitir flexibilidad en cálculos */
+-- SET @exists := (
+--   SELECT COUNT(*) FROM information_schema.table_constraints
+--   WHERE constraint_schema='ev_contratacion'
+--     AND table_name='item_pedido_evento'
+--     AND constraint_name='chk_item_importe'
+--     AND constraint_type='CHECK'
+-- );
+-- SET @sql := IF(@exists=0,
+--   'ALTER TABLE ev_contratacion.item_pedido_evento ADD CONSTRAINT chk_item_importe CHECK (precio_total = precio_unit * cantidad)',
+--   'SELECT 1'); PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
 
 CREATE TABLE IF NOT EXISTS ev_contratacion.reserva (
   id             CHAR(36) PRIMARY KEY,
@@ -529,6 +563,108 @@ SELECT
 FROM ev_contratacion.pedido_evento pe
 LEFT JOIN ev_iam.usuario u ON u.id = pe.cliente_id;
 
+-- NUEVA: Parrilla de proveedores por servicio (para filtros por tipo_evento)
+CREATE OR REPLACE VIEW ev_proveedores.v_servicio_proveedor_habilidad AS
+SELECT
+  s.id           AS servicio_id,
+  s.nombre       AS servicio_nombre,
+  s.tipo_evento_id,
+  te.nombre      AS tipo_evento_nombre,
+  p.id           AS proveedor_id,
+  p.nombre       AS proveedor_nombre,
+  p.rating_prom,
+  h.nivel        AS nivel_habilidad
+FROM ev_catalogo.servicio s
+JOIN ev_catalogo.tipo_evento te ON te.id = s.tipo_evento_id
+JOIN ev_proveedores.habilidad_proveedor h ON h.servicio_id = s.id
+JOIN ev_proveedores.proveedor p ON p.id = h.proveedor_id
+WHERE s.is_deleted = 0
+  AND s.status = 1
+  AND te.is_deleted = 0
+  AND te.status = 1
+  AND p.is_deleted = 0
+  AND p.status = 1;
+
+-- NUEVA: Detalle completo de paquete + ítems + proveedor sugerido
+CREATE OR REPLACE VIEW ev_paquetes.v_paquete_item_full AS
+SELECT
+  p.id                 AS paquete_id,
+  p.codigo             AS paquete_codigo,
+  p.nombre             AS paquete_nombre,
+  p.descripcion        AS paquete_descripcion,
+  p.status             AS paquete_status,
+  te.id                AS tipo_evento_id,
+  te.nombre            AS tipo_evento_nombre,
+  s.id                 AS servicio_id,
+  s.nombre             AS servicio_nombre,
+  op.id                AS opcion_servicio_id,
+  op.nombre            AS opcion_nombre,
+  ip.id                AS item_paquete_id,
+  ip.cantidad          AS item_cantidad,
+  vc.moneda,
+  vc.monto,
+  pip.proveedor_id     AS proveedor_sugerido_id,
+  prov.nombre          AS proveedor_sugerido_nombre,
+  prov.rating_prom     AS proveedor_sugerido_rating
+FROM ev_paquetes.paquete p
+JOIN ev_paquetes.item_paquete ip           ON ip.paquete_id = p.id
+JOIN ev_catalogo.opcion_servicio op       ON op.id = ip.opcion_servicio_id
+JOIN ev_catalogo.servicio s               ON s.id = op.servicio_id
+JOIN ev_catalogo.tipo_evento te           ON te.id = s.tipo_evento_id
+LEFT JOIN ev_catalogo.v_opcion_con_precio_vigente vc ON vc.opcion_id = op.id
+LEFT JOIN ev_paquetes.paquete_item_proveedor pip ON pip.item_paquete_id = ip.id AND pip.es_por_defecto = 1
+LEFT JOIN ev_proveedores.proveedor prov ON prov.id = pip.proveedor_id
+WHERE p.is_deleted = 0
+  AND p.status = 1
+  AND s.is_deleted = 0
+  AND s.status = 1
+  AND op.is_deleted = 0
+  AND op.status = 1
+  AND te.is_deleted = 0
+  AND te.status = 1;
+
+-- NUEVA: Vista de reservas con cruce pedido + item + servicio/paquete + proveedor
+CREATE OR REPLACE VIEW ev_contratacion.v_reserva_detalle AS
+SELECT
+  r.id              AS reserva_id,
+  r.status          AS reserva_status,
+  r.inicio,
+  r.fin,
+  r.hold_id,
+  r.created_at      AS reserva_created_at,
+  pe.id             AS pedido_id,
+  pe.cliente_id,
+  pe.fecha_evento,
+  pe.hora_inicio,
+  pe.hora_fin,
+  pe.ubicacion,
+  pe.status         AS pedido_status,
+  pe.monto_total,
+  pe.moneda,
+  i.id              AS item_pedido_id,
+  i.tipo_item,
+  i.referencia_id,
+  i.cantidad,
+  i.precio_unit,
+  i.precio_total,
+  s.id              AS servicio_id,
+  s.nombre          AS servicio_nombre,
+  op.id             AS opcion_servicio_id,
+  op.nombre         AS opcion_nombre,
+  pkg.id            AS paquete_id,
+  pkg.codigo        AS paquete_codigo,
+  pkg.nombre        AS paquete_nombre,
+  prov.id           AS proveedor_id,
+  prov.nombre       AS proveedor_nombre,
+  prov.rating_prom  AS proveedor_rating
+FROM ev_contratacion.reserva r
+JOIN ev_contratacion.item_pedido_evento i ON i.id = r.item_pedido_id
+JOIN ev_contratacion.pedido_evento pe     ON pe.id = i.pedido_id
+LEFT JOIN ev_catalogo.opcion_servicio op  ON op.id = i.referencia_id AND i.tipo_item = 1
+LEFT JOIN ev_catalogo.servicio s          ON s.id = op.servicio_id AND i.tipo_item = 1
+LEFT JOIN ev_paquetes.paquete pkg         ON pkg.id = i.referencia_id AND i.tipo_item = 2
+LEFT JOIN ev_proveedores.proveedor prov   ON prov.id = r.proveedor_id;
+
 /* ============================================================
    9) SEEDS mínimos (roles + un usuario demo + catálogo base)
    ============================================================ */
@@ -538,7 +674,12 @@ INSERT INTO ev_iam.rol (id, codigo, nombre, descripcion, status) VALUES
 ON DUPLICATE KEY UPDATE nombre=VALUES(nombre), descripcion=VALUES(descripcion), status=VALUES(status);
 
 INSERT INTO ev_iam.usuario (id, email, password_hash, nombre, telefono, status) VALUES
- ('aaaa2222-2222-2222-2222-aaaaaaaaaaa2','demo@eventos.pe','$2b$12$fHZoWsqYuYLtGuX5fdUifOp.3r.U5gGvfIUZlt9otvDAuyJ6H3Mui', 'Usuario Demo', '+51 900 000 000', 1)
+ ('aaaa2222-2222-2222-2222-aaaaaaaaaaa2',
+  'demo@eventos.pe',
+  '$bcrypt-sha256$v=2,t=2b,r=12$X74k7ddCoyDNfEk02o3gHO$mmRQnZkaSGKInBAIlnL2lfB2VnHzfvu', -- password en texto plano: Admin_2025!
+  'Usuario Demo',
+  '+51 900 000 000',
+  1)
 ON DUPLICATE KEY UPDATE nombre=VALUES(nombre), telefono=VALUES(telefono), status=VALUES(status);
 
 INSERT INTO ev_iam.usuario_rol (id, usuario_id, rol_id) VALUES
@@ -578,7 +719,7 @@ ON DUPLICATE KEY UPDATE nombre=VALUES(nombre), descripcion=VALUES(descripcion), 
 INSERT INTO ev_paquetes.item_paquete (id, paquete_id, opcion_servicio_id, cantidad) VALUES
  ('bbbbbbb1-bbbb-bbbb-bbbb-bbbbbbbbbbb1','bbbbbbb0-bbbb-bbbb-bbbb-bbbbbbbbbbb0','77777777-7777-7777-7777-777777777777',1),
  ('bbbbbbb2-bbbb-bbbb-bbbb-bbbbbbbbbbb2','bbbbbbb0-bbbb-bbbb-bbbb-bbbbbbbbbbb0','88888888-8888-8888-8888-888888888888',1),
- ('bbbbbbb3-bbbb-bbbb-bbbb-bbbbbbbbbbb3','bbbbbbb0-bbbb-bbbb-bbbb-bbbbbbbbbbb0','99999999-9999-9999-9999-999999999999',1)
+ ('bbbbbbb3-bbbb-bbbb-bbbb-bbbbbbbbbbb3','bbbbbbb0-bbbb-bbbb-bbbb-bbbbbbbbbbb0','99999999-9999-9999-999999999999',1)
 ON DUPLICATE KEY UPDATE cantidad=VALUES(cantidad);
 
 INSERT INTO ev_paquetes.precio_paquete (id, paquete_id, moneda, monto, vigente_desde, vigente_hasta, created_by) VALUES
@@ -598,6 +739,13 @@ INSERT INTO ev_proveedores.habilidad_proveedor (id, proveedor_id, servicio_id, n
  ('ddddddd2-dddd-dddd-dddd-ddddddddddd2','ccccccc2-cccc-cccc-cccc-ccccccccccc2','66666666-6666-6666-6666-666666666666',4)
 ON DUPLICATE KEY UPDATE nivel=VALUES(nivel);
 
+-- NUEVO: proveedores sugeridos para cada ítem del paquete Premium 100 pax
+INSERT INTO ev_paquetes.paquete_item_proveedor (id, item_paquete_id, proveedor_id, es_por_defecto, created_by) VALUES
+ ('bbbbbbb5-bbbb-bbbb-bbbb-bbbbbbbbbbb5','bbbbbbb1-bbbb-bbbb-bbbb-bbbbbbbbbbb1','ccccccc0-cccc-cccc-cccc-ccccccccccc0',1,'aaaa2222-2222-2222-2222-aaaaaaaaaaa2'), -- Catering -> Sazón & Sabor
+ ('bbbbbbb6-bbbb-bbbb-bbbb-bbbbbbbbbbb6','bbbbbbb2-bbbb-bbbb-bbbb-bbbbbbbbbbb2','ccccccc1-cccc-cccc-cccc-ccccccccccc1',1,'aaaa2222-2222-2222-2222-aaaaaaaaaaa2'), -- Música -> DJ Lima Beats
+ ('bbbbbbb7-bbbb-bbbb-bbbb-bbbbbbbbbbb7','bbbbbbb3-bbbb-bbbb-bbbb-bbbbbbbbbbb3','ccccccc2-cccc-cccc-cccc-ccccccccccc2',1,'aaaa2222-2222-2222-2222-aaaaaaaaaaa2')  -- Local -> Centro de Eventos Miraflores
+ON DUPLICATE KEY UPDATE proveedor_id=VALUES(proveedor_id), es_por_defecto=VALUES(es_por_defecto);
+
 /* ============================================================
    10) EVENTOS programados (holds expirados)
    ============================================================ */
@@ -613,44 +761,131 @@ CREATE EVENT ev_proveedores.evt_expira_holds
 /* ============================================================
    11) USUARIOS DB / PERMISOS (por bounded context)
    ============================================================ */
+/* --- USERS FOR % (Remote/Container) --- */
 CREATE USER IF NOT EXISTS 'app_iam'@'%'            IDENTIFIED BY 'IAM_2025';
+ALTER USER 'app_iam'@'%' IDENTIFIED BY 'IAM_2025';
+
 CREATE USER IF NOT EXISTS 'app_catalogo'@'%'       IDENTIFIED BY 'Catalogo_2025';
+ALTER USER 'app_catalogo'@'%' IDENTIFIED BY 'Catalogo_2025';
+
 CREATE USER IF NOT EXISTS 'app_paquetes'@'%'       IDENTIFIED BY 'Pkg_2025';
+ALTER USER 'app_paquetes'@'%' IDENTIFIED BY 'Pkg_2025';
+
 CREATE USER IF NOT EXISTS 'app_proveedores'@'%'    IDENTIFIED BY 'Proveedores_2025';
+ALTER USER 'app_proveedores'@'%' IDENTIFIED BY 'Proveedores_2025';
+
 CREATE USER IF NOT EXISTS 'app_contratacion'@'%'   IDENTIFIED BY 'Contrata_2025';
+ALTER USER 'app_contratacion'@'%' IDENTIFIED BY 'Contrata_2025';
+
 CREATE USER IF NOT EXISTS 'app_mensajeria'@'%'     IDENTIFIED BY 'Mensajeria_2025';
+ALTER USER 'app_mensajeria'@'%' IDENTIFIED BY 'Mensajeria_2025';
+
 CREATE USER IF NOT EXISTS 'app_api'@'%'            IDENTIFIED BY 'Api_2025!';
+ALTER USER 'app_api'@'%' IDENTIFIED BY 'Api_2025!';
+
+/* --- USERS FOR localhost (Local/Windows) --- */
+CREATE USER IF NOT EXISTS 'app_iam'@'localhost'            IDENTIFIED BY 'IAM_2025';
+ALTER USER 'app_iam'@'localhost' IDENTIFIED BY 'IAM_2025';
+
+CREATE USER IF NOT EXISTS 'app_catalogo'@'localhost'       IDENTIFIED BY 'Catalogo_2025';
+ALTER USER 'app_catalogo'@'localhost' IDENTIFIED BY 'Catalogo_2025';
+
+CREATE USER IF NOT EXISTS 'app_paquetes'@'localhost'       IDENTIFIED BY 'Pkg_2025';
+ALTER USER 'app_paquetes'@'localhost' IDENTIFIED BY 'Pkg_2025';
+
+CREATE USER IF NOT EXISTS 'app_proveedores'@'localhost'    IDENTIFIED BY 'Proveedores_2025';
+ALTER USER 'app_proveedores'@'localhost' IDENTIFIED BY 'Proveedores_2025';
+
+CREATE USER IF NOT EXISTS 'app_contratacion'@'localhost'   IDENTIFIED BY 'Contrata_2025';
+ALTER USER 'app_contratacion'@'localhost' IDENTIFIED BY 'Contrata_2025';
+
+CREATE USER IF NOT EXISTS 'app_mensajeria'@'localhost'     IDENTIFIED BY 'Mensajeria_2025';
+ALTER USER 'app_mensajeria'@'localhost' IDENTIFIED BY 'Mensajeria_2025';
+
+CREATE USER IF NOT EXISTS 'app_api'@'localhost'            IDENTIFIED BY 'Api_2025!';
+ALTER USER 'app_api'@'localhost' IDENTIFIED BY 'Api_2025!';
+
+
+/* --- GRANTS (Both % and localhost) --- */
 
 -- IAM
 GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_iam.*             TO 'app_iam'@'%';
+GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_iam.*             TO 'app_iam'@'localhost';
 
 -- Catálogo (lectura) + Paquetes (lectura para exposición pública)
 GRANT SELECT ON ev_catalogo.*     TO 'app_catalogo'@'%';
+GRANT SELECT ON ev_catalogo.*     TO 'app_catalogo'@'localhost';
 GRANT SELECT ON ev_paquetes.*     TO 'app_catalogo'@'%';
+GRANT SELECT ON ev_paquetes.*     TO 'app_catalogo'@'localhost';
 
 -- Paquetes (si administras desde backoffice)
 GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_paquetes.*        TO 'app_paquetes'@'%';
+GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_paquetes.*        TO 'app_paquetes'@'localhost';
 
 -- Proveedores
 GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_proveedores.*     TO 'app_proveedores'@'%';
+GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_proveedores.*     TO 'app_proveedores'@'localhost';
 
 -- Contratación
 GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_contratacion.*    TO 'app_contratacion'@'%';
+GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_contratacion.*    TO 'app_contratacion'@'localhost';
 
 -- Mensajería/Outbox
 GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_mensajeria.*      TO 'app_mensajeria'@'%';
+GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_mensajeria.*      TO 'app_mensajeria'@'localhost';
 
 -- Contratacion en Mensajeria (para este MVP)
 GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_mensajeria.* 	  TO 'app_contratacion'@'%';
-
+GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_mensajeria.* 	  TO 'app_contratacion'@'localhost';
 
 -- API compuesta (si una capa orquesta varios dominios)
 GRANT SELECT ON ev_catalogo.*   TO 'app_api'@'%';
+GRANT SELECT ON ev_catalogo.*   TO 'app_api'@'localhost';
+
 GRANT SELECT ON ev_paquetes.*   TO 'app_api'@'%';
+GRANT SELECT ON ev_paquetes.*   TO 'app_api'@'localhost';
+
 GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_iam.*           TO 'app_api'@'%';
+GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_iam.*           TO 'app_api'@'localhost';
+
 GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_proveedores.*   TO 'app_api'@'%';
+GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_proveedores.*   TO 'app_api'@'localhost';
+
 GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_contratacion.*  TO 'app_api'@'%';
+GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_contratacion.*  TO 'app_api'@'localhost';
+
 GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_mensajeria.*    TO 'app_api'@'%';
+GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_mensajeria.*    TO 'app_api'@'localhost';
+
+-- Contratación - permisos duplicados (no dañan, pero se dejan por claridad)
+GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_contratacion.*    TO 'app_contratacion'@'%';
+GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_contratacion.*    TO 'app_contratacion'@'localhost';
+
+-- NUEVO: Permisos de LECTURA para paquetes (necesario para calcular precios)
+GRANT SELECT ON ev_paquetes.* TO 'app_contratacion'@'%';
+GRANT SELECT ON ev_paquetes.* TO 'app_contratacion'@'localhost';
+
+-- NUEVO: Permisos de LECTURA para catálogo (necesario para obtener tipos de evento)
+GRANT SELECT ON ev_catalogo.* TO 'app_contratacion'@'%';
+GRANT SELECT ON ev_catalogo.* TO 'app_contratacion'@'localhost';
+
+-- Contratacion en Mensajeria (para este MVP)
+GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_mensajeria.* TO 'app_contratacion'@'%';
+GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_mensajeria.* TO 'app_contratacion'@'localhost';
+
+-- (Bloque opcional si quieres eliminar el check de horas en pedido_evento)
+SET @exists := (
+  SELECT COUNT(*)
+  FROM information_schema.table_constraints
+  WHERE constraint_schema='ev_contratacion'
+    AND table_name='pedido_evento'
+    AND constraint_name='chk_ped_horas'
+    AND constraint_type='CHECK'
+);
+SET @sql := IF(@exists>0,
+  'ALTER TABLE ev_contratacion.pedido_evento DROP CHECK chk_ped_horas',
+  'SELECT 1');
+PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
 
 FLUSH PRIVILEGES;
 
@@ -659,4 +894,7 @@ FLUSH PRIVILEGES;
    ============================================================ */
 -- SHOW GRANTS FOR 'app_api'@'%';
 -- SELECT * FROM ev_paquetes.v_paquete_precio_vigente_total;
+-- SELECT * FROM ev_paquetes.v_paquete_item_full;
+-- SELECT * FROM ev_proveedores.v_servicio_proveedor_habilidad;
+-- SELECT * FROM ev_contratacion.v_reserva_detalle;
 -- SELECT COUNT(*) FROM ev_mensajeria.email_outbox WHERE status=0;

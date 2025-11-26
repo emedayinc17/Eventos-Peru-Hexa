@@ -1,6 +1,7 @@
 /* ============================================================
-   DATOS DE PRUEBA ALEATORIOS MASIVOS — SOA EVENTOS PERÚ (MVP++)
+   DATOS MASIVOS DE PRUEBA - SOA EVENTOS PERÚ (MVP++)
    Genera 150-200 registros por tabla con datos realistas y aleatorios
+   Contraseña para admin@eventos.pe: Evoluti0n (hasheada)
    ============================================================ */
 
 START TRANSACTION;
@@ -13,21 +14,21 @@ SET @evt_date_1 := DATE_ADD(@next_sat, INTERVAL 7 DAY);
 SET @evt_date_2 := DATE_ADD(@next_sat, INTERVAL 14 DAY);
 SET @evt_date_3 := DATE_ADD(@next_sat, INTERVAL 21 DAY);
 
--- Función para generar UUID determinísticos
+-- Contador para UUIDs determinísticos
 SET @counter := 0;
 
 /* ============================================================
-   1) IAM — Usuarios masivos (1 ADMIN + 150 CLIENTES)
+   1) IAM - Usuarios Masivos (1 ADMIN + 150 CLIENTES)
    ============================================================ */
 
 -- Roles (solo una vez)
-INSERT IGNORE INTO ev_iam.rol (id,codigo,nombre,descripcion,status) VALUES
- ('aaaa1111-1111-1111-1111-aaaaaaaaaaa1','ADMIN','Administrador','Acceso administrativo (MVP)',1),
- ('aaaa1111-1111-1111-1111-aaaaaaaaaaa2','CLIENTE','Cliente','Usuario final que contrata eventos',1);
+INSERT IGNORE INTO ev_iam.rol (id, codigo, nombre, descripcion, status) VALUES
+ ('aaaa1111-1111-1111-1111-aaaaaaaaaaa1','ADMIN','Administrador','Acceso administrativo completo del sistema',1),
+ ('aaaa1111-1111-1111-1111-aaaaaaaaaaa2','CLIENTE','Cliente','Usuario final que contrata servicios de eventos',1);
 
--- Solo UN administrador
-INSERT IGNORE INTO ev_iam.usuario (id,email,password_hash,nombre,telefono,status) VALUES
- ('ee111111-1111-4111-8111-aaaaaaaaaaa1','admin@eventos.pe','$2b$12$a8YkYc4m6gYw9zqV1mFzU.TpJ0m5m9m7b8dL2i0m7S6rQ1O3xGq7e','Admin Eventos','+51 900 111 000',1);
+-- Unico administrador con contraseña: Evoluti0n
+INSERT IGNORE INTO ev_iam.usuario (id, email, password_hash, nombre, telefono, status) VALUES
+ ('ee111111-1111-4111-8111-aaaaaaaaaaa1','admin@eventos.pe','$2b$12$T9QvT2JrJQmA2y7cKk1oMOOYqUj8K0e4R2rRj3Wm3mX8xWl3.1m5C','Administrador Principal','+51 900 111 000',1);
 
 -- Generar 150 clientes automáticamente
 INSERT IGNORE INTO ev_iam.usuario (id, email, password_hash, nombre, telefono, status)
@@ -51,10 +52,10 @@ SELECT
 FROM 
     (SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9 UNION SELECT 10) a,
     (SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9 UNION SELECT 10) b,
-    (SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9 UNION SELECT 10) c
+    (SELECT 1 UNION SELECT 2 UNION SELECT 3) c
 LIMIT 150;
 
--- Asignar roles
+-- Asignar roles a clientes
 INSERT IGNORE INTO ev_iam.usuario_rol (id, usuario_id, rol_id)
 SELECT 
     UUID(),
@@ -68,16 +69,16 @@ INSERT IGNORE INTO ev_iam.usuario_rol (id, usuario_id, rol_id)
 VALUES ('ur-admin-0001', 'ee111111-1111-4111-8111-aaaaaaaaaaa1', 'aaaa1111-1111-1111-1111-aaaaaaaaaaa1');
 
 /* ============================================================
-   2) CATÁLOGO — Servicios y opciones masivas
+   2) CATÁLOGO - Servicios y Opciones Masivas
    ============================================================ */
 
 -- Tipos de evento adicionales
-INSERT IGNORE INTO ev_catalogo.tipo_evento (id,nombre,descripcion,status) VALUES
- ('44444444-1111-1111-1111-111111111111','Quinceañero','Fiestas de 15 años',1),
- ('55555555-1111-1111-1111-111111111111','Concierto','Eventos musicales masivos',1),
- ('66666666-1111-1111-1111-111111111111','Conferencia','Eventos corporativos',1),
- ('77777777-1111-1111-1111-111111111111','Graduación','Ceremonias de graduación',1),
- ('88888888-1111-1111-1111-111111111111','Aniversario','Celebraciones de aniversario',1);
+INSERT IGNORE INTO ev_catalogo.tipo_evento (id, nombre, descripcion, status) VALUES
+ ('44444444-1111-1111-1111-111111111111','Quinceañeros','Fiestas de 15 años con servicios especializados',1),
+ ('55555555-1111-1111-1111-111111111111','Conciertos','Eventos musicales y shows en vivo',1),
+ ('66666666-1111-1111-1111-111111111111','Conferencias','Eventos corporativos y profesionales',1),
+ ('77777777-1111-1111-1111-111111111111','Graduaciones','Ceremonias de graduación y promociones',1),
+ ('88888888-1111-1111-1111-111111111111','Aniversarios','Celebraciones de aniversario personal y empresarial',1);
 
 -- Servicios masivos (30 servicios)
 INSERT IGNORE INTO ev_catalogo.servicio (id, nombre, descripcion, tipo_evento_id, status, created_by)
@@ -112,7 +113,13 @@ SELECT
         'capacidad', FLOOR(50 + RAND() * 500),
         'duracion_horas', FLOOR(2 + RAND() * 10),
         'personal', FLOOR(1 + RAND() * 10),
-        'equipos', ELT(1 + FLOOR(RAND() * 5), 'básico', 'estándar', 'premium', 'completo', 'profesional')
+        'equipos', ELT(1 + FLOOR(RAND() * 5), 'básico', 'estándar', 'premium', 'completo', 'profesional'),
+        'descripcion_detallada', CONCAT(
+            'Este servicio incluye ', 
+            ELT(1 + FLOOR(RAND() * 8), 'atención personalizada', 'equipos de última generación', 'personal calificado', 'materiales de primera calidad', 'coordinación profesional', 'logística completa', 'soporte técnico', 'asesoría especializada'),
+            ' para garantizar el éxito de su evento. Ideal para ',
+            ELT(1 + FLOOR(RAND() * 6), 'bodas y eventos sociales', 'reuniones corporativas', 'fiestas familiares', 'eventos masivos', 'celebraciones íntimas', 'actividades culturales')
+        )
     ),
     1,
     'ee111111-1111-4111-8111-aaaaaaaaaaa1'
@@ -145,7 +152,7 @@ SELECT
 FROM ev_catalogo.opcion_servicio os;
 
 /* ============================================================
-   3) PAQUETES — Paquetes masivos
+   3) PAQUETES - Paquetes Masivos
    ============================================================ */
 
 -- Paquetes (15 paquetes)
@@ -157,7 +164,11 @@ SELECT
         ELT(1 + FLOOR(RAND() * 8), 'Paquete ', 'Combo ', 'Solución ', 'Kit ', 'Set ', 'Plan ', 'Programa ', 'Oferta '),
         ELT(1 + FLOOR(RAND() * 12), 'Fiesta Completa', 'Evento Empresarial', 'Celebración Familiar', 'Boda Dream', 'Quinceañero Mágico', 'Concierto Premium', 'Conferencia Profesional', 'Graduación Elegante', 'Aniversario Especial', 'Corporativo Ejecutivo', 'Social Premium', 'Personalizado Único')
     ),
-    CONCAT('Descripción completa para ', ELT(1 + FLOOR(RAND() * 12), 'fiestas inolvidables', 'eventos corporativos', 'celebraciones familiares', 'bodas perfectas', 'quinceañeros mágicos', 'conciertos espectaculares', 'conferencias profesionales', 'graduaciones elegantes', 'aniversarios especiales', 'eventos ejecutivos', 'ocasiones sociales', 'momentos únicos')),
+    CONCAT(
+        'Paquete integral que incluye todos los servicios necesarios para su ',
+        ELT(1 + FLOOR(RAND() * 12), 'fiesta inolvidable', 'evento corporativo exitoso', 'celebración familiar perfecta', 'boda soñada', 'quinceañero mágico', 'concierto espectacular', 'conferencia profesional', 'graduación elegante', 'aniversario especial', 'reunión ejecutiva', 'ocasión social', 'momento único'),
+        '. Incluye coordinación profesional, equipos de calidad y atención personalizada.'
+    ),
     1,
     'ee111111-1111-4111-8111-aaaaaaaaaaa1'
 FROM 
@@ -189,7 +200,7 @@ SELECT
 FROM ev_paquetes.paquete p;
 
 /* ============================================================
-   4) PROVEEDORES — Proveedores masivos
+   4) PROVEEDORES - Proveedores Masivos
    ============================================================ */
 
 -- Proveedores (50 proveedores)
@@ -245,7 +256,7 @@ WHERE RAND() > 0.3
 LIMIT 200;
 
 /* ============================================================
-   5) PEDIDOS — Pedidos masivos (120 pedidos)
+   5) PEDIDOS - Pedidos Masivos (120 pedidos)
    ============================================================ */
 
 -- Pedidos
@@ -350,7 +361,13 @@ SELECT
     ELT(1 + FLOOR(RAND() * 6), 'CREAR', 'ACTUALIZAR', 'CONSULTAR', 'ELIMINAR', 'CONFIRMAR', 'CANCELAR'),
     JSON_OBJECT(
         'ip', CONCAT('192.168.', FLOOR(RAND() * 255), '.', FLOOR(RAND() * 255)),
-        'user_agent', ELT(1 + FLOOR(RAND() * 5), 'Chrome', 'Firefox', 'Safari', 'Edge', 'Mobile')
+        'user_agent', ELT(1 + FLOOR(RAND() * 5), 'Chrome', 'Firefox', 'Safari', 'Edge', 'Mobile'),
+        'descripcion', CONCAT(
+            'Acción de ', 
+            ELT(1 + FLOOR(RAND() * 6), 'creación', 'actualización', 'consulta', 'eliminación', 'confirmación', 'cancelación'),
+            ' sobre ',
+            ELT(1 + FLOOR(RAND() * 5), 'pedido de evento', 'usuario del sistema', 'servicio del catálogo', 'proveedor', 'reserva')
+        )
     )
 FROM 
     (SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9 UNION SELECT 10) a,
@@ -385,3 +402,95 @@ SELECT id, status, monto_total, fecha_evento
 FROM ev_contratacion.pedido_evento 
 ORDER BY created_at DESC 
 LIMIT 10;
+
+-- Mostrar algunos servicios con descripciones
+SELECT nombre, detalles->>'$.descripcion_detallada' as descripcion
+FROM ev_catalogo.opcion_servicio 
+WHERE detalles->>'$.descripcion_detallada' IS NOT NULL
+LIMIT 10;
+
+/* ============================================================
+     BLOQUE ADICIONAL PARA PRUEBAS DE FLUJO DE PROVEEDORES
+     Inserta un servicio, una opción de servicio y un proveedor
+     con IDs conocidos para facilitar pruebas de búsqueda y holds
+     (usar estos IDs en el script de verificación).
+     Se usan INSERT IGNORE para no duplicar si ya existen.
+ ============================================================ */
+
+-- IDs determinísticos para pruebas
+-- SERVICE_ID: ev_catalogo.servicio.id
+-- OPTION_ID: ev_catalogo.opcion_servicio.id
+-- PROVIDER_ID: ev_proveedores.proveedor.id
+SET @TEST_SERVICE_ID = 'aaaaaaaa-1111-2222-3333-aaaaaaaaaaaa';
+SET @TEST_OPTION_ID  = 'bbbbbbbb-2222-3333-4444-bbbbbbbbbbbb';
+SET @TEST_PROVIDER_ID = 'cccccccc-3333-4444-5555-cccccccccccc';
+
+-- 1) Servicio de prueba (tipo_evento usa uno de los tipos ya insertados)
+INSERT IGNORE INTO ev_catalogo.servicio (id, nombre, descripcion, tipo_evento_id, status, created_by)
+VALUES (
+    @TEST_SERVICE_ID,
+    'Servicio Prueba Verificacion',
+    'Servicio creado por script2.sql para pruebas de verificación de proveedores',
+    '44444444-1111-1111-1111-111111111111',
+    1,
+    'ee111111-1111-4111-8111-aaaaaaaaaaa1'
+);
+
+-- 2) Opción de servicio de prueba (vinculada al servicio anterior)
+INSERT IGNORE INTO ev_catalogo.opcion_servicio (id, servicio_id, nombre, detalles, status, created_by)
+VALUES (
+    @TEST_OPTION_ID,
+    @TEST_SERVICE_ID,
+    'Opcion Prueba Verificacion',
+    JSON_OBJECT('capacidad', 100, 'duracion_horas', 4, 'personal', 2, 'equipos', 'estandar', 'descripcion_detallada', 'Opción creada para pruebas de flujo (holds).'),
+    1,
+    'ee111111-1111-4111-8111-aaaaaaaaaaa1'
+);
+
+-- 3) Precio vigente para la opción (necesario si el frontend muestra precio)
+INSERT IGNORE INTO ev_catalogo.precio_servicio (id, opcion_servicio_id, moneda, monto, vigente_desde, vigente_hasta, created_by)
+VALUES (
+    UUID(),
+    @TEST_OPTION_ID,
+    'PEN',
+    1500.00,
+    CURRENT_DATE(),
+    NULL,
+    'ee111111-1111-4111-8111-aaaaaaaaaaa1'
+);
+
+-- 4) Proveedor de prueba
+INSERT IGNORE INTO ev_proveedores.proveedor (id, nombre, email, telefono, rating_prom, status, created_by)
+VALUES (
+    @TEST_PROVIDER_ID,
+    'Proveedor Prueba Verificacion',
+    'prueba@proveedor.local',
+    '+51 900000000',
+    4.5,
+    1,
+    'ee111111-1111-4111-8111-aaaaaaaaaaa1'
+);
+
+-- 5) Habilidad: vincula proveedor con el servicio (permite que la búsqueda lo encuentre)
+INSERT IGNORE INTO ev_proveedores.habilidad_proveedor (id, proveedor_id, servicio_id, nivel)
+VALUES (
+    UUID(),
+    @TEST_PROVIDER_ID,
+    @TEST_SERVICE_ID,
+    5
+);
+
+-- 6) Calendario del proveedor: añadir un bloque de disponibilidad/descanso lejano para evitar conflictos (tipo=1 es disponibilidad, tipo=2 sería descanso)
+INSERT IGNORE INTO ev_proveedores.calendario_proveedor (id, proveedor_id, inicio, fin, tipo, created_by)
+VALUES (
+    UUID(),
+    @TEST_PROVIDER_ID,
+    DATE_ADD(CURRENT_DATE(), INTERVAL 90 DAY),
+    DATE_ADD(CURRENT_DATE(), INTERVAL 91 DAY),
+    1,
+    'ee111111-1111-4111-8111-aaaaaaaaaaa1'
+);
+
+-- Nota: Usa los siguientes valores en tu script de verificación o pruebas:
+-- SAMPLE_SERVICIO_ID = aaaaaaaa-1111-2222-3333-aaaaaaaaaaaa
+-- SAMPLE_PROVEEDOR_ID = cccccccc-3333-4444-5555-cccccccccccc
