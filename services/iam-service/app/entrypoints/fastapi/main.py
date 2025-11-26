@@ -16,13 +16,11 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# origins = settings.CORS_ORIGINS.split(",")
-origins = ["http://localhost:5500", "http://127.0.0.1:5500", "http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8000", "http://127.0.0.1:8000"]
-print(f"DEBUG CORS ORIGINS HARDCODED: {origins}")
+origins = settings.CORS_ORIGINS.split(",")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex='.*',
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
