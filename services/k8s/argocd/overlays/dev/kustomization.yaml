@@ -7,11 +7,14 @@ resources:
 images:
   - name: eventos-iam
     newName: emeday17/iam-service
-    newTag: "1"
+    newTag: "1.0.0"
   - name: emeday17/eventos-catalogo
-    newTag: "1"
+    newName: emeday17/eventos-catalogo
+    newTag: "1.0.0"
   - name: emeday17/eventos-proveedores
-    newTag: "1"
+    newName: emeday17/eventos-proveedores
+    newTag: "1.0.0"
   - name: emeday17/eventos-contratacion
-    newTag: "1"
+    newName: emeday17/eventos-contratacion
+    newTag: "1.0.0"
 
