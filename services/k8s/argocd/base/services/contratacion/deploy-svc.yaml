@@ -33,7 +33,7 @@ spec:
       serviceAccountName: app-eventos
       containers:
         - name: app
-          image: eventos-contratacion:0.1.0
+          image: eventos-contratacion
           imagePullPolicy: Always
           env:
             - name: BASE_PATH
