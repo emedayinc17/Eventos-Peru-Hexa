@@ -24,36 +24,133 @@ Para ejecutar este proyecto localmente, necesitas tener instalado:
 El sistema está dividido en 4 microservicios principales, cada uno con su propia responsabilidad y esquema de base de datos (aunque comparten instancia física en desarrollo):
 
 ### 1. IAM Service (Identidad y Acceso)
-*   **Puerto:** `8010`
+*   **Puerto (dev):** `8010`
 *   **Responsabilidad:** Gestión de usuarios, roles, autenticación (JWT) y auditoría.
-*   **Endpoints Clave:**
-    *   `POST /iam/auth/login`: Inicio de sesión y generación de tokens.
-    *   `POST /iam/auth/register`: Registro de nuevos usuarios.
-    *   `GET /iam/users/me`: Perfil del usuario actual.
+*   **Endpoints (ejecutables en el servicio):**
+    - `GET  /health` — Health check (público)
+    - `POST /auth/login` — Login: recibe { email, password } y devuelve token (access_token)
+    - `POST /auth/register` — Registro público: crea usuario
+    - `GET  /me` — Perfil del usuario autenticado (Authorization: Bearer <token>)
+    - `GET  /admin/users` — Listar usuarios (ADMIN)
+    - `GET  /admin/users/{id}` — Obtener usuario por id (ADMIN)
+    - `POST /admin/users` — Crear usuario (ADMIN)
+    - `PATCH /admin/users/{id}` — Actualizar usuario (ADMIN). Acepta password para cambio.
+    - `DELETE /admin/users/{id}` — Eliminar usuario (ADMIN)
+    
+    Nota: las rutas internas del servicio son las mostradas arriba; cuando se expone públicamente vía Ingress puede añadirse un prefijo por servicio (ej. `/iam`).
 
 ### 2. Catálogo Service
-*   **Puerto:** `8020`
+*   **Puerto (dev):** `8020`
 *   **Responsabilidad:** Gestión de servicios ofrecidos, paquetes y precios.
-*   **Endpoints Clave:**
-    *   `GET /catalogo/servicios`: Listado de servicios disponibles.
-    *   `GET /catalogo/paquetes`: Paquetes predefinidos para eventos.
-    *   `GET /catalogo/paquetes/{id}`: Detalle de un paquete específico.
+*   **Endpoints (servicio):**
+    - `GET  /health` — Health check (público)
+    - `GET  /v1/catalogo/tipos` — Listado de tipos de evento
+    - `GET  /v1/catalogo/servicios` — Listado de servicios (filtros: `tipo_evento_id`, pagination)
+    - `GET  /v1/catalogo/opciones` — Opciones de un servicio (`servicio_id` requerido)
+    - `GET  /v1/catalogo/paquetes` — Listado de paquetes
+    - `GET  /v1/catalogo/paquetes/{id}` — Detalle de paquete (items, precios, proveedores)
+
+    Nota: los paths incluyen el prefijo `/v1` en el contrato actual del servicio.
 
 ### 3. Proveedores Service
-*   **Puerto:** `8030`
-*   **Responsabilidad:** Gestión de proveedores externos, sus habilidades y disponibilidad.
-*   **Endpoints Clave:**
-    *   `GET /proveedores`: Búsqueda de proveedores.
-    *   `GET /proveedores/{id}/disponibilidad`: Verificar calendario.
-    *   `POST /proveedores/reservas-temporales`: Bloqueo temporal de agenda (Holds).
+*   **Puerto (dev):** `8030`
+*   **Responsabilidad:** Gestión de proveedores, habilidades y disponibilidad.
+*   **Endpoints públicos:**
+    - `GET /health` — Health check (público)
+    - `GET /v1/proveedores/disponibles?servicio_id={id}&fecha={YYYY-MM-DD}` — Buscar proveedores disponibles (público)
+
+*   **Endpoints internos (requieren `X-Service-Token`):**
+    - `POST   /internal/holds` — Crear hold (reserva temporal). Req body: proveedor_id, opcion_servicio_id, inicio, fin, ttl_min, correlation_id
+    - `PATCH  /internal/holds/{hold_id}/confirm` — Confirmar hold
+    - `DELETE /internal/holds/{hold_id}` — Liberar hold (204 No Content)
+    - `GET    /internal/holds/{hold_id}` — Consultar estado del hold
+
+    Importante: los endpoints de `internal` requieren el header `X-Service-Token` con el token compartido entre servicios (no son públicos ni accesibles desde navegador).
 
 ### 4. Contratación Service
-*   **Puerto:** `8040`
-*   **Responsabilidad:** Core del negocio. Gestión de pedidos, cotizaciones y reservas finales.
-*   **Endpoints Clave:**
-    *   `POST /contratacion/pedidos`: Crear un nuevo pedido de evento.
-    *   `GET /contratacion/pedidos/mis-pedidos`: Historial del cliente.
-    *   `PUT /contratacion/pedidos/{id}/estado`: Transiciones de estado (Draft -> Cotizado -> Aprobado -> Asignado).
+*   **Puerto (dev):** `8040`
+*   **Responsabilidad:** Gestión de pedidos (cotizaciones, reservas, asignación de proveedores).
+*   **Endpoints (servicio):**
+        - `GET  /health` — Health check (público)
+        - `POST /pedidos` — Crear pedido (autenticado). El body admite `paquete_id` (crear desde paquete) o `items` (custom). Retorna 201 con el pedido creado.
+        - `GET  /pedidos/mios` — Listar pedidos del cliente autenticado (autenticado)
+        - `GET  /pedidos/{pedido_id}` — Detalle del pedido (autenticado, ownership check)
+        - `POST /v1/contratacion/pedidos/{pedido_id}/enviar-resumen` — Endpoint deferred para envío de resumen (202 Accepted)
+
+*   **Endpoints ADMIN (requieren rol ADMIN):**
+        - `GET  /admin/pedidos` — Listar todos los pedidos (ADMIN)
+        - `PATCH /admin/pedidos/{pedido_id}` — Cambiar estado del pedido (ADMIN)
+        - `POST  /admin/pedidos/{pedido_id}/items` — Agregar items (pendiente/DEFERRED)
+        - `DELETE /admin/pedidos/{pedido_id}/items` — Eliminar items (pendiente/DEFERRED)
+        - `POST  /admin/pedidos/{pedido_id}/asignar-proveedor` — Asignar proveedor a item (integra con Proveedores, crea/valida holds)
+        - `GET /admin/pedidos/{pedido_id}` — Detalle para ADMIN (sin ownership check)
+
+        Nota: el método para cambiar estado en el código es `PATCH` (no `PUT`).
+
+---
+
+## 📌 Observaciones sobre rutas y despliegue
+- Los routers de los servicios exponen rutas internas (ej. `/v1/catalogo/...`, `/auth/...`, `/internal/holds`). Cuando se despliegan en Kubernetes normalmente se usa un Ingress que puede mapear un path público (ej. `/catalogo`) hacia el servicio correspondiente. Documentamos aquí las rutas internas tal como están implementadas en el código; el Ingress puede reescribirlas.
+- Los endpoints internos (prefijo `/internal`) requieren `X-Service-Token` y no deben ser consumidos por el navegador directamente.
+- Autenticación para endpoints protegidos: usar `Authorization: Bearer <JWT>`; el JWT lo emite `POST /auth/login` del IAM.
+
+## 🛠️ Recomendaciones rápidas para despliegue del frontend (ConfigMap)
+El `frontend-vanilla/config.js` es la única pieza que el frontend lee en tiempo de ejecución para conocer las URLs de los microservicios. En Kubernetes conviene montar un `ConfigMap` con ese archivo para apuntar a los servicios internos:
+
+Ejemplo `config.prod.js` (crear localmente y añadir a ConfigMap):
+```javascript
+window.IAM_API_BASE = window.IAM_API_BASE || "http://iam-service:8010/iam";
+window.API_BASE = window.API_BASE || window.IAM_API_BASE;
+window.CATALOGO_API_BASE = window.CATALOGO_API_BASE || "http://catalogo-service:8020/catalogo";
+window.PROVEEDORES_API_BASE = window.PROVEEDORES_API_BASE || "http://proveedores-service:8030/proveedores";
+window.CONTRATACION_API_BASE = window.CONTRATACION_API_BASE || "http://contratacion-service:8040/contratacion";
+// Quicklogin: solo para dev
+window.QUICKLOGIN_CLIENT_EMAIL = window.QUICKLOGIN_CLIENT_EMAIL || "demo@eventos.pe";
+window.QUICKLOGIN_CLIENT_PASSWORD = window.QUICKLOGIN_CLIENT_PASSWORD || "Admin_2025!";
+```
+
+Crear ConfigMap y montarlo en el Pod (ejemplo PowerShell):
+```powershell
+kubectl create configmap frontend-config --from-file=config.js=./config.prod.js -n my-namespace
+```
+
+Ejemplo de `Deployment` (fragmento) para montar el archivo en nginx:
+```yaml
+volumes:
+    - name: frontend-config
+        configMap:
+            name: frontend-config
+            items:
+                - key: config.js
+                    path: config.js
+
+containers:
+    - name: frontend
+        image: my-nginx-frontend:latest
+        volumeMounts:
+            - name: frontend-config
+                mountPath: /usr/share/nginx/html/config.js
+                subPath: config.js
+```
+
+En nginx conviene desactivar caching para `config.js` para que cambios de configuración sean visibles inmediatamente:
+```
+location = /config.js {
+    add_header Cache-Control "no-store, must-revalidate";
+}
+```
+
+## 🔐 CORS y seguridad (resumen)
+- Los servicios deben aceptar preflight OPTIONS y permitir el header `Authorization` para que el frontend pueda enviar JWT.
+- Para endpoints internos usar `X-Service-Token` y validar en middleware (ya implementado en Proveedores internal).
+- En producción usar HTTPS y no exponer `QUICKLOGIN` ni credenciales en `config.js`.
+
+## 📎 Contratos y OpenAPI
+- Algunos servicios incluyen contratos OpenAPI en `services/*/app/entrypoints/fastapi/contracts/openapi.yaml` — úsalos para generar documentación automática o clientes.
+
+---
+
+Si quieres, puedo añadir ahora una tabla completa (método / path / auth / descripción) en el README para cada endpoint y pegar ejemplos curl para los endpoints críticos (login, crear pedido, buscar proveedores, crear hold interno). ¿Lo genero ahora? 
 
 ---
 
