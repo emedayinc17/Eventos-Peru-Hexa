@@ -6,9 +6,14 @@ Carga de configuración para servicios (local .env y listo para extender a Vault
 Synopsis: created by emeday 2025
 """
 from __future__ import annotations
+import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 from typing import Optional
+
+# Determine env_file path for Settings (opt-in).
+# If EV_SETTINGS_ENV_FILE is set, use it; otherwise default to '.env'.
+_env_file = os.getenv("EV_SETTINGS_ENV_FILE", ".env")
 
 class Settings(BaseSettings):
     # Identidad del servicio
@@ -42,7 +47,7 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: str = Field(default="http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000,http://127.0.0.1:8000,http://localhost:5500,http://127.0.0.1:5500", description="Comma separated list of allowed origins")
 
-    model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8', extra='ignore')
+    model_config = SettingsConfigDict(env_file=_env_file, env_file_encoding='utf-8', extra='ignore')
 
     @property
     def DATABASE_URL(self) -> str:

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro - Eventos Perú</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="css/styles.css" rel="stylesheet">
+</head>
+
+<body class="d-flex align-items-center justify-content-center">
+
+    <div class="glass-card animate-fade-in" style="width: 100%; max-width: 480px;">
+        <div class="brand-title">Eventos Perú</div>
+        <p class="text-center text-muted mb-4">Crea tu cuenta para comenzar</p>
+
+        <div id="alert-container" class="d-none"></div>
+
+        <form id="register-form">
+            <div class="mb-3">
+                <label for="nombre" class="form-label">Nombre Completo</label>
+                <input type="text" class="form-control" id="nombre" required placeholder="Juan Pérez">
+            </div>
+            <div class="mb-3">
+                <label for="email" class="form-label">Correo Electrónico</label>
+                <input type="email" class="form-control" id="email" required placeholder="nombre@ejemplo.com">
+            </div>
+            <div class="mb-4">
+                <label for="password" class="form-label">Contraseña</label>
+                <input type="password" class="form-control" id="password" required placeholder="••••••••" minlength="6">
+                <div class="form-text text-muted">Mínimo 6 caracteres</div>
+            </div>
+
+            <div class="d-grid gap-2 mb-4">
+                <button type="submit" class="btn btn-primary btn-lg" id="btn-register">Crear Cuenta</button>
+            </div>
+        </form>
+
+        <div class="text-center">
+            <small class="text-muted">¿Ya tienes cuenta? <a href="index.html" class="text-decoration-none fw-bold"
+                    style="color: var(--primary-color);">Inicia Sesión</a></small>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/adapters/http-adapter.js"></script>
+    <script src="js/adapters/auth-service.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            SessionManager.redirectIfAuthenticated();
+
+            const form = document.getElementById('register-form');
+            const btnRegister = document.getElementById('btn-register');
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                UI.hideAlert('alert-container');
+
+                const nombre = document.getElementById('nombre').value;
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+
+                // Basic validation
+                if (password.length < 6) {
+                    UI.showError('alert-container', 'La contraseña debe tener al menos 6 caracteres');
+                    return;
+                }
+
+                // Loading state
+                const originalBtnText = btnRegister.innerHTML;
+                btnRegister.disabled = true;
+                btnRegister.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Creando cuenta...';
+
+                try {
+                    await AuthService.register(nombre, email, password);
+
+                    // Auto login after register or redirect to login
+                    // For better UX, let's try to login immediately
+                    try {
+                        await AuthService.login(email, password);
+                        window.location.href = Config.ROUTES.DASHBOARD;
+                    } catch (loginError) {
+                        // If auto-login fails, redirect to login page with success message
+                        window.location.href = Config.ROUTES.LOGIN + '?registered=true';
+                    }
+
+                } catch (error) {
+                    UI.showError('alert-container', error.message || 'Error al registrar usuario');
+                    btnRegister.disabled = false;
+                    btnRegister.innerHTML = originalBtnText;
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

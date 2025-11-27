@@ -3,8 +3,11 @@ from typing import Any, Dict, Optional
 from fastapi import Depends, HTTPException, Header, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError
-from ev_shared.config import Settings
+import logging
+from ev_shared.config import Settings, load_settings
 from ev_shared.security import decode_jwt
+
+logger = logging.getLogger(__name__)
 
 # Mantenemos el esquema Bearer para que Swagger muestre "Authorize"
 bearer_scheme = HTTPBearer(auto_error=True)
@@ -25,10 +28,38 @@ def require_user(
 
 # --- Requeridos por router.py ---
 def _decode_token(settings: Settings, token: str) -> Dict[str, Any]:
+    # Debug: inspect loaded JWT secret from settings used at decode time
     try:
+        s = load_settings(service_name="contratacion-service")
+        js = getattr(s, "JWT_SECRET", None)
+        if js:
+            # Log only non-sensitive metadata about secret
+            logger.debug("Contratacion JWT_SECRET loaded (len=%s)", len(js))
+        else:
+            logger.debug("Contratacion JWT_SECRET is empty or not configured")
+    except Exception:
+        logger.debug("Could not load settings for debugging")
+
+    try:
+        # Debug: print truncated token to help troubleshooting signature/format issues
+        try:
+            logger.debug("Decodificando token (trunc): %s...", token[:64])
+        except Exception:
+            logger.debug("Decodificando token (trunc): <unprintable token>")
+
         payload = decode_jwt(token)
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Token inválido o expirado")
+    except Exception as e:
+        # Log the exact error for diagnosis at debug level
+        try:
+            logger.debug("decode_jwt raised: %s", repr(e))
+        except Exception:
+            logger.debug("decode_jwt raised an unprintable exception")
+        # Convert to HTTPException for FastAPI
+        from jose import JWTError as _JWTError
+        if isinstance(e, _JWTError):
+            raise HTTPException(status_code=401, detail="Token inválido o expirado")
+        else:
+            raise HTTPException(status_code=401, detail="Token inválido o expirado")
     except RuntimeError:
         raise HTTPException(status_code=500, detail="JWT_SECRET no configurado")
 

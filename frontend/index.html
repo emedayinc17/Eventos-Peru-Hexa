@@ -5,66 +5,58 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Eventos Perú</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Custom CSS -->
-    <style>
-        body {
-            background: linear-gradient(135deg, #0d6efd 0%, #0dcaf0 100%);
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .login-card {
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-            padding: 2rem;
-            width: 100%;
-            max-width: 400px;
-        }
-
-        .brand-logo {
-            font-size: 2rem;
-            font-weight: bold;
-            color: #0d6efd;
-            text-align: center;
-            margin-bottom: 1.5rem;
-        }
-    </style>
+    <link href="css/styles.css" rel="stylesheet">
 </head>
 
-<body>
+<body class="d-flex align-items-center justify-content-center">
 
-    <div class="login-card">
-        <div class="brand-logo">Eventos Perú</div>
+    <div class="glass-card animate-fade-in" style="width: 100%; max-width: 420px;">
+        <div class="brand-title">Eventos Perú</div>
+        <p class="text-center text-muted mb-4">Bienvenido de nuevo</p>
 
         <div id="alert-container" class="d-none"></div>
 
         <form id="login-form">
-            <div class="mb-3">
+            <div class="mb-4">
                 <label for="email" class="form-label">Correo Electrónico</label>
                 <input type="email" class="form-control" id="email" required placeholder="nombre@ejemplo.com">
             </div>
-            <div class="mb-3">
+            <div class="mb-4">
                 <label for="password" class="form-label">Contraseña</label>
-                <input type="password" class="form-control" id="password" required>
+                <input type="password" class="form-control" id="password" required placeholder="••••••••">
             </div>
-            <div class="d-grid gap-2">
+            <div class="d-grid gap-2 mb-4">
                 <button type="submit" class="btn btn-primary btn-lg" id="btn-login">Iniciar Sesión</button>
             </div>
         </form>
 
-        <div class="text-center mt-3">
-            <small>¿No tienes cuenta? <a href="register.html">Regístrate</a></small>
+        <div class="text-center">
+            <small class="text-muted">¿No tienes cuenta? <a href="register.html" class="text-decoration-none fw-bold"
+                    style="color: var(--primary-color);">Regístrate ahora</a></small>
         </div>
 
-        <div class="mt-4 p-3 bg-light rounded border">
-            <small class="d-block text-muted fw-bold mb-1">Credenciales Demo:</small>
-            <small class="d-block text-muted">Email: demo@eventos.pe</small>
-            <small class="d-block text-muted">Pass: Admin_2025!</small>
+        <div class="mt-4 p-3 rounded border"
+            style="background: rgba(255,255,255,0.5); border-color: rgba(0,0,0,0.05) !important;">
+            <small class="d-block text-muted fw-bold mb-2 text-center">Acceso Rápido (Demo):</small>
+            <div class="d-grid gap-2">
+                <button type="button"
+                    class="btn btn-outline-secondary btn-sm d-flex justify-content-between align-items-center"
+                    onclick="quickLogin('admin')">
+                    <span>👮 Admin</span>
+                    <small class="text-muted">demo@eventos.pe</small>
+                </button>
+                <button type="button"
+                    class="btn btn-outline-secondary btn-sm d-flex justify-content-between align-items-center"
+                    onclick="quickLogin('client')">
+                    <span>👤 Cliente</span>
+                    <small class="text-muted">cliente@eventos.pe</small>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -75,6 +67,24 @@
     <script src="js/adapters/auth-service.js"></script>
 
     <script>
+        // Quick Login Helper
+        function quickLogin(role) {
+            const emailInput = document.getElementById('email');
+            const passInput = document.getElementById('password');
+            const btnLogin = document.getElementById('btn-login');
+
+            if (role === 'admin') {
+                emailInput.value = 'demo@eventos.pe';
+                passInput.value = 'Admin_2025!';
+            } else {
+                emailInput.value = 'cliente@eventos.pe';
+                passInput.value = 'Cliente_2025!';
+            }
+
+            // Trigger login
+            btnLogin.click();
+        }
+
         // Lógica de Login
         document.addEventListener('DOMContentLoaded', () => {
             SessionManager.redirectIfAuthenticated();

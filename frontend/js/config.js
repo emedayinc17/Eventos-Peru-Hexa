@@ -3,10 +3,10 @@ const Config = {
     // Para este MVP simple, detectaremos si estamos en localhost o usamos nombres de servicio.
 
     API_URLS: {
-        IAM: window.location.hostname === 'localhost' ? 'http://localhost:8010/iam' : '/api/iam',
-        CATALOGO: window.location.hostname === 'localhost' ? 'http://localhost:8020/catalogo' : '/api/catalogo',
-        PROVEEDORES: window.location.hostname === 'localhost' ? 'http://localhost:8030/proveedores' : '/api/proveedores',
-        CONTRATACION: window.location.hostname === 'localhost' ? 'http://localhost:8040/contratacion' : '/api/contratacion'
+        IAM: (window.location.hostname === 'localhost' || window.location.protocol === 'file:') ? 'http://localhost:8010/iam' : '/api/iam',
+        CATALOGO: (window.location.hostname === 'localhost' || window.location.protocol === 'file:') ? 'http://localhost:8020/catalogo' : '/api/catalogo',
+        PROVEEDORES: (window.location.hostname === 'localhost' || window.location.protocol === 'file:') ? 'http://localhost:8030/proveedores' : '/api/proveedores',
+        CONTRATACION: (window.location.hostname === 'localhost' || window.location.protocol === 'file:') ? 'http://localhost:8040/contratacion' : '/api/contratacion'
     },
 
     ROUTES: {

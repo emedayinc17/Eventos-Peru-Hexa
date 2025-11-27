@@ -19,9 +19,9 @@ const AuthService = {
         throw new Error('Respuesta de login inválida');
     },
 
-    register: async (nombre_completo, email, password) => {
+    register: async (nombre, email, password) => {
         const url = `${Config.API_URLS.IAM}/auth/register`;
-        return await HttpAdapter.post(url, { nombre_completo, email, password });
+        return await HttpAdapter.post(url, { nombre, email, password });
     },
 
     getProfile: async () => {

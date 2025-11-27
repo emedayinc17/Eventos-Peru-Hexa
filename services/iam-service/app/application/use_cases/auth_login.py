@@ -1,6 +1,7 @@
 from typing import Dict, Any, Optional
 from fastapi import HTTPException, status
 from sqlalchemy import text
+import logging
 
 from ev_shared.db import session_scope
 from ev_shared.config import Settings
@@ -8,6 +9,8 @@ from ev_shared.config import Settings
 from app.domain.ports import UserRepositoryPort, RoleReaderPort
 from app.infrastructure.security.password_adapter import verify_password
 from app.infrastructure.security.jwt_adapter import create_token
+
+logger = logging.getLogger(__name__)
 
 class AuthLoginUseCase:
     def __init__(self, *, settings: Settings, user_repo: UserRepositoryPort, role_reader: RoleReaderPort):
@@ -72,6 +75,10 @@ class AuthLoginUseCase:
             expires_minutes=exp_min,
             algorithm=alg,
         )
+        try:
+            logger.debug("create_token used secret length=%s", len(secret) if secret is not None else 0)
+        except Exception:
+            logger.debug("create_token used secret <unprintable>")
         return {
             "access_token": token,
             "token_type": "bearer",

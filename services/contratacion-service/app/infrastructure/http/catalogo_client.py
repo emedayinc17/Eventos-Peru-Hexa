@@ -1,7 +1,10 @@
 """Cliente HTTP para comunicarse con Catálogo-service"""
+import logging
 import httpx
 from typing import Dict, Any, Optional
 from ev_shared.config import Settings
+
+logger = logging.getLogger(__name__)
 
 
 class CatalogoClient:
@@ -16,13 +19,27 @@ class CatalogoClient:
         Obtiene el detalle completo de un paquete incluyendo sus items y precios.
         GET /catalogo/v1/catalogo/paquetes/{paquete_id}
         """
-        url = f"{self.base_url}/catalogo/v1/catalogo/paquetes/{paquete_id}"
+        base = self.base_url.rstrip('/')
+        # base may already include the '/catalogo' prefix (legacy). Normalize to avoid duplication.
+        if base.endswith('/catalogo'):
+            url = f"{base}/v1/catalogo/paquetes/{paquete_id}"
+        else:
+            url = f"{base}/catalogo/v1/catalogo/paquetes/{paquete_id}"
         
         try:
             with httpx.Client(timeout=self.timeout) as client:
                 resp = client.get(url)
+                logger.debug("CatalogoClient GET %s -> %s", url, resp.status_code)
                 if resp.status_code == 404:
+                    logger.debug("CatalogoClient: paquete %s no encontrado (404)", paquete_id)
                     return None
+                # If other non-success, log body at debug level for troubleshooting
+                if resp.status_code >= 400:
+                    try:
+                        body = resp.text
+                    except Exception:
+                        body = '<unreadable body>'
+                    logger.debug("CatalogoClient error body: %s", body)
                 resp.raise_for_status()
                 return resp.json()
         except httpx.HTTPError as e:
@@ -83,9 +100,13 @@ class CatalogoClient:
     def get_tipo_evento(self, tipo_evento_id: str) -> Optional[Dict[str, Any]]:
         """
         Obtiene información de un tipo de evento.
-        GET /catalogo/v1/catalogo/tipos-evento
+        GET /catalogo/v1/catalogo/tipos
         """
-        url = f"{self.base_url}/catalogo/v1/catalogo/tipos"
+        base = self.base_url.rstrip('/')
+        if base.endswith('/catalogo'):
+            url = f"{base}/v1/catalogo/tipos"
+        else:
+            url = f"{base}/catalogo/v1/catalogo/tipos"
         
         try:
             with httpx.Client(timeout=self.timeout) as client:
