@@ -48,10 +48,21 @@ Thumbs.db
 
 # Coverage directory
 /coverage/
+htmlcov/
+.coverage
+.coverage.*
+*.cover
+.pytest_cache/
+
+# Test reports
+tests/reports/*.html
+tests/reports/*.xml
 
 # Archivos temporales
 *.tmp
 *.temp
+*.bak
+*.backup
 
 # Archivos de sistema operativo
 *.7z

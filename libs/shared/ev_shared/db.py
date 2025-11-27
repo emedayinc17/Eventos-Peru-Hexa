@@ -5,9 +5,11 @@ SQLAlchemy Engine / Session helpers.
 Synopsis: created by emeday 2025
 """
 from contextlib import contextmanager
+import time
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.exc import OperationalError
 from .config import Settings
 
 def build_engine(settings: Settings) -> Engine:
@@ -29,6 +31,25 @@ def session_scope(settings: Settings):
             result = session.execute(...)
     """
     engine = build_engine(settings)
+    # Intentar conectar al DB con reintentos cortos antes de crear la sesión
+    retries = getattr(settings, "DB_CONN_RETRIES", 1)
+    delay = getattr(settings, "DB_CONN_RETRY_DELAY", 1)
+    last_exc = None
+    for attempt in range(1, retries + 1):
+        try:
+            # force a connection check
+            conn = engine.connect()
+            conn.close()
+            last_exc = None
+            break
+        except OperationalError as e:
+            last_exc = e
+            time.sleep(delay)
+
+    if last_exc is not None:
+        # No pudimos conectar al DB
+        raise last_exc
+
     SessionFactory = make_session_factory(engine)
     session = SessionFactory()
     try:

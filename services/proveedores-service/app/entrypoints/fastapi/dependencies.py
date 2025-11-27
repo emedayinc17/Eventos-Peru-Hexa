@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from ev_shared.config import Settings
 from ev_shared.db import session_scope
+from fastapi import HTTPException
 
 from ...infrastructure.db.repositories import (
     MySQLProveedorQueryRepository,
@@ -35,8 +36,11 @@ def get_db_session(settings: Settings = None) -> Generator[Session, None, None]:
     """
     if settings is None:
         settings = get_settings()
-    with session_scope(settings) as session:
-        yield session
+    try:
+        with session_scope(settings) as session:
+            yield session
+    except Exception:
+        raise HTTPException(status_code=503, detail="Database unavailable")
 
 
 # === Repositorios (Implementación de Ports) ===

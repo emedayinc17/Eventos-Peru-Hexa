@@ -451,11 +451,10 @@ def admin_asignar_proveedor(
                 pedido_id=pedido_id,
                 item_pedido_id=body.item_pedido_id,
                 proveedor_id=body.proveedor_id,
-                opcion_servicio_id=body.opcion_servicio_id,
-                fecha_inicio=body.fecha_inicio,
-                fecha_fin=body.fecha_fin,
-                monto=body.monto,
+                inicio=body.fecha_inicio,
+                fin=body.fecha_fin,
                 hold_id=body.hold_id,
+                notas=getattr(body, 'notas', None),
             )
             
             return _serialize_decimal(result)

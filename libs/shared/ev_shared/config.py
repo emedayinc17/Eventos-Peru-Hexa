@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     DB_USER: str = Field(default="root")
     DB_PASS: str = Field(default="")
     DB_NAME: str = Field(default="mysql")
+    # DB connection retry policy (used at startup/session creation)
+    DB_CONN_RETRIES: int = Field(default=3)
+    DB_CONN_RETRY_DELAY: int = Field(default=2)
 
     # JWT
     JWT_SECRET: str = Field(default="dev-secret")

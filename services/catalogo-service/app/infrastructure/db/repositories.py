@@ -3,6 +3,7 @@ Implementación del repositorio MySQL para Catálogo
 Implementa CatalogoQueryService usando las vistas de base de datos
 """
 from decimal import Decimal
+import uuid
 from typing import Optional
 from sqlalchemy import text
 
@@ -290,3 +291,161 @@ class MySQLCatalogoQueryService:
             descripcion=head["descripcion"],
             status=head["status"]
         )
+
+
+class MySQLCatalogoCommandRepository:
+    """Repositorio de comandos para Catálogo (create/update/delete)."""
+
+    def create_tipo(self, s, *, nombre: str, descripcion: str | None = None) -> dict:
+        # Generar UUID localmente para evitar dependencias en la columna auto-inc
+        new_id = str(uuid.uuid4())
+        sql = """
+        INSERT INTO ev_catalogo.tipo_evento (id, nombre, descripcion, status, is_deleted, created_at)
+        VALUES (:id, :nombre, :descripcion, 1, 0, NOW())
+        """
+        s.execute(text(sql), {"id": new_id, "nombre": nombre, "descripcion": descripcion})
+        return {"id": new_id, "nombre": nombre}
+
+    def update_tipo(self, s, *, tipo_id: str, nombre: str | None = None, descripcion: str | None = None) -> None:
+        updates = []
+        params = {"id": tipo_id}
+        if nombre is not None:
+            updates.append("nombre = :nombre")
+            params["nombre"] = nombre
+        if descripcion is not None:
+            updates.append("descripcion = :descripcion")
+            params["descripcion"] = descripcion
+        if not updates:
+            return
+        sql = f"UPDATE ev_catalogo.tipo_evento SET {', '.join(updates)}, updated_at = NOW() WHERE id = :id"
+        s.execute(text(sql), params)
+
+    def delete_tipo(self, s, *, tipo_id: str) -> None:
+        sql = "UPDATE ev_catalogo.tipo_evento SET is_deleted = 1, updated_at = NOW() WHERE id = :id"
+        s.execute(text(sql), {"id": tipo_id})
+
+    # --- Servicios ---
+    def create_servicio(self, s, *, nombre: str, tipo_evento_id: str, descripcion: str | None = None) -> dict:
+        new_id = str(uuid.uuid4())
+        sql = """
+        INSERT INTO ev_catalogo.servicio (id, nombre, descripcion, tipo_evento_id, status, is_deleted, created_at)
+        VALUES (:id, :nombre, :descripcion, :tipo_evento_id, 1, 0, NOW())
+        """
+        s.execute(text(sql), {"id": new_id, "nombre": nombre, "descripcion": descripcion, "tipo_evento_id": tipo_evento_id})
+        return {"id": new_id, "nombre": nombre}
+
+    def update_servicio(self, s, *, servicio_id: str, nombre: str | None = None, descripcion: str | None = None, tipo_evento_id: str | None = None) -> None:
+        updates = []
+        params = {"id": servicio_id}
+        if nombre is not None:
+            updates.append("nombre = :nombre")
+            params["nombre"] = nombre
+        if descripcion is not None:
+            updates.append("descripcion = :descripcion")
+            params["descripcion"] = descripcion
+        if tipo_evento_id is not None:
+            updates.append("tipo_evento_id = :tipo_evento_id")
+            params["tipo_evento_id"] = tipo_evento_id
+        if not updates:
+            return
+        sql = f"UPDATE ev_catalogo.servicio SET {', '.join(updates)}, updated_at = NOW() WHERE id = :id"
+        s.execute(text(sql), params)
+
+    def delete_servicio(self, s, *, servicio_id: str) -> None:
+        sql = "UPDATE ev_catalogo.servicio SET is_deleted = 1, updated_at = NOW() WHERE id = :id"
+        s.execute(text(sql), {"id": servicio_id})
+
+    # --- Opciones ---
+    def create_opcion(self, s, *, servicio_id: str, nombre: str, moneda: str, monto: float, detalles: str | None = None) -> dict:
+        import json
+        new_id = str(uuid.uuid4())
+        
+        # Serializar detalles si es dict/list
+        detalles_json = None
+        if detalles is not None:
+            if isinstance(detalles, (dict, list)):
+                detalles_json = json.dumps(detalles)
+            else:
+                detalles_json = detalles
+        
+        sql = """
+        INSERT INTO ev_catalogo.opcion_servicio (id, servicio_id, nombre, detalles, status, is_deleted, created_at)
+        VALUES (:id, :servicio_id, :nombre, :detalles, 1, 0, NOW())
+        """
+        s.execute(text(sql), {"id": new_id, "servicio_id": servicio_id, "nombre": nombre, "detalles": detalles_json})
+        # Insertar precio inicial en tabla de precios
+        s.execute(
+            text("""
+                INSERT INTO ev_catalogo.precio_servicio 
+                (id, opcion_servicio_id, moneda, monto, vigente_desde, created_at) 
+                VALUES (:id, :opcion_id, :moneda, :monto, CURDATE(), NOW())
+            """), 
+            {"id": str(uuid.uuid4()), "opcion_id": new_id, "moneda": moneda, "monto": monto}
+        )
+        return {"id": new_id, "nombre": nombre}
+
+    def update_opcion(self, s, *, opcion_id: str, nombre: str | None = None, moneda: str | None = None, monto: float | None = None, detalles: str | None = None) -> None:
+        import json
+        updates = []
+        params = {"id": opcion_id}
+        if nombre is not None:
+            updates.append("nombre = :nombre")
+            params["nombre"] = nombre
+        if detalles is not None:
+            # Serializar detalles si es dict/list
+            if isinstance(detalles, (dict, list)):
+                params["detalles"] = json.dumps(detalles)
+            else:
+                params["detalles"] = detalles
+            updates.append("detalles = :detalles")
+        if updates:
+            sql = f"UPDATE ev_catalogo.opcion_servicio SET {', '.join(updates)}, updated_at = NOW() WHERE id = :id"
+            s.execute(text(sql), params)
+        # Si cambia el precio, crear una nueva fila de precio (registro histórico)
+        if monto is not None and moneda is not None:
+            s.execute(
+                text("""
+                    INSERT INTO ev_catalogo.precio_servicio 
+                    (id, opcion_servicio_id, moneda, monto, vigente_desde, created_at) 
+                    VALUES (:id, :opcion_id, :moneda, :monto, CURDATE(), NOW())
+                """), 
+                {"id": str(uuid.uuid4()), "opcion_id": opcion_id, "moneda": moneda, "monto": monto}
+            )
+
+    def delete_opcion(self, s, *, opcion_id: str) -> None:
+        sql = "UPDATE ev_catalogo.opcion_servicio SET is_deleted = 1, updated_at = NOW() WHERE id = :id"
+        s.execute(text(sql), {"id": opcion_id})
+
+    # --- Paquetes (básico create) ---
+    def create_paquete(self, s, *, codigo: str, nombre: str, items: list, moneda: str = "PEN") -> dict:
+        pid = str(uuid.uuid4())
+        sql = "INSERT INTO ev_paquetes.paquete (id, codigo, nombre, moneda, status, is_deleted, created_at) VALUES (:id, :codigo, :nombre, :moneda, 1, 0, NOW())"
+        s.execute(text(sql), {"id": pid, "codigo": codigo, "nombre": nombre, "moneda": moneda})
+        # Insert items
+        for it in items:
+            s.execute(text("INSERT INTO ev_paquetes.item_paquete (paquete_id, opcion_servicio_id, cantidad, created_at) VALUES (:pid, :oid, :cant, NOW())"), {"pid": pid, "oid": it["opcion_servicio_id"], "cant": it.get("cantidad", 1)})
+        return {"id": pid, "codigo": codigo}
+
+    def update_paquete(self, s, *, paquete_id: str, nombre: str | None = None, items: list | None = None, moneda: str | None = None) -> dict:
+        # Update basic fields
+        params = {"id": paquete_id}
+        updates = []
+        if nombre is not None:
+            updates.append("nombre = :nombre")
+            params["nombre"] = nombre
+        if moneda is not None:
+            updates.append("moneda = :moneda")
+            params["moneda"] = moneda
+        if updates:
+            sql = f"UPDATE ev_paquetes.paquete SET {', '.join(updates)}, updated_at = NOW() WHERE id = :id"
+            s.execute(text(sql), params)
+        # If items provided, delete existing items and insert new ones (simple replace)
+        if items is not None:
+            s.execute(text("DELETE FROM ev_paquetes.item_paquete WHERE paquete_id = :pid"), {"pid": paquete_id})
+            for it in items:
+                s.execute(text("INSERT INTO ev_paquetes.item_paquete (paquete_id, opcion_servicio_id, cantidad, created_at) VALUES (:pid, :oid, :cant, NOW())"), {"pid": paquete_id, "oid": it["opcion_servicio_id"], "cant": it.get("cantidad", 1)})
+        return {"id": paquete_id}
+
+    def delete_paquete(self, s, *, paquete_id: str) -> None:
+        sql = "UPDATE ev_paquetes.paquete SET is_deleted = 1, updated_at = NOW() WHERE id = :id"
+        s.execute(text(sql), {"id": paquete_id})

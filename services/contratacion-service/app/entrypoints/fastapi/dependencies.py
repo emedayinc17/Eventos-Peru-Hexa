@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from ev_shared.config import Settings, load_settings
 from ev_shared.db import session_scope
+from fastapi import HTTPException
 
 # Infrastructure
 from ...infrastructure.db.repositories import (
@@ -27,6 +28,8 @@ from ...application.use_cases import (
     AdminCambiarEstadoPedidoUseCase,
     AdminAsignarProveedorUseCase,
 )
+from ...application.use_cases.admin_add_items import AdminAddItemsUseCase
+from ...application.use_cases.admin_delete_items import AdminDeleteItemsUseCase
 
 
 # === Dependencias de Infraestructura ===
@@ -43,8 +46,11 @@ def get_db_session(settings: Settings = None) -> Generator[Session, None, None]:
     """
     if settings is None:
         settings = get_settings()
-    with session_scope(settings) as session:
-        yield session
+    try:
+        with session_scope(settings) as session:
+            yield session
+    except Exception:
+        raise HTTPException(status_code=503, detail="Database unavailable")
 
 
 # === Repositorios (Implementación de Ports) ===
@@ -186,3 +192,35 @@ def get_admin_asignar_proveedor_use_case(
         reserva_repo,
         proveedores_client
     )
+
+
+def get_admin_add_items_use_case(
+    pedido_repo: MySQLPedidoRepository = None,
+    item_repo: MySQLItemPedidoRepository = None,
+    catalogo_client: CatalogoClient = None
+) -> AdminAddItemsUseCase:
+    """Factory para AdminAddItemsUseCase"""
+    if pedido_repo is None:
+        pedido_repo = get_pedido_repository()
+    if item_repo is None:
+        item_repo = get_item_pedido_repository()
+    if catalogo_client is None:
+        catalogo_client = get_catalogo_client()
+    
+    return AdminAddItemsUseCase(pedido_repo, item_repo, catalogo_client)
+
+
+def get_admin_delete_items_use_case(
+    pedido_repo: MySQLPedidoRepository = None,
+    item_repo: MySQLItemPedidoRepository = None,
+    reserva_repo: MySQLReservaRepository = None
+) -> AdminDeleteItemsUseCase:
+    """Factory para AdminDeleteItemsUseCase"""
+    if pedido_repo is None:
+        pedido_repo = get_pedido_repository()
+    if item_repo is None:
+        item_repo = get_item_pedido_repository()
+    if reserva_repo is None:
+        reserva_repo = get_reserva_repository()
+    
+    return AdminDeleteItemsUseCase(pedido_repo, item_repo, reserva_repo)

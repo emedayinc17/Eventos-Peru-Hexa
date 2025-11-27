@@ -38,6 +38,8 @@ from .dependencies import (
     get_obtener_pedido_detalle_use_case,
     get_admin_cambiar_estado_use_case,
     get_admin_asignar_proveedor_use_case,
+    get_admin_add_items_use_case,
+    get_admin_delete_items_use_case,
 )
 
 # Domain Exceptions
@@ -411,14 +413,41 @@ def admin_add_items(
     admin=Depends(require_role("admin")),
 ):
     """
-    TODO: Agregar items a pedido - DEFERRED (Additional feature)
+    Agregar items a pedido - SOLO ADMIN
     Solo permitido en estados DRAFT (0) o COTIZADO (1)
-    Por ahora retorna 201 sin acción
+    Recalcula monto_total del pedido
     """
-    return {
-        "message": "Funcionalidad pendiente de implementación",
-        "pedido_id": pedido_id,
-    }
+    use_case = get_admin_add_items_use_case()
+    
+    try:
+        for session in get_db_session(settings):
+            result = use_case.execute(
+                session,
+                pedido_id=pedido_id,
+                items=[item.dict() for item in body.items]
+            )
+            return _serialize_decimal(result)
+            
+    except PedidoNoEncontrado:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "PEDIDO_NO_ENCONTRADO"}
+        )
+    except OpcionServicioNoEncontrada as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "OPCION_SERVICIO_NO_ENCONTRADA", "message": str(e)}
+        )
+    except ErrorAsignacionProveedor as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "ERROR_VALIDACION", "message": str(e)}
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "ERROR_INTERNO", "message": str(e)}
+        )
 
 
 @router.delete(
@@ -434,14 +463,42 @@ def admin_delete_items(
     admin=Depends(require_role("admin")),
 ):
     """
-    TODO: Eliminar items de pedido - DEFERRED (Additional feature)
+    Eliminar items de pedido - SOLO ADMIN
     Solo permitido en estados DRAFT (0) o COTIZADO (1)
-    Por ahora retorna 200 sin acción
+    No se puede eliminar items con reserva confirmada
+    Recalcula monto_total del pedido
     """
-    return {
-        "message": "Funcionalidad pendiente de implementación",
-        "pedido_id": pedido_id,
-    }
+    use_case = get_admin_delete_items_use_case()
+    
+    try:
+        for session in get_db_session(settings):
+            result = use_case.execute(
+                session,
+                pedido_id=pedido_id,
+                item_ids=body.item_ids
+            )
+            return _serialize_decimal(result)
+            
+    except PedidoNoEncontrado:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "PEDIDO_NO_ENCONTRADO"}
+        )
+    except ItemPedidoNoEncontrado as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "ITEM_NO_ENCONTRADO", "message": str(e)}
+        )
+    except ErrorAsignacionProveedor as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "ERROR_VALIDACION", "message": str(e)}
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "ERROR_INTERNO", "message": str(e)}
+        )
 
 
 @router.post(
@@ -475,19 +532,33 @@ def admin_asignar_proveedor(
     
     try:
         for session in get_db_session(settings):
-            result = use_case.execute(
+            reserva = use_case.execute(
                 session,
                 pedido_id=pedido_id,
                 item_pedido_id=body.item_pedido_id,
                 proveedor_id=body.proveedor_id,
-                opcion_servicio_id=body.opcion_servicio_id,
-                fecha_inicio=body.fecha_inicio,
-                fecha_fin=body.fecha_fin,
-                monto=body.monto,
+                inicio=body.fecha_inicio,
+                fin=body.fecha_fin,
                 hold_id=body.hold_id,
+                notas=getattr(body, 'notas', None),
             )
             
-            return _serialize_decimal(result)
+            # Convertir objeto Reserva a dict
+            result = {
+                "reserva_id": reserva.id,
+                "pedido_id": reserva.pedido_id,
+                "item_pedido_id": reserva.item_pedido_id,
+                "proveedor_id": reserva.proveedor_id,
+                "opcion_servicio_id": reserva.opcion_servicio_id,
+                "inicio": reserva.inicio.isoformat() if hasattr(reserva.inicio, 'isoformat') else str(reserva.inicio),
+                "fin": reserva.fin.isoformat() if hasattr(reserva.fin, 'isoformat') else str(reserva.fin),
+                "status": reserva.status,
+                "monto": float(reserva.monto),
+                "hold_id": reserva.hold_id,
+                "notas": reserva.notas
+            }
+            
+            return result
             
     except PedidoNoEncontrado:
         raise HTTPException(

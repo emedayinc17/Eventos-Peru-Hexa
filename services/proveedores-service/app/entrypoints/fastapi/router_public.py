@@ -6,7 +6,7 @@ CAPA DE ORQUESTACIÓN - SIN lógica de negocio
 from dataclasses import asdict
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from datetime import datetime
 
 from ev_shared.config import Settings
@@ -15,6 +15,30 @@ from .dependencies import (
     get_db_session,
     get_buscar_disponibles_use_case,
 )
+from .dependencies import (
+    get_crear_hold_use_case,
+    get_liberar_hold_use_case,
+)
+from fastapi import Body, status, Path
+
+
+class CrearReservaIn(BaseModel):
+    proveedor_id: str
+    opcion_servicio_id: str
+    inicio: str
+    fin: str
+    correlation_id: Optional[str] = None
+    ttl_min: Optional[int] = 30
+
+
+class ReservaOut(BaseModel):
+    id: str
+    proveedor_id: str
+    opcion_servicio_id: str
+    inicio: str
+    fin: str
+    status: int
+    expira_en: Optional[str]
 
 
 class Health(BaseModel):
@@ -83,5 +107,57 @@ def build_public_router(settings: Settings) -> APIRouter:
             result.append(d)
         
         return result
+
+    # === POST /v1/reservas ===
+    @r.post("/v1/reservas", response_model=ReservaOut, status_code=status.HTTP_201_CREATED)
+    def crear_reserva(
+        body: CrearReservaIn = Body(...)
+    ):
+        """Crear una reserva temporal (hold) vía API pública"""
+        # parsear datetimes
+        try:
+            from datetime import datetime
+            inicio_dt = datetime.fromisoformat(body.inicio)
+            fin_dt = datetime.fromisoformat(body.fin)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Formato de fecha/hora inválido; usa ISO8601")
+
+        use_case = get_crear_hold_use_case()
+        for session in get_db_session(settings):
+            try:
+                hold = use_case.execute(
+                    session,
+                    proveedor_id=body.proveedor_id,
+                    opcion_servicio_id=body.opcion_servicio_id,
+                    inicio=inicio_dt,
+                    fin=fin_dt,
+                    ttl_min=body.ttl_min or 30,
+                    correlation_id=body.correlation_id,
+                    created_by="public-api",
+                )
+            except HTTPException:
+                raise
+
+        return {
+            "id": hold.id,
+            "proveedor_id": hold.proveedor_id,
+            "opcion_servicio_id": hold.opcion_servicio_id,
+            "inicio": str(hold.inicio),
+            "fin": str(hold.fin),
+            "status": hold.status,
+            "expira_en": str(hold.expira_en) if getattr(hold, "expira_en", None) else None,
+        }
+
+    # === DELETE /v1/reservas/{id} ===
+    @r.delete("/v1/reservas/{id}", status_code=status.HTTP_204_NO_CONTENT)
+    def liberar_reserva(id: str = Path(...)):
+        """Liberar una reserva temporal (public endpoint)"""
+        use_case = get_liberar_hold_use_case()
+        for session in get_db_session(settings):
+            try:
+                use_case.execute(session, hold_id=id)
+            except HTTPException:
+                raise
+        return
 
     return r

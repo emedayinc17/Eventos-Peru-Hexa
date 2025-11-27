@@ -28,7 +28,11 @@ INSERT IGNORE INTO ev_iam.rol (id, codigo, nombre, descripcion, status) VALUES
 
 -- Unico administrador con contraseña: Evoluti0n
 INSERT IGNORE INTO ev_iam.usuario (id, email, password_hash, nombre, telefono, status) VALUES
- ('ee111111-1111-4111-8111-aaaaaaaaaaa1','admin@eventos.pe','$2b$12$T9QvT2JrJQmA2y7cKk1oMOOYqUj8K0e4R2rRj3Wm3mX8xWl3.1m5C','Administrador Principal','+51 900 111 000',1);
+ ('ee111111-1111-4111-8111-aaaaaaaaaaa1','admin@eventos.pe','$bcrypt-sha256$v=2,t=2b,r=12$0mZ35JSikYcRUxPds2IKK.$G/4eI2JPqTURMzE34fgCa2qNRYdlnSC','Administrador Principal','+51 900 111 000',1);
+
+-- Usuario demo (del bootstrap.sql) con contraseña: Evoluti0n
+INSERT IGNORE INTO ev_iam.usuario (id, email, password_hash, nombre, telefono, status) VALUES
+ ('aaaa2222-2222-2222-2222-aaaaaaaaaaa2','demo@eventos.pe','$bcrypt-sha256$v=2,t=2b,r=12$0mZ35JSikYcRUxPds2IKK.$G/4eI2JPqTURMzE34fgCa2qNRYdlnSC','Usuario Demo','+51 900 000 000',1);
 
 -- Generar 150 clientes automáticamente
 INSERT IGNORE INTO ev_iam.usuario (id, email, password_hash, nombre, telefono, status)
@@ -41,7 +45,7 @@ SELECT
         FLOOR(RAND() * 1000),
         '@eventos.pe'
     ),
-    '$2b$12$T9QvT2JrJQmA2y7cKk1oMOOYqUj8K0e4R2rRj3Wm3mX8xWl3.1m5C',
+    '$bcrypt-sha256$v=2,t=2b,r=12$0mZ35JSikYcRUxPds2IKK.$G/4eI2JPqTURMzE34fgCa2qNRYdlnSC',
     CONCAT(
         ELT(1 + FLOOR(RAND() * 20), 'Juan', 'María', 'Carlos', 'Ana', 'Luis', 'Rosa', 'José', 'Carmen', 'Miguel', 'Elena', 'Fernando', 'Patricia', 'Roberto', 'Lucía', 'Jorge', 'Sofía', 'Ricardo', 'Claudia', 'Pedro', 'Daniela'),
         ' ',
@@ -67,6 +71,10 @@ WHERE u.id != 'ee111111-1111-4111-8111-aaaaaaaaaaa1';
 -- Asignar rol ADMIN (solo uno)
 INSERT IGNORE INTO ev_iam.usuario_rol (id, usuario_id, rol_id) 
 VALUES ('ur-admin-0001', 'ee111111-1111-4111-8111-aaaaaaaaaaa1', 'aaaa1111-1111-1111-1111-aaaaaaaaaaa1');
+
+-- Asignar rol CLIENTE a demo@eventos.pe explícitamente
+INSERT IGNORE INTO ev_iam.usuario_rol (id, usuario_id, rol_id) 
+VALUES ('ur-demo-0001', 'aaaa2222-2222-2222-2222-aaaaaaaaaaa2', 'aaaa1111-1111-1111-1111-aaaaaaaaaaa2');
 
 /* ============================================================
    2) CATÁLOGO - Servicios y Opciones Masivas
@@ -357,7 +365,7 @@ SELECT
     DATE_SUB(@now, INTERVAL FLOOR(RAND() * 30) DAY),
     (SELECT id FROM ev_iam.usuario ORDER BY RAND() LIMIT 1),
     ELT(1 + FLOOR(RAND() * 5), 'pedido_evento', 'usuario', 'servicio', 'proveedor', 'reserva'),
-    UUID(),
+    CONCAT('ent-', SUBSTRING(MD5(RAND()), 1, 32)),
     ELT(1 + FLOOR(RAND() * 6), 'CREAR', 'ACTUALIZAR', 'CONSULTAR', 'ELIMINAR', 'CONFIRMAR', 'CANCELAR'),
     JSON_OBJECT(
         'ip', CONCAT('192.168.', FLOOR(RAND() * 255), '.', FLOOR(RAND() * 255)),

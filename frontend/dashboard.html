@@ -264,418 +264,138 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <h3>Proveedores</h3>
-                    ${role === 'ADMIN' ? '<button class="btn btn-primary btn-sm" onclick="openProveedorModal()">+ Nuevo
-                        Proveedor</button>' : ''}
+                    <button type="button" class="btn btn-primary" onclick="confirmarContratacion()">Confirmar
+                        Pedido</button>
                 </div>
-                <div id="proveedores-list">
+            </div>
+        </div>
+    </div>
+
+    <!-- Detalle Pedido Modal -->
+    <div class="modal fade" id="detallePedidoModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Detalle del Pedido</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="detalle-pedido-content">
                     <div class="text-center py-5">
                         <div class="spinner-border text-primary" role="status"></div>
-                        <p class="mt-2 text-muted">Cargando proveedores...</p>
+                        <p class="mt-2 text-muted">Cargando detalle...</p>
                     </div>
                 </div>
-                `;
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
-                try {
-                const proveedores = await ProveedoresService.getAll();
-                const listContainer = document.getElementById('proveedores-list');
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/adapters/http-adapter.js"></script>
+    <script src="js/adapters/catalogo-service.js"></script>
+    <script src="js/adapters/contratacion-service.js"></script>
+    <script src="js/adapters/proveedores-service.js"></script>
+    <script src="js/adapters/usuarios-service.js"></script>
+    <script src="js/dashboard-functions.js"></script>
 
-                if (proveedores.length === 0) {
-                listContainer.innerHTML = '<div class="alert alert-info">No hay proveedores registrados.</div>';
-                return;
+    <script>
+        // === INITIALIZATION ===
+        document.addEventListener('DOMContentLoaded', () => {
+            SessionManager.requireAuth();
+
+            const session = SessionManager.getSession();
+            if (session.user) {
+                document.getElementById('user-name-sidebar').textContent = session.user.nombre_completo || session.user.email;
+                const roleBadge = document.getElementById('user-role-sidebar');
+                if (roleBadge) roleBadge.textContent = session.user.role;
+
+                renderSidebar(session.user.role);
+                loadView('home');
+            }
+
+            document.getElementById('btn-logout-sidebar').addEventListener('click', (e) => {
+                e.preventDefault();
+                SessionManager.clearSession();
+                window.location.href = Config.ROUTES.LOGIN;
+            });
+        });
+
+        // === SIDEBAR ===
+        function renderSidebar(role) {
+            const menuContainer = document.getElementById('sidebar-menu');
+            let menuItems = [];
+
+            if (role === 'ADMIN') {
+                menuItems = [
+                    { id: 'home', label: '🏠 Inicio' },
+                    { id: 'catalogo', label: '📦 Catálogo' },
+                    { id: 'proveedores', label: '🚚 Proveedores' },
+                    { id: 'usuarios', label: '👥 Usuarios' },
+                    { id: 'contratos', label: '📄 Contratos' }
+                ];
+            } else {
+                menuItems = [
+                    { id: 'home', label: '🏠 Inicio' },
+                    { id: 'catalogo', label: '📦 Catálogo' },
+                    { id: 'pedidos', label: '📋 Mis Pedidos' },
+                    { id: 'proveedores', label: '🔍 Proveedores' }
+                ];
+            }
+
+            menuContainer.innerHTML = menuItems.map(item => `
+            <li class="nav-item">
+                <a class="nav-link d-flex align-items-center gap-2" href="#" onclick="loadView('${item.id}')">
+                    ${item.label}
+                </a>
+            </li>
+        `).join('');
+        }
+
+        // === ROUTER ===
+        async function loadView(viewName) {
+            const contentDiv = document.getElementById('main-content');
+            const session = SessionManager.getSession();
+            const role = session.user.role;
+
+            contentDiv.classList.remove('animate-fade-in');
+            void contentDiv.offsetWidth;
+            contentDiv.classList.add('animate-fade-in');
+
+            document.querySelectorAll('.sidebar .nav-link').forEach(l => l.classList.remove('active'));
+            const links = document.querySelectorAll('.sidebar .nav-link');
+            for (let link of links) {
+                if (link.getAttribute('onclick').includes(viewName)) {
+                    link.classList.add('active');
                 }
+            }
 
-                let html = `
-                <div class="card overflow-hidden">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0 align-middle">
-                            <thead class="bg-light">
-                                <tr>
-                                    <th class="py-3 ps-4">Nombre</th>
-                                    <th class="py-3">Categoría</th>
-                                    <th class="py-3">Precio Base</th>
-                                    <th class="py-3">Contacto</th>
-                                    ${role === 'ADMIN' ? '<th class="py-3 pe-4 text-end">Acciones</th>' : ''}
-                                </tr>
-                            </thead>
-                            <tbody>`;
-
-                                proveedores.forEach(p => {
-                                const actions = role === 'ADMIN' ? `
-                                <td class="pe-4 text-end">
-                                    <button class="btn btn-sm btn-outline-secondary me-1"
-                                        onclick="openProveedorModal('${p.id}')">Editar</button>
-                                    <button class="btn btn-sm btn-outline-danger"
-                                        onclick="deleteProveedor('${p.id}')">Eliminar</button>
-                                </td>` : '';
-
-                                html += `
-                                <tr>
-                                    <td class="ps-4 fw-medium">${p.nombre}</td>
-                                    <td><span
-                                            class="badge bg-info bg-opacity-10 text-info rounded-pill text-dark">${p.categoria}</span>
-                                    </td>
-                                    <td class="fw-bold">S/ ${p.precio_base.toFixed(2)}</td>
-                                    <td class="text-muted small">${p.contacto || '-'}</td>
-                                    ${actions}
-                                </tr>`;
-                                });
-
-                                html += '
-                            </tbody>
-                        </table>
+            if (viewName === 'home') {
+                contentDiv.innerHTML = `
+                <div class="text-center py-5">
+                    <h2 class="display-5 fw-bold mb-3">Bienvenido al Panel de Control</h2>
+                    <p class="lead text-muted">Selecciona una opción del menú para comenzar a gestionar tus eventos.</p>
+                    <div class="mt-4">
+                        <button class="btn btn-primary btn-lg" onclick="loadView('catalogo')">Ver Catálogo</button>
                     </div>
-                </div>';
-                listContainer.innerHTML = html;
-
-                } catch (error) {
-                container.innerHTML = `<div class="alert alert-danger">Error al cargar proveedores: ${error.message}
                 </div>`;
-                }
-                }
-
-                async function renderUsuarios(container, role) {
-                if (role !== 'ADMIN') {
-                container.innerHTML = '<div class="alert alert-danger">Acceso denegado</div>';
-                return;
-                }
-                container.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h3>Gestión de Usuarios</h3>
-                    <button class="btn btn-primary btn-sm" onclick="openUsuarioModal()">+ Nuevo Usuario</button>
-                </div>
-                <div id="usuarios-list">
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-primary" role="status"></div>
-                        <p class="mt-2 text-muted">Cargando usuarios...</p>
-                    </div>
-                </div>
-                `;
-
-                try {
-                const usuarios = await UsuariosService.getAll();
-                const listContainer = document.getElementById('usuarios-list');
-
-                if (usuarios.length === 0) {
-                listContainer.innerHTML = '<div class="alert alert-info">No hay usuarios registrados.</div>';
-                return;
-                }
-
-                let html = `
-                <div class="card overflow-hidden">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0 align-middle">
-                            <thead class="bg-light">
-                                <tr>
-                                    <th class="py-3 ps-4">Nombre</th>
-                                    <th class="py-3">Email</th>
-                                    <th class="py-3">Rol</th>
-                                    <th class="py-3">Estado</th>
-                                    <th class="py-3 pe-4 text-end">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>`;
-
-                                usuarios.forEach(u => {
-                                const statusBadge = u.status === 1 ? '<span
-                                    class="badge bg-success bg-opacity-75 rounded-pill">Activo</span>' : '<span
-                                    class="badge bg-secondary rounded-pill">Inactivo</span>';
-                                html += `
-                                <tr>
-                                    <td class="ps-4 fw-medium">${u.nombre || 'Sin nombre'}</td>
-                                    <td>${u.email}</td>
-                                    <td><span
-                                            class="badge bg-primary bg-opacity-10 text-primary rounded-pill">${u.role}</span>
-                                    </td>
-                                    <td>${statusBadge}</td>
-                                    <td class="pe-4 text-end">
-                                        <button class="btn btn-sm btn-outline-secondary me-1"
-                                            onclick="openUsuarioModal('${u.id}')">Editar</button>
-                                        <button class="btn btn-sm btn-outline-danger"
-                                            onclick="deleteUsuario('${u.id}')">Eliminar</button>
-                                    </td>
-                                </tr>`;
-                                });
-
-                                html += '
-                            </tbody>
-                        </table>
-                    </div>
-                </div>';
-                listContainer.innerHTML = html;
-
-                } catch (error) {
-                container.innerHTML = `<div class="alert alert-danger">Error al cargar usuarios: ${error.message}</div>
-                `;
-                }
-                }
-
-                // --- ACTIONS & MODALS ---
-
-                // Usuario Actions
-                let currentUsuarioId = null;
-
-                async function openUsuarioModal(id = null) {
-                currentUsuarioId = id;
-                const modalEl = document.getElementById('usuarioModal');
-                const modal = new bootstrap.Modal(modalEl);
-                const title = document.getElementById('usuarioModalLabel');
-
-                // Reset form
-                document.getElementById('usuario-form').reset();
-
-                if (id) {
-                title.textContent = 'Editar Usuario';
-                try {
-                const user = await UsuariosService.getById(id);
-                document.getElementById('usuario-nombre').value = user.nombre || '';
-                document.getElementById('usuario-email').value = user.email;
-                document.getElementById('usuario-rol').value = user.role;
-                // Password left blank
-                } catch (error) {
-                alert('Error al cargar usuario: ' + error.message);
-                return;
-                }
-                } else {
-                title.textContent = 'Nuevo Usuario';
-                }
-
-                modal.show();
-                }
-
-                async function saveUsuario() {
-                const nombre = document.getElementById('usuario-nombre').value;
-                const email = document.getElementById('usuario-email').value;
-                const password = document.getElementById('usuario-password').value;
-                const role = document.getElementById('usuario-rol').value;
-
-                const data = { nombre, email, role };
-                if (password) data.password = password;
-
-                try {
-                if (currentUsuarioId) {
-                await UsuariosService.update(currentUsuarioId, data);
-                } else {
-                if (!password) {
-                alert('La contraseña es obligatoria para nuevos usuarios');
-                return;
-                }
-                await UsuariosService.create(data);
-                }
-
-                // Close modal and reload
-                const modalEl = document.getElementById('usuarioModal');
-                const modal = bootstrap.Modal.getInstance(modalEl);
-                modal.hide();
-                loadView('usuarios');
-
-                } catch (error) {
-                alert('Error al guardar usuario: ' + error.message);
-                }
-                }
-
-                async function deleteUsuario(id) {
-                if (confirm('¿Estás seguro de eliminar este usuario?')) {
-                try {
-                await UsuariosService.delete(id);
-                loadView('usuarios');
-                } catch (error) {
-                alert('Error al eliminar usuario: ' + error.message);
-                }
-                }
-                }
-
-                // Proveedor Actions
-                let currentProveedorId = null;
-
-                async function openProveedorModal(id = null) {
-                currentProveedorId = id;
-                const modalEl = document.getElementById('proveedorModal');
-                const modal = new bootstrap.Modal(modalEl);
-                const title = document.getElementById('proveedorModalLabel');
-
-                // Reset form
-                document.getElementById('proveedor-form').reset();
-
-                if (id) {
-                title.textContent = 'Editar Proveedor';
-                try {
-                const prov = await ProveedoresService.getById(id);
-                document.getElementById('proveedor-nombre').value = prov.nombre;
-                document.getElementById('proveedor-categoria').value = prov.categoria;
-                document.getElementById('proveedor-contacto').value = prov.contacto || '';
-                document.getElementById('proveedor-precio').value = prov.precio_base;
-                } catch (error) {
-                alert('Error al cargar proveedor: ' + error.message);
-                return;
-                }
-                } else {
-                title.textContent = 'Nuevo Proveedor';
-                }
-
-                modal.show();
-                }
-
-                async function saveProveedor() {
-                const nombre = document.getElementById('proveedor-nombre').value;
-                const categoria = document.getElementById('proveedor-categoria').value;
-                const contacto = document.getElementById('proveedor-contacto').value;
-                const precio_base = parseFloat(document.getElementById('proveedor-precio').value);
-
-                const data = { nombre, categoria, contacto, precio_base };
-
-                try {
-                if (currentProveedorId) {
-                await ProveedoresService.update(currentProveedorId, data);
-                } else {
-                await ProveedoresService.create(data);
-                }
-
-                const modalEl = document.getElementById('proveedorModal');
-                const modal = bootstrap.Modal.getInstance(modalEl);
-                modal.hide();
-                loadView('proveedores');
-
-                } catch (error) {
-                alert('Error al guardar proveedor: ' + error.message);
-                }
-                }
-
-                async function deleteProveedor(id) {
-                if (confirm('¿Estás seguro de eliminar este proveedor?')) {
-                try {
-                await ProveedoresService.delete(id);
-                loadView('proveedores');
-                } catch (error) {
-                alert('Error al eliminar proveedor: ' + error.message);
-                }
-                }
-                }
-
-                // Paquete Actions
-                let currentPaqueteId = null;
-
-                async function openPaqueteModal(id = null) {
-                currentPaqueteId = id;
-                const modalEl = document.getElementById('paqueteModal');
-                const modal = new bootstrap.Modal(modalEl);
-                const title = document.getElementById('paqueteModalLabel');
-
-                // Reset form
-                document.getElementById('paquete-form').reset();
-
-                if (id) {
-                title.textContent = 'Editar Paquete';
-                try {
-                const paquete = await CatalogoService.getById(id);
-                document.getElementById('paquete-nombre').value = paquete.nombre;
-                document.getElementById('paquete-descripcion').value = paquete.descripcion;
-                document.getElementById('paquete-precio').value = paquete.monto_total;
-                } catch (error) {
-                alert('Error al cargar paquete: ' + error.message);
-                return;
-                }
-                } else {
-                title.textContent = 'Nuevo Paquete';
-                }
-
-                modal.show();
-                }
-
-                async function savePaquete() {
-                const nombre = document.getElementById('paquete-nombre').value;
-                const descripcion = document.getElementById('paquete-descripcion').value;
-                const monto_total = parseFloat(document.getElementById('paquete-precio').value);
-
-                const data = { nombre, descripcion, monto_total };
-
-                try {
-                if (currentPaqueteId) {
-                await CatalogoService.update(currentPaqueteId, data);
-                } else {
-                await CatalogoService.create(data);
-                }
-
-                const modalEl = document.getElementById('paqueteModal');
-                const modal = bootstrap.Modal.getInstance(modalEl);
-                modal.hide();
-                loadView('catalogo');
-
-                } catch (error) {
-                alert('Error al guardar paquete: ' + error.message);
-                }
-                }
-
-                async function deletePaquete(id) {
-                if (confirm('¿Estás seguro de eliminar este paquete?')) {
-                try {
-                await CatalogoService.delete(id);
-                loadView('catalogo');
-                } catch (error) {
-                alert('Error al eliminar paquete: ' + error.message);
-                }
-                }
-                }
-
-                // Contratacion Actions
-                async function contratarPaquete(id, nombre, precio, tipoEventoId, tipoEventoNombre) {
-                console.log("Contratar paquete:", id, nombre, precio, tipoEventoId);
-
-                document.getElementById('contratar-paquete-id').value = id;
-                document.getElementById('contratar-paquete-nombre').textContent = nombre;
-                document.getElementById('contratar-paquete-precio').textContent = precio.toFixed(2);
-
-                // Set hidden event type
-                document.getElementById('evento-tipo').value = tipoEventoId;
-
-                // Set default date to tomorrow
-                const tomorrow = new Date();
-                tomorrow.setDate(tomorrow.getDate() + 1);
-                document.getElementById('evento-fecha').valueAsDate = tomorrow;
-                document.getElementById('evento-hora').value = "18:00"; // Default time
-
-                const modal = new bootstrap.Modal(document.getElementById('contratarModal'));
-                modal.show();
-                }
-
-                async function confirmarContratacion() {
-                const paqueteId = document.getElementById('contratar-paquete-id').value;
-                const tipoEventoId = document.getElementById('evento-tipo').value;
-                const fecha = document.getElementById('evento-fecha').value;
-                const hora = document.getElementById('evento-hora').value;
-                const ubicacion = document.getElementById('evento-ubicacion').value;
-                const invitados = parseInt(document.getElementById('evento-invitados').value);
-
-                if (!tipoEventoId || tipoEventoId === 'null' || tipoEventoId === 'undefined') {
-                console.warn("Warning: tipoEventoId is missing");
-                }
-
-                if (!fecha || !hora || !ubicacion) {
-                alert('Por favor completa todos los campos obligatorios');
-                return;
-                }
-
-                try {
-                await ContratacionService.crearPedido({
-                paquete_id: paqueteId,
-                tipo_evento_id: tipoEventoId,
-                fecha_evento: fecha,
-                hora_inicio: hora,
-                ubicacion: ubicacion,
-                num_personas: invitados
-                });
-
-                const modal = bootstrap.Modal.getInstance(document.getElementById('contratarModal'));
-                modal.hide();
-
-                alert('¡Pedido creado exitosamente!');
-                loadView('pedidos');
-
-                } catch (error) {
-                alert('Error al crear el pedido: ' + error.message);
-                }
-                }
-                </script>
+            } else if (viewName === 'catalogo') {
+                await renderCatalogo(contentDiv, role);
+            } else if (viewName === 'pedidos') {
+                await renderPedidos(contentDiv, role);
+            } else if (viewName === 'proveedores') {
+                await renderProveedores(contentDiv, role);
+            } else if (viewName === 'usuarios') {
+                await renderUsuarios(contentDiv, role);
+            } else if (viewName === 'contratos') {
+                await renderPedidos(contentDiv, role);
+            }
+        }
+    </script>
 </body>
 
 </html>

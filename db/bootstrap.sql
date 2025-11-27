@@ -339,7 +339,7 @@ CREATE TABLE IF NOT EXISTS ev_proveedores.reserva_temporal (
   fin                DATETIME NOT NULL,
   status             TINYINT  NOT NULL DEFAULT 0, -- 0=hold,1=confirmada,2=expirada,3=liberada
   expira_en          DATETIME NOT NULL,
-  correlation_id     VARCHAR(64) NULL,
+  correlation_id     VARCHAR(150) NULL,
   created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_by         CHAR(36)  NULL,
   INDEX idx_hold_prov_time (proveedor_id, inicio, fin),
@@ -374,7 +374,7 @@ CREATE TABLE IF NOT EXISTS ev_contratacion.pedido_evento (
   monto_total     DECIMAL(12,2) NULL DEFAULT 0.00,
   moneda          CHAR(3)  NOT NULL DEFAULT 'PEN',
   status          TINYINT  NOT NULL DEFAULT 0, -- 0=DRAFT,1=COTIZADO,2=APROBADO,3=ASIGNADO,4=CERRADO,5=CANCELADO
-  correlation_id  VARCHAR(64) NULL,
+  correlation_id  VARCHAR(150) NULL,
   request_id      VARCHAR(64) NULL,
   created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at      TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
@@ -430,6 +430,7 @@ CREATE TABLE IF NOT EXISTS ev_contratacion.reserva (
   fin            DATETIME NOT NULL,
   status         TINYINT  NOT NULL DEFAULT 0, -- 0=PEND,1=CONFIRMADA,2=FALLIDA,3=CANCELADA
   hold_id        CHAR(36) NULL,               -- ref lógica a reserva_temporal.id
+  correlation_id VARCHAR(150) NULL,
   created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_by     CHAR(36)  NULL,
   INDEX idx_reserva_prov_time (proveedor_id, inicio, fin),
@@ -676,7 +677,7 @@ ON DUPLICATE KEY UPDATE nombre=VALUES(nombre), descripcion=VALUES(descripcion), 
 INSERT INTO ev_iam.usuario (id, email, password_hash, nombre, telefono, status) VALUES
  ('aaaa2222-2222-2222-2222-aaaaaaaaaaa2',
   'demo@eventos.pe',
-  '$bcrypt-sha256$v=2,t=2b,r=12$X74k7ddCoyDNfEk02o3gHO$mmRQnZkaSGKInBAIlnL2lfB2VnHzfvu', -- password en texto plano: Admin_2025!
+  '$bcrypt-sha256$v=2,t=2b,r=12$0mZ35JSikYcRUxPds2IKK.$G/4eI2JPqTURMzE34fgCa2qNRYdlnSC', -- password: Evoluti0n
   'Usuario Demo',
   '+51 900 000 000',
   1)
@@ -860,6 +861,9 @@ GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_mensajeria.*    TO 'a
 -- Contratación - permisos duplicados (no dañan, pero se dejan por claridad)
 GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_contratacion.*    TO 'app_contratacion'@'%';
 GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_contratacion.*    TO 'app_contratacion'@'localhost';
+
+GRANT INSERT, SELECT, UPDATE, DELETE ON ev_catalogo.* TO 'app_catalogo'@'%';
+GRANT INSERT, SELECT, UPDATE, DELETE ON ev_catalogo.* TO 'app_catalogo'@'localhost';
 
 -- NUEVO: Permisos de LECTURA para paquetes (necesario para calcular precios)
 GRANT SELECT ON ev_paquetes.* TO 'app_contratacion'@'%';

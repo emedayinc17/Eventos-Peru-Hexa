@@ -535,3 +535,39 @@ class MySQLReservaRepository:
             )
             for row in rows
         ]
+
+    def obtener_por_item(
+        self,
+        session: Any,
+        item_pedido_id: str
+    ) -> Optional[Reserva]:
+        """Obtiene una reserva por el id del item (si existe)"""
+        row = session.execute(
+            text("""
+                SELECT r.id, r.item_pedido_id, r.proveedor_id, r.inicio, r.fin,
+                       r.status, r.hold_id, r.created_at,
+                       i.pedido_id, i.opcion_servicio_id
+                FROM ev_contratacion.reserva r
+                JOIN ev_contratacion.item_pedido_evento i ON i.id = r.item_pedido_id
+                WHERE r.item_pedido_id = :item_id
+                LIMIT 1
+            """),
+            {"item_id": item_pedido_id},
+        ).mappings().first()
+
+        if not row:
+            return None
+
+        return Reserva(
+            id=row["id"],
+            pedido_id=row["pedido_id"],
+            item_pedido_id=row["item_pedido_id"],
+            proveedor_id=row["proveedor_id"],
+            opcion_servicio_id=row["opcion_servicio_id"],
+            inicio=row["inicio"],
+            fin=row["fin"],
+            status=row["status"],
+            monto=Decimal("0"),
+            hold_id=row["hold_id"],
+            created_at=row["created_at"],
+        )

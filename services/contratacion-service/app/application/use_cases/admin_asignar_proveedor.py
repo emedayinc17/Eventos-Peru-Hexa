@@ -101,11 +101,15 @@ class AdminAsignarProveedorUseCase:
             )
         
         # 4. Crear o confirmar hold en Proveedores
+        print(f"🔍 [DEBUG] Paso 4: Crear/confirmar hold")
         if hold_id:
             # Ya existe hold, solo confirmarlo
             try:
+                print(f"🔍 [DEBUG] Confirmando hold existente: {hold_id}")
                 hold_response = self.proveedores_client.confirmar_hold(hold_id)
+                print(f"✅ [DEBUG] Hold confirmado: {hold_response}")
             except Exception as e:
+                print(f"❌ [DEBUG] Error confirmando hold: {type(e).__name__}: {str(e)}")
                 raise ErrorServicioExterno(
                     "proveedores",
                     f"Error al confirmar hold {hold_id}: {str(e)}"
@@ -123,31 +127,44 @@ class AdminAsignarProveedorUseCase:
                     "correlation_id": f"pedido-{pedido_id}-item-{item_pedido_id}",
                     "created_by": "contratacion-admin"
                 }
+                print(f"🔍 [DEBUG] Creando hold: {hold_payload}")
                 hold_response = self.proveedores_client.crear_hold(hold_payload)
                 hold_id = hold_response["id"]
+                print(f"✅ [DEBUG] Hold creado: {hold_id}")
                 
                 # Confirmar hold inmediatamente
+                print(f"🔍 [DEBUG] Confirmando hold: {hold_id}")
                 self.proveedores_client.confirmar_hold(hold_id)
+                print(f"✅ [DEBUG] Hold confirmado")
                 
             except Exception as e:
+                print(f"❌ [DEBUG] Error en crear/confirmar hold: {type(e).__name__}: {str(e)}")
                 raise ErrorServicioExterno(
                     "proveedores",
                     f"Error al crear/confirmar hold: {str(e)}"
                 )
         
         # 5. Crear reserva permanente en Contratación
-        reserva = self.reserva_repo.crear(
-            session,
-            pedido_id=pedido_id,
-            item_pedido_id=item_pedido_id,
-            proveedor_id=proveedor_id,
-            opcion_servicio_id=item.opcion_servicio_id,
-            inicio=inicio,
-            fin=fin,
-            monto=float(item.subtotal),
-            hold_id=hold_id,
-            notas=notas
-        )
+        print(f"🔍 [DEBUG] Paso 5: Crear reserva permanente")
+        print(f"🔍 [DEBUG] Parámetros: pedido_id={pedido_id}, item={item_pedido_id}, proveedor={proveedor_id}, hold={hold_id}")
+        try:
+            reserva = self.reserva_repo.crear(
+                session,
+                pedido_id=pedido_id,
+                item_pedido_id=item_pedido_id,
+                proveedor_id=proveedor_id,
+                opcion_servicio_id=item.opcion_servicio_id,
+                inicio=inicio,
+                fin=fin,
+                status=1,  # Confirmada
+                monto=float(item.subtotal),
+                hold_id=hold_id,
+                notas=notas
+            )
+            print(f"✅ [DEBUG] Reserva creada: {reserva}")
+        except Exception as e:
+            print(f"❌ [DEBUG] Error creando reserva: {type(e).__name__}: {str(e)}")
+            raise
         
         # 6. Verificar si todos los items tienen reserva → actualizar pedido a ASIGNADO
         items = self.item_repo.listar_por_pedido(session, pedido_id)

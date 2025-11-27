@@ -1,96 +1,170 @@
-# Catálogo Service (Gestión de Productos y Servicios)
+# Catálogo Service
 
-Este microservicio es responsable de la gestión y consulta del catálogo de eventos, incluyendo tipos de eventos, servicios, opciones y paquetes predefinidos. Implementa un diseño de **Arquitectura Hexagonal**.
+**Versión**: 1.0.0  
+**Estado**: ✅ 100% Funcional  
+**Puerto**: 8020  
+**Base de Datos**: ev_catalogo, ev_paquetes
 
-## 🏗 Arquitectura
+Este microservicio gestiona el catálogo completo de servicios de eventos, incluyendo tipos de eventos, servicios, opciones y paquetes predefinidos.
 
-El servicio sigue los principios de Arquitectura Hexagonal (Ports & Adapters):
+---
 
-- **Domain**: Entidades (`TipoEvento`, `Servicio`, `Paquete`) y lógica de negocio.
-- **Application**: Casos de uso (`ListarTiposEvento`, `ListarPaquetes`, `ObtenerDetallePaquete`).
-- **Infrastructure**: Adaptadores para base de datos (MySQL) y comunicación HTTP.
-- **Entrypoints**: Controladores API (FastAPI Router).
+## 🎯 Responsabilidades
 
-## 🛠 Tech Stack
+- ✅ Gestión de tipos de evento (bodas, cumpleaños, corporativos, etc.)
+- ✅ Catálogo de servicios por tipo de evento
+- ✅ Opciones de servicios con precios
+- ✅ Paquetes predefinidos (combos)
+- ✅ Consultas públicas del catálogo
+- ✅ Administración del catálogo
 
-- **Lenguaje**: Python 3.12
-- **Framework Web**: FastAPI + Uvicorn
-- **Base de Datos**: MySQL 8.0
-- **ORM**: SQLAlchemy (Core/ORM)
-- **Seguridad**: Endpoints públicos (MVP).
-- **Validación**: Pydantic v2
-- **Testing**: Pytest
+---
 
-## 📂 Estructura del Proyecto
+## 🏗️ Arquitectura Hexagonal
 
 ```
 catalogo-service/
 ├── app/
-│   ├── application/       # Casos de uso
-│   ├── domain/            # Entidades y Reglas de Negocio
-│   ├── entrypoints/       # API REST
-│   └── infrastructure/    # Adaptadores (MySQL, etc.)
-├── test/                  # Pruebas automatizadas
-├── Dockerfile             # Definición de contenedor
-├── requirements.txt       # Dependencias Python
-└── run.bat                # Script de ejecución local
+│   ├── domain/                 # Entidades y lógica de negocio
+│   ├── application/            # Casos de uso
+│   ├── infrastructure/         # Adaptadores (MySQL)
+│   └── entrypoints/            # API REST (FastAPI)
+│
+└── test/                       # Tests
 ```
 
-## 🚀 Ejecución Local
+---
 
-### Prerrequisitos
-- Python 3.12+
-- MySQL corriendo (con el esquema `ev_catalogo` creado y poblado).
+## 🔌 Endpoints
 
-### Pasos
-1. **Configurar variables de entorno**:
-   Crea un archivo `.env` en la raíz del servicio (o usa las variables por defecto).
+### Públicos
 
-2. **Instalar dependencias**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+#### `GET /catalogo/health`
+Health check.
 
-3. **Iniciar el servicio**:
-   ```bash
-   .\run.bat
-   ```
-   El servicio estará disponible en `http://localhost:8020`.
+#### `GET /catalogo/v1/tipos-evento`
+Lista tipos de evento disponibles.
 
-## 🐳 Docker
-
-### Construir Imagen
-Desde la raíz del repositorio (para incluir librerías compartidas):
-
-```bash
-docker build -t catalogo-service:1.0.0 -f services/catalogo-service/Dockerfile .
+**Response**:
+```json
+{
+  "total": 5,
+  "tipos": [
+    {
+      "id": "uuid",
+      "nombre": "Boda",
+      "descripcion": "Eventos de matrimonio"
+    }
+  ]
+}
 ```
 
-### Ejecutar Contenedor
-```bash
-docker run -d -p 8020:8020 --name catalogo-service catalogo-service:1.0.0
+#### `GET /catalogo/v1/servicios`
+Lista servicios disponibles.
+
+**Query Parameters**:
+- `tipo_evento_id`: Filtrar por tipo de evento
+- `skip`: Paginación (default: 0)
+- `limit`: Límite (default: 50)
+
+**Response**:
+```json
+{
+  "total": 30,
+  "servicios": [
+    {
+      "id": "aaaaaaaa-1111-2222-3333-aaaaaaaaaaaa",
+      "nombre": "Fotografía Profesional",
+      "tipo_evento_id": "uuid",
+      "descripcion": "Servicio fotográfico completo"
+    }
+  ]
+}
 ```
 
-## ✅ Testing
+#### `GET /catalogo/v1/opciones-servicio`
+Opciones de un servicio específico.
 
-### Ejecutar Pruebas
-```bash
+**Query Parameters**:
+- `servicio_id`: ID del servicio (requerido)
+- `fecha_evento`: Fecha para validar disponibilidad (opcional)
+
+**Response**:
+```json
+{
+  "total": 3,
+  "opciones": [
+    {
+      "id": "bbbbbbbb-2222-3333-4444-bbbbbbbbbbbb",
+      "servicio_id": "aaaaaaaa-1111-2222-3333-aaaaaaaaaaaa",
+      "nombre": "Paquete Básico",
+      "descripcion": "4 horas de cobertura",
+      "precio_vigente": 1500.00,
+      "moneda": "PEN"
+    }
+  ]
+}
+```
+
+#### `GET /catalogo/v1/paquetes`
+Lista paquetes predefinidos.
+
+**Response**:
+```json
+{
+  "total": 16,
+  "paquetes": [
+    {
+      "id": "uuid",
+      "codigo": "PKG-001",
+      "nombre": "Paquete Bodas Premium",
+      "descripcion": "Todo incluido",
+      "precio_total": 8500.00,
+      "num_items": 5
+    }
+  ]
+}
+```
+
+#### `GET /catalogo/v1/paquetes/{id}`
+Detalle completo de un paquete.
+
+**Response**:
+```json
+{
+  "id": "uuid",
+  "nombre": "Paquete Bodas Premium",
+  "items": [
+    {
+      "opcion_servicio_id": "uuid",
+      "cantidad": 1,
+      "precio_unitario": 1500.00
+    }
+  ],
+  "precio_total": 8500.00
+}
+```
+
+---
+
+## 📊 Datos Disponibles
+
+- **Tipos de Evento**: 5
+- **Servicios**: 30
+- **Opciones de Servicio**: 90+
+- **Paquetes**: 16
+
+---
+
+## 🚀 Ejecución
+
+```powershell
 cd services/catalogo-service
-pytest test/test_catalogo_service.py
+.\run.bat
 ```
 
-### Generar Reporte HTML
-```bash
-pytest test/test_catalogo_service.py --html=test/report_catalogo.html --self-contained-html
-```
+Servicio disponible en `http://localhost:8020`
 
-## 🔌 Endpoints Principales
+---
 
-| Método | Ruta | Descripción | Rol Requerido |
-|--------|------|-------------|---------------|
-| GET | `/health` | Health check | Público |
-| GET | `/v1/catalogo/tipos` | Listar tipos de evento | Público |
-| GET | `/v1/catalogo/servicios` | Listar servicios | Público |
-| GET | `/v1/catalogo/opciones` | Listar opciones de un servicio | Público |
-| GET | `/v1/catalogo/paquetes` | Listar paquetes disponibles | Público |
-| GET | `/v1/catalogo/paquetes/{id}` | Ver detalle de un paquete | Público |
+**Última Actualización**: 27 de Noviembre, 2025
