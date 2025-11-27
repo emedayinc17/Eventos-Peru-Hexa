@@ -67,6 +67,8 @@ class PaqueteResumen:
     moneda: str
     monto_total: Decimal
     descripcion: Optional[str] = None
+    tipo_evento_id: Optional[str] = None
+    tipo_evento_nombre: Optional[str] = None
     status: int = 1
 
 

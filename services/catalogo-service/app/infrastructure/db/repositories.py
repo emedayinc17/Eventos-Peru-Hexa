@@ -136,7 +136,7 @@ class MySQLCatalogoQueryService:
         limit: int = 50,
         offset: int = 0
     ) -> list[PaqueteResumen]:
-        """Lista paquetes con monto total calculado"""
+        """Lista paquetes con monto total calculado y tipo de evento"""
         rows = s.execute(
             text("""
                 SELECT
@@ -146,8 +146,13 @@ class MySQLCatalogoQueryService:
                   MIN(d.descripcion) AS descripcion,
                   MIN(d.status)     AS status,
                   MIN(d.moneda)     AS moneda,
-                  SUM(d.cantidad * d.monto) AS monto_total
+                  SUM(d.cantidad * d.monto) AS monto_total,
+                  MIN(s.tipo_evento_id) AS tipo_evento_id,
+                  MIN(te.nombre) AS tipo_evento_nombre
                 FROM ev_paquetes.v_paquete_detalle d
+                LEFT JOIN ev_catalogo.opcion_servicio o ON o.id = d.opcion_servicio_id
+                LEFT JOIN ev_catalogo.servicio s ON s.id = o.servicio_id
+                LEFT JOIN ev_catalogo.tipo_evento te ON te.id = s.tipo_evento_id
                 GROUP BY d.paquete_id
                 ORDER BY codigo ASC
                 LIMIT :lim OFFSET :off
@@ -163,6 +168,8 @@ class MySQLCatalogoQueryService:
                 moneda=row["moneda"],
                 monto_total=Decimal(str(row["monto_total"])),
                 descripcion=row["descripcion"],
+                tipo_evento_id=row["tipo_evento_id"],
+                tipo_evento_nombre=row["tipo_evento_nombre"],
                 status=row["status"]
             )
             for row in rows
