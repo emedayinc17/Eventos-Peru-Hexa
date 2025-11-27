@@ -42,6 +42,10 @@ spec:
               value: "/app/libs/shared:/app/services/proveedores-service"
             - name: PORT
               value: "8030"
+            - name: EV_SETTINGS_ENV_FILE
+              value: "/vault/secrets/config"
+            - name: VAULT_ENABLED
+              value: "true"
           command: ["uvicorn"]
           args:
             - app.entrypoints.fastapi.main:app
