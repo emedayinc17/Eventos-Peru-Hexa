@@ -27,8 +27,8 @@ def create_router() -> APIRouter:
     r = APIRouter(tags=["catalogo"])
     settings = get_settings()
 
-    # === GET /v1/catalogo/paquetes ===
-    @r.get("/v1/catalogo/paquetes", openapi_extra={"security": []})
+    # === GET /v1/paquetes ===
+    @r.get("/v1/paquetes", openapi_extra={"security": []})
     def list_paquetes(
         limit: int = Query(50, ge=1, le=500),
         offset: int = Query(0, ge=0),
@@ -46,8 +46,8 @@ def create_router() -> APIRouter:
             result.append(d)
         return result
 
-    # === GET /v1/catalogo/paquetes/{id} ===
-    @r.get("/v1/catalogo/paquetes/{id}", openapi_extra={"security": []})
+    # === GET /v1/paquetes/{id} ===
+    @r.get("/v1/paquetes/{id}", openapi_extra={"security": []})
     def get_paquete_detalle(
         id: str,
     ) -> Dict[str, Any]:

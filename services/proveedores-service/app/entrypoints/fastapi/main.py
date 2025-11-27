@@ -12,12 +12,14 @@ log = get_logger(__name__, service_name=settings.SERVICE_NAME)
 
 docs_url = f"{settings.BASE_PATH}/docs" if getattr(settings, "BASE_PATH", "") else "/docs"
 redoc_url = f"{settings.BASE_PATH}/redoc" if getattr(settings, "BASE_PATH", "") else "/redoc"
+openapi_url = f"{settings.BASE_PATH}/openapi.json" if getattr(settings, "BASE_PATH", "") else "/openapi.json"
 
 app = FastAPI(
     title="Proveedores Service",
     version="0.1.0",
     docs_url=docs_url,
     redoc_url=redoc_url,
+    openapi_url=openapi_url,
 )
 
 origins = settings.CORS_ORIGINS.split(",")
@@ -33,7 +35,7 @@ app.add_middleware(
 # Routers (public + internal + debug)
 app.include_router(build_public_router(settings), prefix="/proveedores")
 app.include_router(build_internal_router(settings), prefix="/proveedores")
-app.include_router(build_debug_router(settings), prefix="/proveedores/_debug")
+app.include_router(build_debug_router(settings), prefix="/proveedores")
 
 @app.on_event("startup")
 async def on_startup():
