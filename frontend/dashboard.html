@@ -213,7 +213,6 @@
                             <label for="paquete-precio" class="form-label">Precio Total (S/)</label>
                             <input type="number" class="form-control" id="paquete-precio" step="0.01" required>
                         </div>
-                        <!-- Future: Add services selection here -->
                     </form>
                 </div>
                 <div class="modal-footer">
@@ -237,13 +236,35 @@
                     <p class="text-primary fw-bold fs-4">Total: S/ <span id="contratar-paquete-precio"></span></p>
                     <form id="contratar-form">
                         <input type="hidden" id="contratar-paquete-id">
+
                         <div class="mb-3">
-                            <label for="evento-fecha" class="form-label">Fecha del Evento</label>
-                            <input type="date" class="form-control" id="evento-fecha" required>
+                            <label for="evento-tipo" class="form-label">Tipo de Evento</label>
+                            <select class="form-select" id="evento-tipo" required>
+                                <option value="" selected disabled>Seleccione un tipo...</option>
+                            </select>
                         </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="evento-fecha" class="form-label">Fecha del Evento</label>
+                                <input type="date" class="form-control" id="evento-fecha" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="evento-hora" class="form-label">Hora de Inicio</label>
+                                <input type="time" class="form-control" id="evento-hora" required>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="evento-ubicacion" class="form-label">Ubicación / Dirección</label>
+                            <input type="text" class="form-control" id="evento-ubicacion"
+                                placeholder="Ej. Av. Larco 123, Miraflores" required>
+                        </div>
+
                         <div class="mb-3">
                             <label for="evento-invitados" class="form-label">Número de Invitados (Aprox)</label>
-                            <input type="number" class="form-control" id="evento-invitados" value="100">
+                            <input type="number" class="form-control" id="evento-invitados" value="100" min="1"
+                                required>
                         </div>
                     </form>
                 </div>
@@ -357,15 +378,95 @@
                 await renderCatalogo(contentDiv, role);
             } else if (viewName === 'pedidos') {
                 await renderPedidos(contentDiv, role);
-                    < div class="d-flex justify-content-between align-items-center mb-4" >
-                        <h3>${title}</h3>
-            </div >
-                    <div id="pedidos-list">
-                        <div class="text-center py-5">
-                            <div class="spinner-border text-primary" role="status"></div>
-                            <p class="mt-2 text-muted">Cargando pedidos...</p>
+            } else if (viewName === 'proveedores') {
+                await renderProveedores(contentDiv, role);
+            } else if (viewName === 'usuarios') {
+                await renderUsuarios(contentDiv, role);
+            } else if (viewName === 'contratos') {
+                // Admin view for orders
+                await renderPedidos(contentDiv, role);
+            }
+        }
+
+        async function renderCatalogo(container, role) {
+            container.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h3>Catálogo de Paquetes</h3>
+                ${role === 'ADMIN' ? '<button class="btn btn-primary btn-sm" onclick="openPaqueteModal()">+ Nuevo Paquete</button>' : ''}
+            </div>
+            <div id="catalogo-list" class="row g-4">
+                <div class="col-12 text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">Cargando catálogo...</p>
+                </div>
+            </div>`;
+
+            try {
+                const paquetes = await CatalogoService.getPaquetes();
+                const listContainer = document.getElementById('catalogo-list');
+
+                if (paquetes.length === 0) {
+                    listContainer.innerHTML = '<div class="col-12"><div class="alert alert-info">No hay paquetes disponibles en este momento.</div></div>';
+                    return;
+                }
+
+                let html = '';
+                paquetes.forEach(p => {
+                    let buttons = '';
+                    if (role === 'ADMIN') {
+                        buttons = `
+                        <button class="btn btn-outline-secondary btn-sm me-2" onclick="openPaqueteModal('${p.id}')">Editar</button>
+                        <button class="btn btn-outline-danger btn-sm" onclick="deletePaquete('${p.id}')">Eliminar</button>
+                    `;
+                    } else {
+                        // Escape quotes for the onclick function
+                        const safeNombre = p.nombre.replace(/'/g, "\\'");
+                        buttons = `
+                        <button class="btn btn-primary btn-sm px-3" onclick="contratarPaquete('${p.id}', '${safeNombre}', ${p.monto_total})">Contratar</button>
+                    `;
+                    }
+
+                    html += `
+                <div class="col-md-6 col-xl-4">
+                    <div class="card h-100">
+                        <div class="card-body p-4">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <h5 class="card-title fw-bold mb-0">${p.nombre}</h5>
+                                <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill">Paquete</span>
+                            </div>
+                            <p class="card-text text-muted small mb-4">${p.descripcion}</p>
+                            <div class="d-flex align-items-end justify-content-between mt-auto">
+                                <div>
+                                    <small class="text-muted d-block">Precio Total</small>
+                                    <h4 class="text-primary fw-bold mb-0">S/ ${p.monto_total.toFixed(2)}</h4>
+                                </div>
+                                <div>
+                                    ${buttons}
+                                </div>
+                            </div>
                         </div>
-                    </div>`;
+                    </div>
+                </div>`;
+                });
+                listContainer.innerHTML = html;
+
+            } catch (error) {
+                container.innerHTML = `<div class="alert alert-danger">Error al cargar catálogo: ${error.message}</div>`;
+            }
+        }
+
+        async function renderPedidos(container, role) {
+            const title = role === 'ADMIN' ? 'Gestión de Contratos' : 'Mis Pedidos';
+            container.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h3>${title}</h3>
+            </div>
+            <div id="pedidos-list">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">Cargando pedidos...</p>
+                </div>
+            </div>`;
 
             try {
                 let pedidos;
@@ -383,268 +484,439 @@
                 }
 
                 let html = `
-                    < div class="card overflow-hidden" >
-                        <div class="table-responsive">
-                            <table class="table table-hover mb-0 align-middle">
-                                <thead class="bg-light">
-                                    <tr>
-                                        <th class="py-3 ps-4">ID Pedido</th>
-                                        <th class="py-3">Estado</th>
-                                        <th class="py-3">Fecha</th>
-                                        <th class="py-3">Total</th>
-                                        <th class="py-3 pe-4 text-end">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>`;
+                <div class="card overflow-hidden">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 align-middle">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="py-3 ps-4">ID Pedido</th>
+                                    <th class="py-3">Estado</th>
+                                    <th class="py-3">Fecha</th>
+                                    <th class="py-3">Total</th>
+                                    <th class="py-3 pe-4 text-end">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
 
                 pedidos.forEach(p => {
                     const badgeClass = p.estado === 'CONFIRMADO' ? 'bg-success' : p.estado === 'CANCELADO' ? 'bg-danger' : 'bg-warning text-dark';
-                                    html += `
-                                    <tr>
-                                        let currentUsuarioId = null;
+                    html += `
+                    <tr>
+                        <td class="ps-4 fw-medium">#${p.id.substring(0, 8)}</td>
+                        <td><span class="badge ${badgeClass} bg-opacity-75 rounded-pill px-3">${p.estado}</span></td>
+                        <td class="text-muted">${new Date(p.created_at).toLocaleDateString()}</td>
+                        <td class="fw-bold">S/ ${p.monto_total.toFixed(2)}</td>
+                        <td class="pe-4 text-end"><button class="btn btn-sm btn-outline-primary">Ver Detalle</button></td>
+                    </tr>`;
+                });
 
-                                        async function openUsuarioModal(id = null) {
-                                            currentUsuarioId = id;
-                                        const modalEl = document.getElementById('usuarioModal');
-                                        const modal = new bootstrap.Modal(modalEl);
-                                        const title = document.getElementById('usuarioModalLabel');
+                html += '</tbody></table></div></div>';
+                listContainer.innerHTML = html;
 
-                                        // Reset form
-                                        document.getElementById('usuario-form').reset();
+            } catch (error) {
+                container.innerHTML = `<div class="alert alert-danger">Error al cargar pedidos: ${error.message}</div>`;
+            }
+        }
 
-                                        if (id) {
-                                            title.textContent = 'Editar Usuario';
-                                        try {
+        async function renderProveedores(container, role) {
+            container.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h3>Proveedores</h3>
+                ${role === 'ADMIN' ? '<button class="btn btn-primary btn-sm" onclick="openProveedorModal()">+ Nuevo Proveedor</button>' : ''}
+            </div>
+            <div id="proveedores-list">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">Cargando proveedores...</p>
+                </div>
+            </div>
+        `;
+
+            try {
+                const proveedores = await ProveedoresService.getAll();
+                const listContainer = document.getElementById('proveedores-list');
+
+                if (proveedores.length === 0) {
+                    listContainer.innerHTML = '<div class="alert alert-info">No hay proveedores registrados.</div>';
+                    return;
+                }
+
+                let html = `
+                <div class="card overflow-hidden">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 align-middle">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="py-3 ps-4">Nombre</th>
+                                    <th class="py-3">Categoría</th>
+                                    <th class="py-3">Precio Base</th>
+                                    <th class="py-3">Contacto</th>
+                                    ${role === 'ADMIN' ? '<th class="py-3 pe-4 text-end">Acciones</th>' : ''}
+                                </tr>
+                            </thead>
+                            <tbody>`;
+
+                proveedores.forEach(p => {
+                    const actions = role === 'ADMIN' ? `
+                    <td class="pe-4 text-end">
+                        <button class="btn btn-sm btn-outline-secondary me-1" onclick="openProveedorModal('${p.id}')">Editar</button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteProveedor('${p.id}')">Eliminar</button>
+                    </td>` : '';
+
+                    html += `
+                    <tr>
+                        <td class="ps-4 fw-medium">${p.nombre}</td>
+                        <td><span class="badge bg-info bg-opacity-10 text-info rounded-pill text-dark">${p.categoria}</span></td>
+                        <td class="fw-bold">S/ ${p.precio_base.toFixed(2)}</td>
+                        <td class="text-muted small">${p.contacto || '-'}</td>
+                        ${actions}
+                    </tr>`;
+                });
+
+                html += '</tbody></table></div></div>';
+                listContainer.innerHTML = html;
+
+            } catch (error) {
+                container.innerHTML = `<div class="alert alert-danger">Error al cargar proveedores: ${error.message}</div>`;
+            }
+        }
+
+        async function renderUsuarios(container, role) {
+            if (role !== 'ADMIN') {
+                container.innerHTML = '<div class="alert alert-danger">Acceso denegado</div>';
+                return;
+            }
+            container.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h3>Gestión de Usuarios</h3>
+                <button class="btn btn-primary btn-sm" onclick="openUsuarioModal()">+ Nuevo Usuario</button>
+            </div>
+            <div id="usuarios-list">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">Cargando usuarios...</p>
+                </div>
+            </div>
+        `;
+
+            try {
+                const usuarios = await UsuariosService.getAll();
+                const listContainer = document.getElementById('usuarios-list');
+
+                if (usuarios.length === 0) {
+                    listContainer.innerHTML = '<div class="alert alert-info">No hay usuarios registrados.</div>';
+                    return;
+                }
+
+                let html = `
+            <div class="card overflow-hidden">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead class="bg-light">
+                            <tr>
+                                <th class="py-3 ps-4">Nombre</th>
+                                <th class="py-3">Email</th>
+                                <th class="py-3">Rol</th>
+                                <th class="py-3">Estado</th>
+                                <th class="py-3 pe-4 text-end">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+
+                usuarios.forEach(u => {
+                    const statusBadge = u.status === 1 ? '<span class="badge bg-success bg-opacity-75 rounded-pill">Activo</span>' : '<span class="badge bg-secondary rounded-pill">Inactivo</span>';
+                    html += `
+                <tr>
+                    <td class="ps-4 fw-medium">${u.nombre || 'Sin nombre'}</td>
+                    <td>${u.email}</td>
+                    <td><span class="badge bg-primary bg-opacity-10 text-primary rounded-pill">${u.role}</span></td>
+                    <td>${statusBadge}</td>
+                    <td class="pe-4 text-end">
+                        <button class="btn btn-sm btn-outline-secondary me-1" onclick="openUsuarioModal('${u.id}')">Editar</button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteUsuario('${u.id}')">Eliminar</button>
+                    </td>
+                </tr>`;
+                });
+
+                html += '</tbody></table></div></div>';
+                listContainer.innerHTML = html;
+
+            } catch (error) {
+                container.innerHTML = `<div class="alert alert-danger">Error al cargar usuarios: ${error.message}</div>`;
+            }
+        }
+
+        // --- ACTIONS & MODALS ---
+
+        // Usuario Actions
+        let currentUsuarioId = null;
+
+        async function openUsuarioModal(id = null) {
+            currentUsuarioId = id;
+            const modalEl = document.getElementById('usuarioModal');
+            const modal = new bootstrap.Modal(modalEl);
+            const title = document.getElementById('usuarioModalLabel');
+
+            // Reset form
+            document.getElementById('usuario-form').reset();
+
+            if (id) {
+                title.textContent = 'Editar Usuario';
+                try {
                     const user = await UsuariosService.getById(id);
-                                        document.getElementById('usuario-nombre').value = user.nombre || '';
-                                        document.getElementById('usuario-email').value = user.email;
-                                        document.getElementById('usuario-rol').value = user.role;
+                    document.getElementById('usuario-nombre').value = user.nombre || '';
+                    document.getElementById('usuario-email').value = user.email;
+                    document.getElementById('usuario-rol').value = user.role;
                     // Password left blank
                 } catch (error) {
-                                            alert('Error al cargar usuario: ' + error.message);
-                                        return;
+                    alert('Error al cargar usuario: ' + error.message);
+                    return;
                 }
             } else {
-                                            title.textContent = 'Nuevo Usuario';
+                title.textContent = 'Nuevo Usuario';
             }
 
-                                        modal.show();
+            modal.show();
         }
 
-                                        async function saveUsuario() {
+        async function saveUsuario() {
             const nombre = document.getElementById('usuario-nombre').value;
-                                        const email = document.getElementById('usuario-email').value;
-                                        const password = document.getElementById('usuario-password').value;
-                                        const role = document.getElementById('usuario-rol').value;
+            const email = document.getElementById('usuario-email').value;
+            const password = document.getElementById('usuario-password').value;
+            const role = document.getElementById('usuario-rol').value;
 
-                                        const data = {nombre, email, role};
-                                        if (password) data.password = password;
+            const data = { nombre, email, role };
+            if (password) data.password = password;
 
-                                        try {
+            try {
                 if (currentUsuarioId) {
-                                            await UsuariosService.update(currentUsuarioId, data);
+                    await UsuariosService.update(currentUsuarioId, data);
                 } else {
                     if (!password) {
-                                            alert('La contraseña es obligatoria para nuevos usuarios');
-                                        return;
+                        alert('La contraseña es obligatoria para nuevos usuarios');
+                        return;
                     }
-                                        await UsuariosService.create(data);
+                    await UsuariosService.create(data);
                 }
 
-                                        // Close modal and reload
-                                        const modalEl = document.getElementById('usuarioModal');
-                                        const modal = bootstrap.Modal.getInstance(modalEl);
-                                        modal.hide();
-                                        loadView('usuarios');
+                // Close modal and reload
+                const modalEl = document.getElementById('usuarioModal');
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                modal.hide();
+                loadView('usuarios');
 
             } catch (error) {
-                                            alert('Error al guardar usuario: ' + error.message);
+                alert('Error al guardar usuario: ' + error.message);
             }
         }
 
-                                        async function deleteUsuario(id) {
+        async function deleteUsuario(id) {
             if (confirm('¿Estás seguro de eliminar este usuario?')) {
                 try {
-                                            await UsuariosService.delete(id);
-                                        loadView('usuarios');
+                    await UsuariosService.delete(id);
+                    loadView('usuarios');
                 } catch (error) {
-                                            alert('Error al eliminar usuario: ' + error.message);
+                    alert('Error al eliminar usuario: ' + error.message);
                 }
             }
         }
 
-                                        // Proveedor Actions
-                                        let currentProveedorId = null;
+        // Proveedor Actions
+        let currentProveedorId = null;
 
-                                        async function openProveedorModal(id = null) {
-                                            currentProveedorId = id;
-                                        const modalEl = document.getElementById('proveedorModal');
-                                        const modal = new bootstrap.Modal(modalEl);
-                                        const title = document.getElementById('proveedorModalLabel');
+        async function openProveedorModal(id = null) {
+            currentProveedorId = id;
+            const modalEl = document.getElementById('proveedorModal');
+            const modal = new bootstrap.Modal(modalEl);
+            const title = document.getElementById('proveedorModalLabel');
 
-                                        // Reset form
-                                        document.getElementById('proveedor-form').reset();
+            // Reset form
+            document.getElementById('proveedor-form').reset();
 
-                                        if (id) {
-                                            title.textContent = 'Editar Proveedor';
-                                        try {
+            if (id) {
+                title.textContent = 'Editar Proveedor';
+                try {
                     const prov = await ProveedoresService.getById(id);
-                                        document.getElementById('proveedor-nombre').value = prov.nombre;
-                                        document.getElementById('proveedor-categoria').value = prov.categoria;
-                                        document.getElementById('proveedor-contacto').value = prov.contacto || '';
-                                        document.getElementById('proveedor-precio').value = prov.precio_base;
+                    document.getElementById('proveedor-nombre').value = prov.nombre;
+                    document.getElementById('proveedor-categoria').value = prov.categoria;
+                    document.getElementById('proveedor-contacto').value = prov.contacto || '';
+                    document.getElementById('proveedor-precio').value = prov.precio_base;
                 } catch (error) {
-                                            alert('Error al cargar proveedor: ' + error.message);
-                                        return;
+                    alert('Error al cargar proveedor: ' + error.message);
+                    return;
                 }
             } else {
-                                            title.textContent = 'Nuevo Proveedor';
+                title.textContent = 'Nuevo Proveedor';
             }
 
-                                        modal.show();
+            modal.show();
         }
-
-                                        async function saveProveedor() {
+        async function saveProveedor() {
             const nombre = document.getElementById('proveedor-nombre').value;
-                                        const categoria = document.getElementById('proveedor-categoria').value;
-                                        const contacto = document.getElementById('proveedor-contacto').value;
-                                        const precio_base = parseFloat(document.getElementById('proveedor-precio').value);
+            const categoria = document.getElementById('proveedor-categoria').value;
+            const contacto = document.getElementById('proveedor-contacto').value;
+            const precio_base = parseFloat(document.getElementById('proveedor-precio').value);
 
-                                        const data = {nombre, categoria, contacto, precio_base};
+            const data = { nombre, categoria, contacto, precio_base };
 
-                                        try {
+            try {
                 if (currentProveedorId) {
-                                            await ProveedoresService.update(currentProveedorId, data);
+                    await ProveedoresService.update(currentProveedorId, data);
                 } else {
-                                            await ProveedoresService.create(data);
+                    await ProveedoresService.create(data);
                 }
 
-                                        const modalEl = document.getElementById('proveedorModal');
-                                        const modal = bootstrap.Modal.getInstance(modalEl);
-                                        modal.hide();
-                                        loadView('proveedores');
+                const modalEl = document.getElementById('proveedorModal');
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                modal.hide();
+                loadView('proveedores');
 
             } catch (error) {
-                                            alert('Error al guardar proveedor: ' + error.message);
+                alert('Error al guardar proveedor: ' + error.message);
             }
         }
 
-                                        async function deleteProveedor(id) {
+        async function deleteProveedor(id) {
             if (confirm('¿Estás seguro de eliminar este proveedor?')) {
                 try {
-                                            await ProveedoresService.delete(id);
-                                        loadView('proveedores');
+                    await ProveedoresService.delete(id);
+                    loadView('proveedores');
                 } catch (error) {
-                                            alert('Error al eliminar proveedor: ' + error.message);
+                    alert('Error al eliminar proveedor: ' + error.message);
                 }
             }
         }
 
-                                        // Paquete Actions
-                                        let currentPaqueteId = null;
+        // Paquete Actions
+        let currentPaqueteId = null;
 
-                                        async function openPaqueteModal(id = null) {
-                                            currentPaqueteId = id;
-                                        const modalEl = document.getElementById('paqueteModal');
-                                        const modal = new bootstrap.Modal(modalEl);
-                                        const title = document.getElementById('paqueteModalLabel');
+        async function openPaqueteModal(id = null) {
+            currentPaqueteId = id;
+            const modalEl = document.getElementById('paqueteModal');
+            const modal = new bootstrap.Modal(modalEl);
+            const title = document.getElementById('paqueteModalLabel');
 
-                                        // Reset form
-                                        document.getElementById('paquete-form').reset();
+            // Reset form
+            document.getElementById('paquete-form').reset();
 
-                                        if (id) {
-                                            title.textContent = 'Editar Paquete';
-                                        try {
+            if (id) {
+                title.textContent = 'Editar Paquete';
+                try {
                     const paquete = await CatalogoService.getById(id);
-                                        document.getElementById('paquete-nombre').value = paquete.nombre;
-                                        document.getElementById('paquete-descripcion').value = paquete.descripcion;
-                                        document.getElementById('paquete-precio').value = paquete.monto_total;
+                    document.getElementById('paquete-nombre').value = paquete.nombre;
+                    document.getElementById('paquete-descripcion').value = paquete.descripcion;
+                    document.getElementById('paquete-precio').value = paquete.monto_total;
                 } catch (error) {
-                                            alert('Error al cargar paquete: ' + error.message);
-                                        return;
+                    alert('Error al cargar paquete: ' + error.message);
+                    return;
                 }
             } else {
-                                            title.textContent = 'Nuevo Paquete';
+                title.textContent = 'Nuevo Paquete';
             }
 
-                                        modal.show();
+            modal.show();
         }
 
-                                        async function savePaquete() {
+        async function savePaquete() {
             const nombre = document.getElementById('paquete-nombre').value;
-                                        const descripcion = document.getElementById('paquete-descripcion').value;
-                                        const monto_total = parseFloat(document.getElementById('paquete-precio').value);
+            const descripcion = document.getElementById('paquete-descripcion').value;
+            const monto_total = parseFloat(document.getElementById('paquete-precio').value);
 
-                                        const data = {nombre, descripcion, monto_total};
+            const data = { nombre, descripcion, monto_total };
 
-                                        try {
+            try {
                 if (currentPaqueteId) {
-                                            await CatalogoService.update(currentPaqueteId, data);
+                    await CatalogoService.update(currentPaqueteId, data);
                 } else {
-                                            await CatalogoService.create(data);
+                    await CatalogoService.create(data);
                 }
 
-                                        const modalEl = document.getElementById('paqueteModal');
-                                        const modal = bootstrap.Modal.getInstance(modalEl);
-                                        modal.hide();
-                                        loadView('catalogo');
+                const modalEl = document.getElementById('paqueteModal');
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                modal.hide();
+                loadView('catalogo');
 
             } catch (error) {
-                                            alert('Error al guardar paquete: ' + error.message);
+                alert('Error al guardar paquete: ' + error.message);
             }
         }
 
-                                        async function deletePaquete(id) {
+        async function deletePaquete(id) {
             if (confirm('¿Estás seguro de eliminar este paquete?')) {
                 try {
-                                            await CatalogoService.delete(id);
-                                        loadView('catalogo');
+                    await CatalogoService.delete(id);
+                    loadView('catalogo');
                 } catch (error) {
-                                            alert('Error al eliminar paquete: ' + error.message);
+                    alert('Error al eliminar paquete: ' + error.message);
                 }
             }
         }
 
-                                        // Contratacion Actions
-                                        function contratarPaquete(id, nombre, precio) {
-                                            document.getElementById('contratar-paquete-id').value = id;
-                                        document.getElementById('contratar-paquete-nombre').textContent = nombre;
-                                        document.getElementById('contratar-paquete-precio').textContent = precio.toFixed(2);
+        // Contratacion Actions
+        async function contratarPaquete(id, nombre, precio) {
+            document.getElementById('contratar-paquete-id').value = id;
+            document.getElementById('contratar-paquete-nombre').textContent = nombre;
+            document.getElementById('contratar-paquete-precio').textContent = precio.toFixed(2);
 
-                                        // Set default date to tomorrow
-                                        const tomorrow = new Date();
-                                        tomorrow.setDate(tomorrow.getDate() + 1);
-                                        document.getElementById('evento-fecha').valueAsDate = tomorrow;
+            // Set default date to tomorrow
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            document.getElementById('evento-fecha').valueAsDate = tomorrow;
+            document.getElementById('evento-hora').value = "18:00"; // Default time
 
-                                        const modal = new bootstrap.Modal(document.getElementById('contratarModal'));
-                                        modal.show();
-        }
+            // Load event types
+            const typeSelect = document.getElementById('evento-tipo');
+            typeSelect.innerHTML = '<option value="" selected disabled>Cargando...</option>';
 
-                                        async function confirmarContratacion() {
-            const paqueteId = document.getElementById('contratar-paquete-id').value;
-                                        const fecha = document.getElementById('evento-fecha').value;
-                                        const invitados = parseInt(document.getElementById('evento-invitados').value);
-
-                                        if (!fecha) {
-                                            alert('Por favor selecciona una fecha para el evento');
-                                        return;
+            try {
+                const tipos = await CatalogoService.getTiposEvento();
+                typeSelect.innerHTML = '<option value="" selected disabled>Seleccione un tipo...</option>';
+                tipos.forEach(t => {
+                    const option = document.createElement('option');
+                    option.value = t.id;
+                    option.textContent = t.nombre;
+                    typeSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error("Error loading types", error);
+                typeSelect.innerHTML = '<option value="" disabled>Error al cargar tipos</option>';
             }
 
-                                        try {
-                                            await ContratacionService.crearPedido({
-                                                id_paquete: paqueteId,
-                                                fecha_evento: fecha,
-                                                cantidad_invitados: invitados
-                                            });
+            const modal = new bootstrap.Modal(document.getElementById('contratarModal'));
+            modal.show();
+        }
 
-                                        const modal = bootstrap.Modal.getInstance(document.getElementById('contratarModal'));
-                                        modal.hide();
+        async function confirmarContratacion() {
+            const paqueteId = document.getElementById('contratar-paquete-id').value;
+            const tipoEventoId = document.getElementById('evento-tipo').value;
+            const fecha = document.getElementById('evento-fecha').value;
+            const hora = document.getElementById('evento-hora').value;
+            const ubicacion = document.getElementById('evento-ubicacion').value;
+            const invitados = parseInt(document.getElementById('evento-invitados').value);
 
-                                        alert('¡Pedido creado exitosamente!');
-                                        loadView('pedidos');
+            if (!tipoEventoId || !fecha || !hora || !ubicacion) {
+                alert('Por favor completa todos los campos obligatorios');
+                return;
+            }
+
+            try {
+                await ContratacionService.crearPedido({
+                    paquete_id: paqueteId,
+                    tipo_evento_id: tipoEventoId,
+                    fecha_evento: fecha,
+                    hora_inicio: hora,
+                    ubicacion: ubicacion,
+                    num_personas: invitados
+                });
+
+                const modal = bootstrap.Modal.getInstance(document.getElementById('contratarModal'));
+                modal.hide();
+
+                alert('¡Pedido creado exitosamente!');
+                loadView('pedidos');
 
             } catch (error) {
-                                            alert('Error al crear el pedido: ' + error.message);
+                alert('Error al crear el pedido: ' + error.message);
             }
         }
     </script>

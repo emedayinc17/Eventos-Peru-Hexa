@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: str = Field(default="http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000,http://127.0.0.1:8000,http://localhost:5500,http://127.0.0.1:5500", description="Comma separated list of allowed origins")
 
+    # Base path when the app is served behind a proxy/Ingress (e.g. "/iam")
+    BASE_PATH: Optional[str] = Field(default="", description="Optional base path prefix for the service, e.g. '/iam'")
     model_config = SettingsConfigDict(env_file=_env_file, env_file_encoding='utf-8', extra='ignore')
 
     @property

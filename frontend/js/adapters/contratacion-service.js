@@ -1,6 +1,6 @@
 const ContratacionService = {
     getMisPedidos: async () => {
-        const url = `${Config.API_URLS.CONTRATACION}/pedidos/mis-pedidos`;
+        const url = `${Config.API_URLS.CONTRATACION}/pedidos/mios`;
         return await HttpAdapter.get(url);
     },
 
@@ -10,7 +10,7 @@ const ContratacionService = {
     },
 
     getAllPedidos: async () => {
-        const url = `${Config.API_URLS.CONTRATACION}/pedidos`;
+        const url = `${Config.API_URLS.CONTRATACION}/admin/pedidos`;
         return await HttpAdapter.get(url);
     }
 };

@@ -54,8 +54,6 @@ spec:
           env:
             - name: BASE_PATH
               value: "/iam"
-            - name: UVICORN_ROOT_PATH
-              value: "/iam"
           ports:
             - name: http
               containerPort: 8010

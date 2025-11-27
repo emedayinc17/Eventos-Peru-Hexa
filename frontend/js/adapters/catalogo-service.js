@@ -4,6 +4,11 @@ const CatalogoService = {
         return await HttpAdapter.get(url);
     },
 
+    getTiposEvento: async () => {
+        const url = `${Config.API_URLS.CATALOGO}/tipos`;
+        return await HttpAdapter.get(url);
+    },
+
     getById: async (id) => {
         const url = `${Config.API_URLS.CATALOGO}/paquetes/${id}`;
         return await HttpAdapter.get(url);
