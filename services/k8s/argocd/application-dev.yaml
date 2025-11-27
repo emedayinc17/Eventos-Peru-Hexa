@@ -11,7 +11,6 @@ spec:
     path: services/k8s/argocd/overlays/dev/
     repoURL: https://github.com/emedayinc17/Eventos-Peru-Hexa.git
     targetRevision: emeday
-  sources: []
   project: default
   syncPolicy:
     automated:
