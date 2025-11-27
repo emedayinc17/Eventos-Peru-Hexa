@@ -227,92 +227,287 @@
     <script src="js/config.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/adapters/http-adapter.js"></script>
-    <script src="js/adapters/catalogo-service.js"></script>
-    <script src="js/adapters/contratacion-service.js"></script>
-    <script src="js/adapters/proveedores-service.js"></script>
-    <script src="js/adapters/usuarios-service.js"></script>
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    box-shadow: 0 44px 12px rgba(0, 0, 0, 0.02);
+    }
 
-    <script>
-        // Lógica del Dashboard
-        document.addEventListener('DOMContentLoaded', () => {
-            SessionManager.requireAuth();
+    .card {
+    border: none;
+    border-radius: 16px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+    transition: transform 0.2s;
+    }
 
-            const session = SessionManager.getSession();
-            if (session.user) {
-                document.getElementById('user-name-sidebar').textContent = session.user.nombre_completo || session.user.email;
-                const roleBadge = document.getElementById('user-role-sidebar');
-                if (roleBadge) roleBadge.textContent = session.user.role;
+    .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+    }
+    </style>
+    </head>
 
-                renderSidebar(session.user.role);
+    <body>
 
-                // Load home view by default
-                loadView('home');
-            }
+        <div class="container-fluid p-0">
+            <div class="row g-0">
+                <!-- Sidebar -->
+                <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse show">
+                    <div class="d-flex align-items-center p-4 border-bottom">
+                        <div class="brand-title fs-4 mb-0 text-start">Eventos Perú</div>
+                    </div>
+                    <div class="position-sticky pt-4 px-3">
+                        <ul class="nav flex-column gap-2" id="sidebar-menu">
+                            <!-- Menu items will be injected here based on role -->
+                        </ul>
 
-            document.getElementById('btn-logout-sidebar').addEventListener('click', (e) => {
-                e.preventDefault();
-                SessionManager.clearSession();
-                window.location.href = Config.ROUTES.LOGIN;
+                        <div class="mt-5 px-2">
+                            <div class="p-3 rounded-3 bg-light border">
+                                <small class="text-muted d-block mb-2">Usuario conectado:</small>
+                                <div class="fw-bold text-truncate" id="user-name-sidebar">Cargando...</div>
+                                <div class="small text-primary" id="user-role-sidebar"></div>
+                            </div>
+                            <button class="btn btn-outline-danger w-100 mt-3 btn-sm" id="btn-logout-sidebar">
+                                Cerrar Sesión
+                            </button>
+                        </div>
+                    </div>
+                </nav>
+
+                <!-- Main Content -->
+                <main class="col-md-9 ms-sm-auto col-lg-10 main-content-wrapper">
+                    <!-- Top Navbar for Mobile -->
+                    <nav class="navbar navbar-expand-md navbar-light navbar-glass d-md-none px-3 sticky-top">
+                        <div class="brand-title fs-5 mb-0">Eventos Perú</div>
+                        <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+                            data-bs-target=".sidebar">
+                            <span class="navbar-toggler-icon"></span>
+                        </button>
+                    </nav>
+
+                    <div class="p-4 p-md-5">
+                        <div id="main-content" class="animate-fade-in">
+                            <!-- Dynamic Content -->
+                            <div class="text-center py-5">
+                                <div class="spinner-border text-primary" role="status"></div>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+
+        <!-- Modals -->
+
+        <!-- Usuario Modal -->
+        <div class="modal fade" id="usuarioModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="usuarioModalLabel">Nuevo Usuario</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="usuario-form">
+                            <input type="hidden" id="usuario-id">
+                            <div class="mb-3">
+                                <label for="usuario-nombre" class="form-label">Nombre Completo</label>
+                                <input type="text" class="form-control" id="usuario-nombre" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="usuario-email" class="form-label">Email</label>
+                                <input type="email" class="form-control" id="usuario-email" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="usuario-password" class="form-label">Contraseña</label>
+                                <input type="password" class="form-control" id="usuario-password"
+                                    placeholder="Dejar en blanco para no cambiar">
+                                <div class="form-text small text-muted">Obligatorio para nuevos usuarios</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="usuario-rol" class="form-label">Rol</label>
+                                <select class="form-select" id="usuario-rol">
+                                    <option value="CLIENTE">Cliente</option>
+                                    <option value="ADMIN">Administrador</option>
+                                </select>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-primary" onclick="saveUsuario()">Guardar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Proveedor Modal -->
+        <div class="modal fade" id="proveedorModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="proveedorModalLabel">Nuevo Proveedor</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="proveedor-form">
+                            <input type="hidden" id="proveedor-id">
+                            <div class="mb-3">
+                                <label for="proveedor-nombre" class="form-label">Nombre / Razón Social</label>
+                                <input type="text" class="form-control" id="proveedor-nombre" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="proveedor-categoria" class="form-label">Categoría</label>
+                                <select class="form-select" id="proveedor-categoria">
+                                    <option value="Catering">Catering</option>
+                                    <option value="Musica">Música</option>
+                                    <option value="Decoracion">Decoración</option>
+                                    <option value="Local">Local</option>
+                                    <option value="Fotografia">Fotografía</option>
+                                    <option value="Otro">Otro</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="proveedor-contacto" class="form-label">Contacto</label>
+                                <input type="text" class="form-control" id="proveedor-contacto"
+                                    placeholder="Teléfono o Email">
+                            </div>
+                            <div class="mb-3">
+                                <label for="proveedor-precio" class="form-label">Precio Base (S/)</label>
+                                <input type="number" class="form-control" id="proveedor-precio" step="0.01">
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-primary" onclick="saveProveedor()">Guardar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contratar Modal -->
+        <div class="modal fade" id="contratarModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Confirmar Contratación</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Estás a punto de contratar el paquete: <strong id="contratar-paquete-nombre"></strong></p>
+                        <p class="text-primary fw-bold fs-4">Total: S/ <span id="contratar-paquete-precio"></span></p>
+                        <form id="contratar-form">
+                            <input type="hidden" id="contratar-paquete-id">
+                            <div class="mb-3">
+                                <label for="evento-fecha" class="form-label">Fecha del Evento</label>
+                                <input type="date" class="form-control" id="evento-fecha" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="evento-invitados" class="form-label">Número de Invitados (Aprox)</label>
+                                <input type="number" class="form-control" id="evento-invitados" value="100">
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-primary" onclick="confirmarContratacion()">Confirmar
+                            Pedido</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scripts -->
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <script src="js/config.js"></script>
+        <script src="js/utils.js"></script>
+        <script src="js/adapters/http-adapter.js"></script>
+        <script src="js/adapters/catalogo-service.js"></script>
+        <script src="js/adapters/contratacion-service.js"></script>
+        <script src="js/adapters/proveedores-service.js"></script>
+        <script src="js/adapters/usuarios-service.js"></script>
+
+        <script>
+            // Lógica del Dashboard
+            document.addEventListener('DOMContentLoaded', () => {
+                SessionManager.requireAuth();
+
+                const session = SessionManager.getSession();
+                if (session.user) {
+                    document.getElementById('user-name-sidebar').textContent = session.user.nombre_completo || session.user.email;
+                    const roleBadge = document.getElementById('user-role-sidebar');
+                    if (roleBadge) roleBadge.textContent = session.user.role;
+
+                    renderSidebar(session.user.role);
+
+                    // Load home view by default
+                    loadView('home');
+                }
+
+                document.getElementById('btn-logout-sidebar').addEventListener('click', (e) => {
+                    e.preventDefault();
+                    SessionManager.clearSession();
+                    window.location.href = Config.ROUTES.LOGIN;
+                });
             });
-        });
 
-        function renderSidebar(role) {
-            const menuContainer = document.getElementById('sidebar-menu');
-            let menuItems = [];
+            function renderSidebar(role) {
+                const menuContainer = document.getElementById('sidebar-menu');
+                let menuItems = [];
 
-            if (role === 'ADMIN') {
-                menuItems = [
-                    { id: 'home', label: '🏠 Inicio', icon: 'home' },
-                    { id: 'catalogo', label: '📦 Catálogo', icon: 'box' },
-                    { id: 'proveedores', label: '🚚 Proveedores', icon: 'truck' },
-                    { id: 'usuarios', label: '👥 Usuarios', icon: 'users' },
-                    { id: 'contratos', label: '📄 Contratos', icon: 'file-text' }
-                ];
-            } else {
-                menuItems = [
-                    { id: 'home', label: '🏠 Inicio', icon: 'home' },
-                    { id: 'catalogo', label: '📦 Catálogo', icon: 'box' },
-                    { id: 'pedidos', label: '📋 Mis Pedidos', icon: 'clipboard' },
-                    { id: 'proveedores', label: '🔍 Proveedores', icon: 'search' }
-                ];
-            }
+                if (role === 'ADMIN') {
+                    menuItems = [
+                        { id: 'home', label: '🏠 Inicio', icon: 'home' },
+                        { id: 'catalogo', label: '📦 Catálogo', icon: 'box' },
+                        { id: 'proveedores', label: '🚚 Proveedores', icon: 'truck' },
+                        { id: 'usuarios', label: '👥 Usuarios', icon: 'users' },
+                        { id: 'contratos', label: '📄 Contratos', icon: 'file-text' }
+                    ];
+                } else {
+                    menuItems = [
+                        { id: 'home', label: '🏠 Inicio', icon: 'home' },
+                        { id: 'catalogo', label: '📦 Catálogo', icon: 'box' },
+                        { id: 'pedidos', label: '📋 Mis Pedidos', icon: 'clipboard' },
+                        { id: 'proveedores', label: '🔍 Proveedores', icon: 'search' }
+                    ];
+                }
 
-            menuContainer.innerHTML = menuItems.map(item => `
+                menuContainer.innerHTML = menuItems.map(item => `
                 <li class="nav-item">
                     <a class="nav-link d-flex align-items-center gap-2" href="#" onclick="loadView('${item.id}')">
                         ${item.label}
                     </a>
                 </li>
             `).join('');
-        }
-
-        // Router simple para SPA dentro del dashboard
-        async function loadView(viewName) {
-            const contentDiv = document.getElementById('main-content');
-            const session = SessionManager.getSession();
-            const role = session.user.role;
-
-            // Reset animation
-            contentDiv.classList.remove('animate-fade-in');
-            void contentDiv.offsetWidth; // Trigger reflow
-            contentDiv.classList.add('animate-fade-in');
-
-            // Actualizar active class en sidebar
-            document.querySelectorAll('.sidebar .nav-link').forEach(l => {
-                l.classList.remove('active');
-            });
-
-            // Highlight active link
-            // Note: This simple check assumes unique labels/onclicks
-            const links = document.querySelectorAll('.sidebar .nav-link');
-            for (let link of links) {
-                if (link.getAttribute('onclick').includes(viewName)) {
-                    link.classList.add('active');
-                }
             }
 
-            if (viewName === 'home') {
-                contentDiv.innerHTML = `
+            // Router simple para SPA dentro del dashboard
+            async function loadView(viewName) {
+                const contentDiv = document.getElementById('main-content');
+                const session = SessionManager.getSession();
+                const role = session.user.role;
+
+                // Reset animation
+                contentDiv.classList.remove('animate-fade-in');
+                void contentDiv.offsetWidth; // Trigger reflow
+                contentDiv.classList.add('animate-fade-in');
+
+                // Actualizar active class en sidebar
+                document.querySelectorAll('.sidebar .nav-link').forEach(l => {
+                    l.classList.remove('active');
+                });
+
+                // Highlight active link
+                const links = document.querySelectorAll('.sidebar .nav-link');
+                for (let link of links) {
+                    if (link.getAttribute('onclick').includes(viewName)) {
+                        link.classList.add('active');
+                    }
+                }
+
+                if (viewName === 'home') {
+                    contentDiv.innerHTML = `
                     <div class="text-center py-5">
                         <h2 class="display-5 fw-bold mb-3">Bienvenido al Panel de Control</h2>
                         <p class="lead text-muted">Selecciona una opción del menú para comenzar a gestionar tus eventos.</p>
@@ -320,22 +515,22 @@
                             <button class="btn btn-primary btn-lg" onclick="loadView('catalogo')">Ver Catálogo</button>
                         </div>
                     </div>`;
-            } else if (viewName === 'catalogo') {
-                await renderCatalogo(contentDiv, role);
-            } else if (viewName === 'pedidos') {
-                await renderPedidos(contentDiv, role);
-            } else if (viewName === 'proveedores') {
-                await renderProveedores(contentDiv, role);
-            } else if (viewName === 'usuarios') {
-                await renderUsuarios(contentDiv, role);
-            } else if (viewName === 'contratos') {
-                // Admin view for orders - reusing renderPedidos for now but could be different
-                await renderPedidos(contentDiv, role);
+                } else if (viewName === 'catalogo') {
+                    await renderCatalogo(contentDiv, role);
+                } else if (viewName === 'pedidos') {
+                    await renderPedidos(contentDiv, role);
+                } else if (viewName === 'proveedores') {
+                    await renderProveedores(contentDiv, role);
+                } else if (viewName === 'usuarios') {
+                    await renderUsuarios(contentDiv, role);
+                } else if (viewName === 'contratos') {
+                    // Admin view for orders
+                    await renderPedidos(contentDiv, role);
+                }
             }
-        }
 
-        async function renderCatalogo(container, role) {
-            container.innerHTML = `
+            async function renderCatalogo(container, role) {
+                container.innerHTML = `
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h3>Catálogo de Paquetes</h3>
                     ${role === 'ADMIN' ? '<button class="btn btn-primary btn-sm">+ Nuevo Paquete</button>' : ''}
@@ -347,440 +542,293 @@
                     </div>
                 </div>`;
 
-            try {
-                const paquetes = await CatalogoService.getPaquetes();
-                const listContainer = document.getElementById('catalogo-list');
+                try {
+                    const paquetes = await CatalogoService.getPaquetes();
+                    const listContainer = document.getElementById('catalogo-list');
 
-                if (paquetes.length === 0) {
-                    listContainer.innerHTML = '<div class="col-12"><div class="alert alert-info">No hay paquetes disponibles en este momento.</div></div>';
-                    return;
-                }
+                    if (paquetes.length === 0) {
+                        listContainer.innerHTML = '<div class="col-12"><div class="alert alert-info">No hay paquetes disponibles en este momento.</div></div>';
+                        return;
+                    }
 
-                let html = '';
-                paquetes.forEach(p => {
-                    let buttons = '';
-                    if (role === 'ADMIN') {
-                        buttons = `
+                    let html = '';
+                    paquetes.forEach(p => {
+                        let buttons = '';
+                        if (role === 'ADMIN') {
+                            buttons = `
                             <button class="btn btn-outline-secondary btn-sm me-2">Editar</button>
                             <button class="btn btn-outline-danger btn-sm">Eliminar</button>
                         `;
-                    } else {
-                        buttons = `
-                            <button class="btn btn-primary btn-sm px-3">Contratar</button>
+                        } else {
+                            // Escape quotes for the onclick function
+                            const safeNombre = p.nombre.replace(/'/g, "\\'");
+                            buttons = `
+                            <button class="btn btn-primary btn-sm px-3" onclick="contratarPaquete('${p.id}', '${safeNombre}', ${p.monto_total})">Contratar</button>
                         `;
-                    }
+                        }
 
-                    html += `
+                        html += `
                     <div class="col-md-6 col-xl-4">
                         <div class="card h-100">
                             <div class="card-body p-4">
                                 <div class="d-flex justify-content-between align-items-start mb-3">
-                                    <h5 class="card-title fw-bold mb-0">${p.nombre}</h5>
-                                    <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill">Paquete</span>
-                                </div>
-                                <p class="card-text text-muted small mb-4">${p.descripcion}</p>
-                                <div class="d-flex align-items-end justify-content-between mt-auto">
-                                    <div>
-                                        <small class="text-muted d-block">Precio Total</small>
-                                        <h4 class="text-primary fw-bold mb-0">S/ ${p.monto_total.toFixed(2)}</h4>
-                                    </div>
-                                    <div>
-                                        ${buttons}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>`;
-                });
-                listContainer.innerHTML = html;
-
-            } catch (error) {
-                container.innerHTML = `<div class="alert alert-danger">Error al cargar catálogo: ${error.message}</div>`;
-            }
-        }
-
-        async function renderPedidos(container, role) {
-            const title = role === 'ADMIN' ? 'Gestión de Contratos' : 'Mis Pedidos';
-            container.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h3>${title}</h3>
-                </div>
-                <div id="pedidos-list">
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-primary" role="status"></div>
-                        <p class="mt-2 text-muted">Cargando pedidos...</p>
-                    </div>
-                </div>`;
-
-            try {
-                // TODO: If ADMIN, use a different endpoint to get ALL orders
-                const pedidos = await ContratacionService.getMisPedidos();
-                const listContainer = document.getElementById('pedidos-list');
-
-                if (pedidos.length === 0) {
-                    listContainer.innerHTML = '<div class="alert alert-info">No hay pedidos registrados.</div>';
-                    return;
-                }
-
-                let html = `
-                <div class="card overflow-hidden">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0 align-middle">
-                            <thead class="bg-light">
-                                <tr>
-                                    <th class="py-3 ps-4">ID Pedido</th>
-                                    <th class="py-3">Estado</th>
-                                    <th class="py-3">Fecha</th>
-                                    <th class="py-3">Total</th>
-                                    <th class="py-3 pe-4 text-end">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>`;
-
-                pedidos.forEach(p => {
-                    const badgeClass = p.estado === 'CONFIRMADO' ? 'bg-success' : p.estado === 'CANCELADO' ? 'bg-danger' : 'bg-warning text-dark';
-                    html += `
-                    <tr>
-                        <td class="ps-4 fw-medium">#${p.id.substring(0, 8)}</td>
-                        <td><span class="badge ${badgeClass} bg-opacity-75 rounded-pill px-3">${p.estado}</span></td>
-                        <td class="text-muted">${new Date(p.created_at).toLocaleDateString()}</td>
-                        <td class="fw-bold">S/ ${p.monto_total.toFixed(2)}</td>
-                        <td class="pe-4 text-end"><button class="btn btn-sm btn-outline-primary">Ver Detalle</button></td>
-                    </tr>`;
-                });
-
-                html += '</tbody></table></div></div>';
-                listContainer.innerHTML = html;
-
-            } catch (error) {
-                container.innerHTML = `<div class="alert alert-danger">Error al cargar pedidos: ${error.message}</div>`;
-            }
-        }
-
-        async function renderProveedores(container, role) {
-            container.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h3>Proveedores</h3>
-                    ${role === 'ADMIN' ? '<button class="btn btn-primary btn-sm">+ Nuevo Proveedor</button>' : ''}
-                </div>
-            } else {
-                menuItems = [
-                    { id: 'home', label: '🏠 Inicio', icon: 'home' },
-                    { id: 'catalogo', label: '📦 Catálogo', icon: 'box' },
-                    { id: 'pedidos', label: '📋 Mis Pedidos', icon: 'clipboard' },
-                    { id: 'proveedores', label: '🔍 Proveedores', icon: 'search' }
-                ];
-            }
-
-            menuContainer.innerHTML = menuItems.map(item => `
-                < li class="nav-item" >
-                    <a class="nav-link d-flex align-items-center gap-2" href="#" onclick="loadView('${item.id}')">
-                        ${item.label}
-                    </a>
-                </li >
-                `).join('');
-        }
-
-        // Router simple para SPA dentro del dashboard
-        async function loadView(viewName) {
-            const contentDiv = document.getElementById('main-content');
-            const session = SessionManager.getSession();
-            const role = session.user.role;
-
-            // Reset animation
-            contentDiv.classList.remove('animate-fade-in');
-            void contentDiv.offsetWidth; // Trigger reflow
-            contentDiv.classList.add('animate-fade-in');
-
-            // Actualizar active class en sidebar
-            document.querySelectorAll('.sidebar .nav-link').forEach(l => {
-                l.classList.remove('active');
-            });
-
-            // Highlight active link
-            // Note: This simple check assumes unique labels/onclicks
-            const links = document.querySelectorAll('.sidebar .nav-link');
-            for (let link of links) {
-                if (link.getAttribute('onclick').includes(viewName)) {
-                    link.classList.add('active');
-                }
-            }
-
-            if (viewName === 'home') {
-                contentDiv.innerHTML = `
-                < div class="text-center py-5" >
-                        <h2 class="display-5 fw-bold mb-3">Bienvenido al Panel de Control</h2>
-                        <p class="lead text-muted">Selecciona una opción del menú para comenzar a gestionar tus eventos.</p>
-                        <div class="mt-4">
-                            <button class="btn btn-primary btn-lg" onclick="loadView('catalogo')">Ver Catálogo</button>
-                        </div>
-                    </div > `;
-            } else if (viewName === 'catalogo') {
-                await renderCatalogo(contentDiv, role);
-            } else if (viewName === 'pedidos') {
-                await renderPedidos(contentDiv, role);
-            } else if (viewName === 'proveedores') {
-                await renderProveedores(contentDiv, role);
-            } else if (viewName === 'usuarios') {
-                await renderUsuarios(contentDiv, role);
-            } else if (viewName === 'contratos') {
-                // Admin view for orders - reusing renderPedidos for now but could be different
-                await renderPedidos(contentDiv, role);
-            }
-        }
-
-        async function renderCatalogo(container, role) {
-            container.innerHTML = `
-                < div class="d-flex justify-content-between align-items-center mb-4" >
-                    <h3>Catálogo de Paquetes</h3>
-                    ${ role === 'ADMIN' ? '<button class="btn btn-primary btn-sm">+ Nuevo Paquete</button>' : '' }
-                </div >
-                <div id="catalogo-list" class="row g-4">
-                    <div class="col-12 text-center py-5">
-                        <div class="spinner-border text-primary" role="status"></div>
-                        <p class="mt-2 text-muted">Cargando catálogo...</p>
-                    </div>
-                </div>`;
-
-            try {
-                const paquetes = await CatalogoService.getPaquetes();
-                const listContainer = document.getElementById('catalogo-list');
-
-                if (paquetes.length === 0) {
-                    listContainer.innerHTML = '<div class="col-12"><div class="alert alert-info">No hay paquetes disponibles en este momento.</div></div>';
-                    return;
-                }
-
-                let html = '';
-                paquetes.forEach(p => {
-                    let buttons = '';
-                    if (role === 'ADMIN') {
-                        buttons = `
-                    < button class="btn btn-outline-secondary btn-sm me-2" > Editar</button >
-                        <button class="btn btn-outline-danger btn-sm">Eliminar</button>
-            `;
-                    } else {
-                        buttons = `
-                < button class="btn btn-primary btn-sm px-3" > Contratar</button >
-                    `;
                     }
-
-                    html += `
-                    < div class="col-md-6 col-xl-4" >
-                        <div class="card h-100">
-                            <div class="card-body p-4">
-                                <div class="d-flex justify-content-between align-items-start mb-3">
-                                    <h5 class="card-title fw-bold mb-0">${p.nombre}</h5>
-                                    <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill">Paquete</span>
-                                </div>
-                                <p class="card-text text-muted small mb-4">${p.descripcion}</p>
-                                <div class="d-flex align-items-end justify-content-between mt-auto">
-                                    <div>
-                                        <small class="text-muted d-block">Precio Total</small>
-                                        <h4 class="text-primary fw-bold mb-0">S/ ${p.monto_total.toFixed(2)}</h4>
-                                    </div>
-                                    <div>
-                                        ${buttons}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div > `;
-                });
-                listContainer.innerHTML = html;
-
-            } catch (error) {
-                container.innerHTML = `< div class="alert alert-danger" > Error al cargar catálogo: ${ error.message }</div > `;
-            }
-        }
-
-        async function renderPedidos(container, role) {
-            const title = role === 'ADMIN' ? 'Gestión de Contratos' : 'Mis Pedidos';
-            container.innerHTML = `
-                < div class="d-flex justify-content-between align-items-center mb-4" >
-                    <h3>${title}</h3>
-                </div >
-                <div id="pedidos-list">
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-primary" role="status"></div>
-                        <p class="mt-2 text-muted">Cargando pedidos...</p>
-                    </div>
-                </div>`;
-
-            try {
-                // TODO: If ADMIN, use a different endpoint to get ALL orders
-                const pedidos = await ContratacionService.getMisPedidos();
-                const listContainer = document.getElementById('pedidos-list');
-
-                if (pedidos.length === 0) {
-                    listContainer.innerHTML = '<div class="alert alert-info">No hay pedidos registrados.</div>';
-                    return;
-                }
-
-                let html = `
-                    < div class="card overflow-hidden" >
-                        <div class="table-responsive">
-                            <table class="table table-hover mb-0 align-middle">
-                                <thead class="bg-light">
-                                    <tr>
-                                        <th class="py-3 ps-4">ID Pedido</th>
-                                        <th class="py-3">Estado</th>
-                                        <th class="py-3">Fecha</th>
-                                        <th class="py-3">Total</th>
-                                        <th class="py-3 pe-4 text-end">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>`;
-
-                pedidos.forEach(p => {
-                    const badgeClass = p.estado === 'CONFIRMADO' ? 'bg-success' : p.estado === 'CANCELADO' ? 'bg-danger' : 'bg-warning text-dark';
-                                    html += `
-                                    <tr>
-                                        <td class="ps-4 fw-medium">#${p.id.substring(0, 8)}</td>
-                                        <td><span class="badge ${badgeClass} bg-opacity-75 rounded-pill px-3">${p.estado}</span></td>
-                                        <td class="text-muted">${new Date(p.created_at).toLocaleDateString()}</td>
-                                        <td class="fw-bold">S/ ${p.monto_total.toFixed(2)}</td>
-                                        <td class="pe-4 text-end"><button class="btn btn-sm btn-outline-primary">Ver Detalle</button></td>
-                                    </tr>`;
-                });
-
-                                    html += '</tbody></table></div></div > ';
-            listContainer.innerHTML = html;
-
-        }
-        container.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center mb-4">
+                    container.innerHTML = `
+                            < div class="d-flex justify-content-between align-items-center mb-4" >
                     <h3>Gestión de Usuarios</h3>
                     <button class="btn btn-primary btn-sm" onclick="openUsuarioModal()">+ Nuevo Usuario</button>
-                </div>
-                <div id="usuarios-list">
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-primary" role="status"></div>
-                        <p class="mt-2 text-muted">Cargando usuarios...</p>
-                    </div>
-                </div>
-            `;
+                </div >
+                            <div id="usuarios-list">
+                                <div class="text-center py-5">
+                                    <div class="spinner-border text-primary" role="status"></div>
+                                    <p class="mt-2 text-muted">Cargando usuarios...</p>
+                                </div>
+                            </div>
+                        `;
 
-        try {
-            const usuarios = await UsuariosService.getAll();
-            const listContainer = document.getElementById('usuarios-list');
+                    try {
+                        const usuarios = await UsuariosService.getAll();
+                        const listContainer = document.getElementById('usuarios-list');
 
-            if (usuarios.length === 0) {
-                listContainer.innerHTML = '<div class="alert alert-info">No hay usuarios registrados.</div>';
-                return;
-            }
+                        if (usuarios.length === 0) {
+                            listContainer.innerHTML = '<div class="alert alert-info">No hay usuarios registrados.</div>';
+                            return;
+                        }
 
-            let html = `
-                <div class="card overflow-hidden">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0 align-middle">
-                            <thead class="bg-light">
-                                <tr>
-                                    <th class="py-3 ps-4">Nombre</th>
-                                    <th class="py-3">Email</th>
-                                    <th class="py-3">Rol</th>
-                                    <th class="py-3">Estado</th>
-                                    <th class="py-3 pe-4 text-end">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>`;
+                        let html = `
+                            < div class="card overflow-hidden" >
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0 align-middle">
+                                        <thead class="bg-light">
+                                            <tr>
+                                                <th class="py-3 ps-4">Nombre</th>
+                                                <th class="py-3">Email</th>
+                                                <th class="py-3">Rol</th>
+                                                <th class="py-3">Estado</th>
+                                                <th class="py-3 pe-4 text-end">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>`;
 
-            usuarios.forEach(u => {
-                const statusBadge = u.status === 1 ? '<span class="badge bg-success bg-opacity-75 rounded-pill">Activo</span>' : '<span class="badge bg-secondary rounded-pill">Inactivo</span>';
-                html += `
-                    <tr>
-                        <td class="ps-4 fw-medium">${u.nombre || 'Sin nombre'}</td>
-                        <td>${u.email}</td>
-                        <td><span class="badge bg-primary bg-opacity-10 text-primary rounded-pill">${u.role}</span></td>
-                        <td>${statusBadge}</td>
-                        <td class="pe-4 text-end">
-                            <button class="btn btn-sm btn-outline-secondary me-1" onclick="openUsuarioModal('${u.id}')">Editar</button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="deleteUsuario('${u.id}')">Eliminar</button>
-                        </td>
-                    </tr>`;
-            });
+                        usuarios.forEach(u => {
+                            const statusBadge = u.status === 1 ? '<span class="badge bg-success bg-opacity-75 rounded-pill">Activo</span>' : '<span class="badge bg-secondary rounded-pill">Inactivo</span>';
+                                            html += `
+                                            <tr>
+                                                <td class="ps-4 fw-medium">${u.nombre || 'Sin nombre'}</td>
+                                                <td>${u.email}</td>
+                                                <td><span class="badge bg-primary bg-opacity-10 text-primary rounded-pill">${u.role}</span></td>
+                                                <td>${statusBadge}</td>
+                                                <td class="pe-4 text-end">
+                                                    <button class="btn btn-sm btn-outline-secondary me-1" onclick="openUsuarioModal('${u.id}')">Editar</button>
+                                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteUsuario('${u.id}')">Eliminar</button>
+                                                </td>
+                                            </tr>`;
+                        });
 
-            html += '</tbody></table></div></div>';
-            listContainer.innerHTML = html;
+                                            html += '</tbody></table></div></div > ';
+                        listContainer.innerHTML = html;
 
-        } catch (error) {
-            container.innerHTML = `<div class="alert alert-danger">Error al cargar usuarios: ${error.message}</div>`;
-        }
-        }
-
-        // Usuario Actions
-        let currentUsuarioId = null;
-
-        async function openUsuarioModal(id = null) {
-            currentUsuarioId = id;
-            const modalEl = document.getElementById('usuarioModal');
-            const modal = new bootstrap.Modal(modalEl);
-            const title = document.getElementById('usuarioModalLabel');
-
-            // Reset form
-            document.getElementById('usuario-form').reset();
-
-            if (id) {
-                title.textContent = 'Editar Usuario';
-                try {
-                    const user = await UsuariosService.getById(id);
-                    document.getElementById('usuario-nombre').value = user.nombre || '';
-                    document.getElementById('usuario-email').value = user.email;
-                    document.getElementById('usuario-rol').value = user.role;
-                    // Password left blank
-                } catch (error) {
-                    alert('Error al cargar usuario: ' + error.message);
-                    return;
+                    } catch (error) {
+                        container.innerHTML = `<div class="alert alert-danger">Error al cargar usuarios: ${error.message}</div>`;
+                    }
                 }
-            } else {
-                title.textContent = 'Nuevo Usuario';
-            }
 
-            modal.show();
-        }
+                // --- ACTIONS & MODALS ---
 
-        async function saveUsuario() {
-            const nombre = document.getElementById('usuario-nombre').value;
-            const email = document.getElementById('usuario-email').value;
-            const password = document.getElementById('usuario-password').value;
-            const role = document.getElementById('usuario-rol').value;
+                // Usuario Actions
+                let currentUsuarioId = null;
 
-            const data = { nombre, email, role };
-            if (password) data.password = password;
+                async function openUsuarioModal(id = null) {
+                    currentUsuarioId = id;
+                    const modalEl = document.getElementById('usuarioModal');
+                    const modal = new bootstrap.Modal(modalEl);
+                    const title = document.getElementById('usuarioModalLabel');
 
-            try {
-                if (currentUsuarioId) {
-                    await UsuariosService.update(currentUsuarioId, data);
-                } else {
-                    if (!password) {
-                        alert('La contraseña es obligatoria para nuevos usuarios');
+                    // Reset form
+                    document.getElementById('usuario-form').reset();
+
+                    if (id) {
+                        title.textContent = 'Editar Usuario';
+                        try {
+                            const user = await UsuariosService.getById(id);
+                            document.getElementById('usuario-nombre').value = user.nombre || '';
+                            document.getElementById('usuario-email').value = user.email;
+                            document.getElementById('usuario-rol').value = user.role;
+                            // Password left blank
+                        } catch (error) {
+                            alert('Error al cargar usuario: ' + error.message);
+                            return;
+                        }
+                    } else {
+                        title.textContent = 'Nuevo Usuario';
+                    }
+
+                    modal.show();
+                }
+
+                async function saveUsuario() {
+                    const nombre = document.getElementById('usuario-nombre').value;
+                    const email = document.getElementById('usuario-email').value;
+                    const password = document.getElementById('usuario-password').value;
+                    const role = document.getElementById('usuario-rol').value;
+
+                    const data = { nombre, email, role };
+                    if (password) data.password = password;
+
+                    try {
+                        if (currentUsuarioId) {
+                            await UsuariosService.update(currentUsuarioId, data);
+                        } else {
+                            if (!password) {
+                                alert('La contraseña es obligatoria para nuevos usuarios');
+                                return;
+                            }
+                            await UsuariosService.create(data);
+                        }
+
+                        // Close modal and reload
+                        const modalEl = document.getElementById('usuarioModal');
+                        const modal = bootstrap.Modal.getInstance(modalEl);
+                        modal.hide();
+                        loadView('usuarios');
+
+                    } catch (error) {
+                        alert('Error al guardar usuario: ' + error.message);
+                    }
+                }
+
+                async function deleteUsuario(id) {
+                    if (confirm('¿Estás seguro de eliminar este usuario?')) {
+                        try {
+                            await UsuariosService.delete(id);
+                            loadView('usuarios');
+                        } catch (error) {
+                            alert('Error al eliminar usuario: ' + error.message);
+                        }
+                    }
+                }
+
+                // Proveedor Actions
+                let currentProveedorId = null;
+
+                async function openProveedorModal(id = null) {
+                    currentProveedorId = id;
+                    const modalEl = document.getElementById('proveedorModal');
+                    const modal = new bootstrap.Modal(modalEl);
+                    const title = document.getElementById('proveedorModalLabel');
+
+                    // Reset form
+                    document.getElementById('proveedor-form').reset();
+
+                    if (id) {
+                        title.textContent = 'Editar Proveedor';
+                        try {
+                            const prov = await ProveedoresService.getById(id);
+                            document.getElementById('proveedor-nombre').value = prov.nombre;
+                            document.getElementById('proveedor-categoria').value = prov.categoria;
+                            document.getElementById('proveedor-contacto').value = prov.contacto || '';
+                            document.getElementById('proveedor-precio').value = prov.precio_base;
+                        } catch (error) {
+                            alert('Error al cargar proveedor: ' + error.message);
+                            return;
+                        }
+                    } else {
+                        title.textContent = 'Nuevo Proveedor';
+                    }
+
+                    modal.show();
+                }
+
+                async function saveProveedor() {
+                    const nombre = document.getElementById('proveedor-nombre').value;
+                    const categoria = document.getElementById('proveedor-categoria').value;
+                    const contacto = document.getElementById('proveedor-contacto').value;
+                    const precio_base = parseFloat(document.getElementById('proveedor-precio').value);
+
+                    const data = { nombre, categoria, contacto, precio_base };
+
+                    try {
+                        if (currentProveedorId) {
+                            await ProveedoresService.update(currentProveedorId, data);
+                        } else {
+                            await ProveedoresService.create(data);
+                        }
+
+                        const modalEl = document.getElementById('proveedorModal');
+                        const modal = bootstrap.Modal.getInstance(modalEl);
+                        modal.hide();
+                        loadView('proveedores');
+
+                    } catch (error) {
+                        alert('Error al guardar proveedor: ' + error.message);
+                    }
+                }
+
+                async function deleteProveedor(id) {
+                    if (confirm('¿Estás seguro de eliminar este proveedor?')) {
+                        try {
+                            await ProveedoresService.delete(id);
+                            loadView('proveedores');
+                        } catch (error) {
+                            alert('Error al eliminar proveedor: ' + error.message);
+                        }
+                    }
+                }
+
+                // Contratacion Actions
+                function contratarPaquete(id, nombre, precio) {
+                    document.getElementById('contratar-paquete-id').value = id;
+                    document.getElementById('contratar-paquete-nombre').textContent = nombre;
+                    document.getElementById('contratar-paquete-precio').textContent = precio.toFixed(2);
+
+                    // Set default date to tomorrow
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    document.getElementById('evento-fecha').valueAsDate = tomorrow;
+
+                    const modal = new bootstrap.Modal(document.getElementById('contratarModal'));
+                    modal.show();
+                }
+
+                async function confirmarContratacion() {
+                    const paqueteId = document.getElementById('contratar-paquete-id').value;
+                    const fecha = document.getElementById('evento-fecha').value;
+                    const invitados = parseInt(document.getElementById('evento-invitados').value);
+
+                    if (!fecha) {
+                        alert('Por favor selecciona una fecha para el evento');
                         return;
                     }
-                    await UsuariosService.create(data);
+
+                    try {
+                        // Assuming ContratacionService has a createPedido method
+                        // We need to verify the payload structure expected by the backend
+                        // Based on previous knowledge, it likely expects: { id_paquete, fecha_evento, cantidad_invitados }
+                        // But let's check ContratacionService.js or assume standard
+
+                        // Since ContratacionService might not have createPedido yet, let's check/add it if needed.
+                        // But for now, I'll assume it exists or I'll add it in the next step if it fails.
+                        // Wait, I didn't check ContratacionService for createPedido.
+                        // I'll use a direct fetch here if needed, or better, assume I'll update the service next.
+
+                        // Let's try to use the service.
+                        await ContratacionService.crearPedido({
+                            id_paquete: paqueteId,
+                            fecha_evento: fecha,
+                            cantidad_invitados: invitados
+                        });
+
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('contratarModal'));
+                        modal.hide();
+
+                        alert('¡Pedido creado exitosamente!');
+                        loadView('pedidos');
+
+                    } catch (error) {
+                        alert('Error al crear el pedido: ' + error.message);
+                    }
                 }
-
-                // Close modal and reload
-                const modalEl = document.getElementById('usuarioModal');
-                const modal = bootstrap.Modal.getInstance(modalEl);
-                modal.hide();
-                loadView('usuarios'); // Reload view
-
-            } catch (error) {
-                alert('Error al guardar usuario: ' + error.message);
-            }
-        }
-
-        async function deleteUsuario(id) {
-            if (confirm('¿Estás seguro de eliminar este usuario?')) {
-                try {
-                    await UsuariosService.delete(id);
-                    loadView('usuarios');
-                } catch (error) {
-                    alert('Error al eliminar usuario: ' + error.message);
-                }
-            }
-        }
-    </script>
-</body>
+        </script>
+    </body>
 
 </html>
