@@ -647,28 +647,8 @@
                                     html += '</tbody></table></div></div > ';
             listContainer.innerHTML = html;
 
-        } catch (error) {
-            container.innerHTML = `<div class="alert alert-danger">Error al cargar pedidos: ${error.message}</div>`;
         }
-        }
-
-        async function renderProveedores(container, role) {
-            container.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h3>Proveedores</h3>
-                    ${role === 'ADMIN' ? '<button class="btn btn-primary btn-sm">+ Nuevo Proveedor</button>' : ''}
-                </div>
-                <div class="alert alert-info">Módulo de Proveedores en construcción.</div>
-            `;
-            // TODO: Implement Proveedores list
-        }
-
-        async function renderUsuarios(container, role) {
-            if (role !== 'ADMIN') {
-                container.innerHTML = '<div class="alert alert-danger">Acceso denegado</div>';
-                return;
-            }
-            container.innerHTML = `
+        container.innerHTML = `
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h3>Gestión de Usuarios</h3>
                     <button class="btn btn-primary btn-sm" onclick="openUsuarioModal()">+ Nuevo Usuario</button>
@@ -681,16 +661,16 @@
                 </div>
             `;
 
-            try {
-                const usuarios = await UsuariosService.getAll();
-                const listContainer = document.getElementById('usuarios-list');
+        try {
+            const usuarios = await UsuariosService.getAll();
+            const listContainer = document.getElementById('usuarios-list');
 
-                if (usuarios.length === 0) {
-                    listContainer.innerHTML = '<div class="alert alert-info">No hay usuarios registrados.</div>';
-                    return;
-                }
+            if (usuarios.length === 0) {
+                listContainer.innerHTML = '<div class="alert alert-info">No hay usuarios registrados.</div>';
+                return;
+            }
 
-                let html = `
+            let html = `
                 <div class="card overflow-hidden">
                     <div class="table-responsive">
                         <table class="table table-hover mb-0 align-middle">
@@ -705,9 +685,9 @@
                             </thead>
                             <tbody>`;
 
-                usuarios.forEach(u => {
-                    const statusBadge = u.status === 1 ? '<span class="badge bg-success bg-opacity-75 rounded-pill">Activo</span>' : '<span class="badge bg-secondary rounded-pill">Inactivo</span>';
-                    html += `
+            usuarios.forEach(u => {
+                const statusBadge = u.status === 1 ? '<span class="badge bg-success bg-opacity-75 rounded-pill">Activo</span>' : '<span class="badge bg-secondary rounded-pill">Inactivo</span>';
+                html += `
                     <tr>
                         <td class="ps-4 fw-medium">${u.nombre || 'Sin nombre'}</td>
                         <td>${u.email}</td>
@@ -718,14 +698,14 @@
                             <button class="btn btn-sm btn-outline-danger" onclick="deleteUsuario('${u.id}')">Eliminar</button>
                         </td>
                     </tr>`;
-                });
+            });
 
-                html += '</tbody></table></div></div>';
-                listContainer.innerHTML = html;
+            html += '</tbody></table></div></div>';
+            listContainer.innerHTML = html;
 
-            } catch (error) {
-                container.innerHTML = `<div class="alert alert-danger">Error al cargar usuarios: ${error.message}</div>`;
-            }
+        } catch (error) {
+            container.innerHTML = `<div class="alert alert-danger">Error al cargar usuarios: ${error.message}</div>`;
+        }
         }
 
         // Usuario Actions

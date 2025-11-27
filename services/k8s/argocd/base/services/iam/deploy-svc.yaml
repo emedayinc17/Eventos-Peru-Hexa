@@ -38,7 +38,7 @@ spec:
           command: ["/bin/sh"]
           args:
             - "-c"
-              - |
+            - |
               # Cargar secrets de Vault (Alpine compatible) si existen
               if [ -f /vault/secrets/config ]; then
                 . /vault/secrets/config
