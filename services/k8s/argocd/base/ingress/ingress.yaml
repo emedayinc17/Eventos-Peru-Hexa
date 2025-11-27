@@ -4,49 +4,44 @@ metadata:
   name: eventos-api
   namespace: eventos-peru
   annotations:
-    nginx.ingress.kubernetes.io/use-regex: "true"
     nginx.ingress.kubernetes.io/enable-cors: "true"
     nginx.ingress.kubernetes.io/cors-allow-origin: "*"
     nginx.ingress.kubernetes.io/cors-allow-methods: "GET, PUT, POST, DELETE, PATCH, OPTIONS"
     nginx.ingress.kubernetes.io/cors-allow-headers: "Authorization, Content-Type, Accept, Origin, X-Requested-With"
     nginx.ingress.kubernetes.io/limit-rps: "20"
-    # Rewrite the incoming path so /iam/<rest> is forwarded as /<rest> to the backend
-    nginx.ingress.kubernetes.io/rewrite-target: "/$2"
+    # 👇 OJO: eliminamos use-regex y rewrite-target
 spec:
-  ingressClassName: public  # ← CAMBIADO: 'public' para MicroK8s
+  ingressClassName: public
   rules:
     - host: eventos.emeday.inc
       http:
         paths:
-          # IAM - todas las rutas /iam/...
-          - path: /iam(/|$)(.*)
-            pathType: ImplementationSpecific
+          - path: /iam
+            pathType: Prefix
             backend:
               service:
                 name: iam-service
                 port:
-                  number: 8010  # ← CAMBIADO: puerto 8010 (donde escucha tu app)
+                  number: 8010
 
-          # CATALOGO
-          - path: /catalogo(/|$)(.*)
-            pathType: ImplementationSpecific
+          - path: /catalogo
+            pathType: Prefix
             backend:
               service:
                 name: catalogo-service
                 port:
                   number: 8020
 
-          # PROVEEDORES
-          - path: /proveedores(/|$)(.*)
-            pathType: ImplementationSpecific
+          - path: /proveedores
+            pathType: Prefix
             backend:
               service:
                 name: proveedores-service
                 port:
                   number: 8030
-          # CONTRATACION
-          - path: /contratacion(/|$)(.*)
-            pathType: ImplementationSpecific
+
+          - path: /contratacion
+            pathType: Prefix
             backend:
               service:
                 name: contratacion-service
