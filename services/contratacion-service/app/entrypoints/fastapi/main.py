@@ -10,7 +10,10 @@ from .router import build_api_router
 settings: Settings = load_settings(service_name="contratacion-service")
 log = get_logger(__name__, service_name=settings.SERVICE_NAME)
 
-app = FastAPI(title="Contratacion Service", version="0.1.0", docs_url="/docs", redoc_url="/redoc")
+docs_url = f"{settings.BASE_PATH}/docs" if getattr(settings, "BASE_PATH", "") else "/docs"
+redoc_url = f"{settings.BASE_PATH}/redoc" if getattr(settings, "BASE_PATH", "") else "/redoc"
+
+app = FastAPI(title="Contratacion Service", version="0.1.0", docs_url=docs_url, redoc_url=redoc_url)
 
 # 🔥 CORS ABIERTO (solo desarrollo)
 app.add_middleware(

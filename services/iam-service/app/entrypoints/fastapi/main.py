@@ -11,9 +11,14 @@ log = get_logger(__name__, service_name=settings.SERVICE_NAME)
 #    Así SIEMPRE expone:
 #    - /docs
 #    - /openapi.json
+docs_url = f"{settings.BASE_PATH}/docs" if getattr(settings, "BASE_PATH", "") else "/docs"
+openapi_url = f"{settings.BASE_PATH}/openapi.json" if getattr(settings, "BASE_PATH", "") else "/openapi.json"
+
 app = FastAPI(
     title="IAM Service",
     version="0.1.0",
+    docs_url=docs_url,
+    openapi_url=openapi_url,
 )
 
 origins = settings.CORS_ORIGINS.split(",")

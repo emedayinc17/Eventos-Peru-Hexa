@@ -4,8 +4,23 @@ const CatalogoService = {
         return await HttpAdapter.get(url);
     },
 
-    getPaqueteById: async (id) => {
+    getById: async (id) => {
         const url = `${Config.API_URLS.CATALOGO}/paquetes/${id}`;
         return await HttpAdapter.get(url);
+    },
+
+    create: async (data) => {
+        const url = `${Config.API_URLS.CATALOGO}/paquetes`;
+        return await HttpAdapter.post(url, data);
+    },
+
+    update: async (id, data) => {
+        const url = `${Config.API_URLS.CATALOGO}/paquetes/${id}`;
+        return await HttpAdapter.put(url, data);
+    },
+
+    delete: async (id) => {
+        const url = `${Config.API_URLS.CATALOGO}/paquetes/${id}`;
+        return await HttpAdapter.delete(url);
     }
 };
