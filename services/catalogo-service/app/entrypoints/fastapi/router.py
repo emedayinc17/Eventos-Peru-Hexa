@@ -70,3 +70,10 @@ def create_router() -> APIRouter:
         return result
 
     return r
+
+def build_api_router(settings: Settings) -> APIRouter:
+    """
+    Wrapper para mantener compatibilidad con main.py.
+    Por ahora simplemente delega a create_router(), que ya usa get_settings() internamente.
+    """
+    return create_router()
