@@ -133,32 +133,42 @@ class MySQLCatalogoQueryService:
         self,
         s,
         *,
+        tipo_evento_id: Optional[str] = None,
         limit: int = 50,
         offset: int = 0
     ) -> list[PaqueteResumen]:
         """Lista paquetes con monto total calculado y tipo de evento"""
-        rows = s.execute(
-            text("""
-                SELECT
-                  d.paquete_id      AS id,
-                  MIN(d.codigo)     AS codigo,
-                  MIN(d.nombre)     AS nombre,
-                  MIN(d.descripcion) AS descripcion,
-                  MIN(d.status)     AS status,
-                  MIN(d.moneda)     AS moneda,
-                  SUM(d.cantidad * d.monto) AS monto_total,
-                  MIN(s.tipo_evento_id) AS tipo_evento_id,
-                  MIN(te.nombre) AS tipo_evento_nombre
-                FROM ev_paquetes.v_paquete_detalle d
-                LEFT JOIN ev_catalogo.opcion_servicio o ON o.id = d.opcion_servicio_id
-                LEFT JOIN ev_catalogo.servicio s ON s.id = o.servicio_id
-                LEFT JOIN ev_catalogo.tipo_evento te ON te.id = s.tipo_evento_id
-                GROUP BY d.paquete_id
-                ORDER BY codigo ASC
-                LIMIT :lim OFFSET :off
-            """),
-            {"lim": limit, "off": offset},
-        ).mappings().all()
+        
+        sql = """
+            SELECT
+                d.paquete_id      AS id,
+                MIN(d.codigo)     AS codigo,
+                MIN(d.nombre)     AS nombre,
+                MIN(d.descripcion) AS descripcion,
+                MIN(d.status)     AS status,
+                MIN(d.moneda)     AS moneda,
+                SUM(d.cantidad * d.monto) AS monto_total,
+                MIN(s.tipo_evento_id) AS tipo_evento_id,
+                MIN(te.nombre) AS tipo_evento_nombre
+            FROM ev_paquetes.v_paquete_detalle d
+            LEFT JOIN ev_catalogo.opcion_servicio o ON o.id = d.opcion_servicio_id
+            LEFT JOIN ev_catalogo.servicio s ON s.id = o.servicio_id
+            LEFT JOIN ev_catalogo.tipo_evento te ON te.id = s.tipo_evento_id
+        """
+        
+        params = {"lim": limit, "off": offset}
+        
+        if tipo_evento_id:
+            sql += " WHERE s.tipo_evento_id = :teid"
+            params["teid"] = tipo_evento_id
+            
+        sql += """
+            GROUP BY d.paquete_id
+            ORDER BY codigo ASC
+            LIMIT :lim OFFSET :off
+        """
+
+        rows = s.execute(text(sql), params).mappings().all()
 
         return [
             PaqueteResumen(

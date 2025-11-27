@@ -2,7 +2,7 @@
 Use Case: Listar Paquetes (resumen)
 Caso de uso de lectura - Hexagonal Architecture
 """
-from typing import Any
+from typing import Any, Optional
 
 from ...domain.models import PaqueteResumen
 from ...domain.ports import CatalogoQueryService
@@ -21,6 +21,7 @@ class ListPaquetesUseCase:
         self,
         session: Any,
         *,
+        tipo_evento_id: Optional[str] = None,
         limit: int = 50,
         offset: int = 0
     ) -> list[PaqueteResumen]:
@@ -29,6 +30,7 @@ class ListPaquetesUseCase:
 
         Args:
             session: Sesión de base de datos (SQLAlchemy)
+            tipo_evento_id: Filtro opcional por tipo de evento
             limit: Cantidad máxima de resultados
             offset: Número de registros a saltar (paginación)
 
@@ -37,6 +39,7 @@ class ListPaquetesUseCase:
         """
         return self.catalogo_service.list_paquetes(
             session,
+            tipo_evento_id=tipo_evento_id,
             limit=limit,
             offset=offset
         )

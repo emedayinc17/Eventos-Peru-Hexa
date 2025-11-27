@@ -75,5 +75,5 @@ spec:
   selector: { app: contratacion-service }
   ports:
     - name: http
-      port: 80
+      port: 8040
       targetPort: 8040

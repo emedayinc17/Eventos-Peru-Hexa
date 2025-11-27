@@ -75,5 +75,5 @@ spec:
   selector: { app: proveedores-service }
   ports:
     - name: http
-      port: 80
+      port: 8030
       targetPort: 8030
