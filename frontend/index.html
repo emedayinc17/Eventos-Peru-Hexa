@@ -1,120 +1,13 @@
-<!DOCTYPE html>
-<html lang="es">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Eventos Perú</title>
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Custom CSS -->
-    <link href="css/styles.css" rel="stylesheet">
-</head>
-
-<body class="d-flex align-items-center justify-content-center">
-
-    <div class="glass-card animate-fade-in" style="width: 100%; max-width: 420px;">
-        <div class="brand-title">Eventos Perú</div>
-        <p class="text-center text-muted mb-4">Bienvenido de nuevo</p>
-
-        <div id="alert-container" class="d-none"></div>
-
-        <form id="login-form">
-            <div class="mb-4">
-                <label for="email" class="form-label">Correo Electrónico</label>
-                <input type="email" class="form-control" id="email" required placeholder="nombre@ejemplo.com">
-            </div>
-            <div class="mb-4">
-                <label for="password" class="form-label">Contraseña</label>
-                <input type="password" class="form-control" id="password" required placeholder="••••••••">
-            </div>
-            <div class="d-grid gap-2 mb-4">
-                <button type="submit" class="btn btn-primary btn-lg" id="btn-login">Iniciar Sesión</button>
-            </div>
-        </form>
-
-        <div class="text-center">
-            <small class="text-muted">¿No tienes cuenta? <a href="register.html" class="text-decoration-none fw-bold"
-                    style="color: var(--primary-color);">Regístrate ahora</a></small>
-        </div>
-
-        <div class="mt-4 p-3 rounded border"
-            style="background: rgba(255,255,255,0.5); border-color: rgba(0,0,0,0.05) !important;">
-            <small class="d-block text-muted fw-bold mb-2 text-center">Acceso Rápido (Demo):</small>
-            <div class="d-grid gap-2">
-                <button type="button"
-                    class="btn btn-outline-secondary btn-sm d-flex justify-content-between align-items-center"
-                    onclick="quickLogin('admin')">
-                    <span>👮 Admin</span>
-                    <small class="text-muted">demo@eventos.pe</small>
-                </button>
-                <button type="button"
-                    class="btn btn-outline-secondary btn-sm d-flex justify-content-between align-items-center"
-                    onclick="quickLogin('client')">
-                    <span>👤 Cliente</span>
-                    <small class="text-muted">cliente@eventos.pe</small>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Scripts -->
-    <script src="js/config.js"></script>
-    <script src="js/utils.js"></script>
-    <script src="js/adapters/http-adapter.js"></script>
-    <script src="js/adapters/auth-service.js"></script>
-
-    <script>
-        // Quick Login Helper
-        function quickLogin(role) {
-            const emailInput = document.getElementById('email');
-            const passInput = document.getElementById('password');
-            const btnLogin = document.getElementById('btn-login');
-
-            if (role === 'admin') {
-                emailInput.value = 'demo@eventos.pe';
-                passInput.value = 'Admin_2025!';
-            } else {
-                emailInput.value = 'cliente@eventos.pe';
-                passInput.value = 'Cliente_2025!';
-            }
-
-            // Trigger login
-            btnLogin.click();
-        }
-
-        // Lógica de Login
-        document.addEventListener('DOMContentLoaded', () => {
-            SessionManager.redirectIfAuthenticated();
-
-            const form = document.getElementById('login-form');
-            const btnLogin = document.getElementById('btn-login');
-
-            form.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                UI.hideAlert('alert-container');
-
-                const email = document.getElementById('email').value;
-                const password = document.getElementById('password').value;
-
-                // Loading state
-                const originalBtnText = btnLogin.innerHTML;
-                btnLogin.disabled = true;
-                btnLogin.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Entrando...';
-
-                try {
-                    await AuthService.login(email, password);
-                    window.location.href = Config.ROUTES.DASHBOARD;
-                } catch (error) {
-                    UI.showError('alert-container', error.message || 'Error al iniciar sesión');
-                    btnLogin.disabled = false;
-                    btnLogin.innerHTML = originalBtnText;
-                }
-            });
-        });
-    </script>
-</body>
-
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>frontend</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
 </html>

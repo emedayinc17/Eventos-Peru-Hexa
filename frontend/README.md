@@ -1,35 +1,5 @@
-# Frontend Eventos Perú (Vanilla Hexagonal)
+# Vue 3 + TypeScript + Vite
 
-Frontend ligero construido con HTML5, Bootstrap 5 y JavaScript Vanilla, siguiendo una arquitectura hexagonal simplificada.
+This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
 
-## 🚀 Inicio Rápido
-
-### Opción 1: Servidor Local (Node.js)
-
-Si tienes Node.js instalado:
-
-```bash
-npx serve .
-```
-
-### Opción 2: Python
-
-```bash
-python -m http.server 8000
-```
-
-Luego abre `http://localhost:8000` en tu navegador.
-
-## 🏗️ Arquitectura
-
-- **`js/adapters/`**: Comunicación con microservicios (Puertos de salida).
-- **`js/domain/`**: Lógica de negocio (si fuera necesaria más compleja).
-- **`js/app/`**: Controladores de vista.
-- **`js/config.js`**: Configuración de entorno.
-
-## 🐳 Docker
-
-```bash
-docker build -t eventos-peru/frontend .
-docker run -p 8080:80 eventos-peru/frontend
-```
+Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).

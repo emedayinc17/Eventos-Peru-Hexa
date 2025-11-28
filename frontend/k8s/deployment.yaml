@@ -1,34 +1,43 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: frontend
-  namespace: default
+  name: eventos-frontend
+  namespace: eventos-peru
   labels:
-    app: frontend
+    app: eventos-frontend
+    tier: frontend
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: frontend
+      app: eventos-frontend
   template:
     metadata:
       labels:
-        app: frontend
+        app: eventos-frontend
+        tier: frontend
     spec:
       containers:
       - name: frontend
-        image: eventos-peru/frontend:latest
-        imagePullPolicy: IfNotPresent
+        image: emeday17/eventos-frontend:1.0.0
+        imagePullPolicy: Always
         ports:
         - containerPort: 80
+          name: http
         resources:
           requests:
-            memory: "32Mi"
+            memory: "64Mi"
             cpu: "50m"
           limits:
-            memory: "64Mi"
-            cpu: "100m"
+            memory: "128Mi"
+            cpu: "200m"
         livenessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
           httpGet:
             path: /health
             port: 80
@@ -38,33 +47,38 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: frontend-service
-  namespace: default
+  name: eventos-frontend
+  namespace: eventos-peru
+  labels:
+    app: eventos-frontend
 spec:
   type: ClusterIP
   selector:
-    app: frontend
+    app: eventos-frontend
   ports:
   - port: 80
     targetPort: 80
+    protocol: TCP
+    name: http
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: frontend-ingress
-  namespace: default
+  name: eventos-frontend
+  namespace: eventos-peru
   annotations:
+    kubernetes.io/ingress.class: nginx
     nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
 spec:
-  ingressClassName: nginx
   rules:
-  - host: eventos-peru.local
+  - host: eventos.local
     http:
       paths:
       - path: /
         pathType: Prefix
         backend:
           service:
-            name: frontend-service
+            name: eventos-frontend
             port:
               number: 80
