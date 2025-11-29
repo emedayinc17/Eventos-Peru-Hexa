@@ -413,6 +413,7 @@ CREATE TABLE IF NOT EXISTS ev_contratacion.pedido_evento (
   fecha_evento    DATE     NOT NULL,
   hora_inicio     TIME     NOT NULL,
   hora_fin        TIME     NULL,
+  num_personas    INT      NOT NULL DEFAULT 1,
   ubicacion       VARCHAR(255) NOT NULL,
   monto_total     DECIMAL(12,2) NULL DEFAULT 0.00,
   moneda          CHAR(3)  NOT NULL DEFAULT 'PEN',
@@ -603,6 +604,7 @@ SELECT
   pe.tipo_evento_id,
   te.nombre     AS tipo_evento_nombre,
   pe.fecha_evento, pe.hora_inicio, pe.hora_fin,
+  pe.num_personas,
   pe.ubicacion, pe.monto_total, pe.moneda,
   pe.status, pe.created_at, pe.updated_at
 FROM ev_contratacion.pedido_evento pe

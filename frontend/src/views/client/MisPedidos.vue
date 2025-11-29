@@ -132,9 +132,9 @@
             <p class="text-sm text-gray-500">Estado</p>
             <span 
               class="inline-block px-3 py-1 rounded-full text-sm font-medium"
-              :class="getEstadoBadgeClass(selectedPedido.estado)"
+              :class="getEstadoBadgeClass(getPedidoEstadoNombre(selectedPedido))"
             >
-              {{ selectedPedido.estado }}
+              {{ getPedidoEstadoNombre(selectedPedido) }}
             </span>
           </div>
           <div>
@@ -147,7 +147,7 @@
           </div>
           <div>
             <p class="text-sm text-gray-500">Número de Invitados</p>
-            <p class="font-medium">{{ selectedPedido.num_invitados }} personas</p>
+            <p class="font-medium">{{ selectedPedido.num_invitados ?? selectedPedido.num_personas }} personas</p>
           </div>
           <div>
             <p class="text-sm text-gray-500">Total</p>

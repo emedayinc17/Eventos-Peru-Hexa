@@ -32,10 +32,10 @@ def pretty_print(resp: requests.Response) -> None:
     print('Body:', text[:1000])
 
 
-def check_get(url: str, timeout: float = 5.0) -> Tuple[int, str]:
+def check_get(url: str, headers: dict | None = None, timeout: float = 5.0) -> Tuple[int, str]:
     print(f"\nGET {url}")
     try:
-        r = requests.get(url, timeout=timeout)
+        r = requests.get(url, headers=headers, timeout=timeout)
         pretty_print(r)
         return r.status_code, r.text
     except requests.RequestException as exc:
@@ -64,9 +64,15 @@ def main() -> None:
         ('Contratacion v1 (GET)', 'http://localhost:8040/v1/contratacion/health'),
     ]
 
+    import os
+    bearer = os.environ.get('CHECK_ROUTING_BEARER')
+    default_headers = None
+    if bearer:
+        default_headers = {'Authorization': f'Bearer {bearer}'}
+
     for label, url in urls_get:
         print(f"== {label} ==")
-        check_get(url)
+        check_get(url, headers=default_headers)
 
     # Minimal payload for pedidos - aligns with current backend schema
     payload = {
@@ -88,9 +94,22 @@ def main() -> None:
         ('Service direct maybe alternative path -> /contratacion/pedidos', 'http://localhost:8040/contratacion/pedidos'),
     ]
 
+    # Optional: read bearer token from environment to include in POSTs
+    import os
+    bearer = os.environ.get('CHECK_ROUTING_BEARER')
     for label, url in post_targets:
         print(f"== {label} ==")
-        check_post(url, payload)
+        if bearer:
+            print("Using Authorization Bearer from CHECK_ROUTING_BEARER env var")
+            # attach header for this single request
+            headers = {'Authorization': f'Bearer {bearer}', 'Content-Type': 'application/json'}
+            try:
+                r = requests.post(url, data=json.dumps(payload), headers=headers, timeout=8.0)
+                pretty_print(r)
+            except requests.RequestException as exc:
+                print("ERROR:", repr(exc))
+        else:
+            check_post(url, payload)
 
     print('\nDone. If you see 404 from some targets and 200/401 from others, note which URL returned which status and copy the full response body.')
 

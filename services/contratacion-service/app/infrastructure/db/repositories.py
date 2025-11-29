@@ -43,11 +43,11 @@ class MySQLPedidoRepository:
             text("""
                 INSERT INTO ev_contratacion.pedido_evento (
                     id, cliente_id, tipo_evento_id, fecha_evento,
-                    hora_inicio, hora_fin, ubicacion, status,
+                    hora_inicio, hora_fin, num_personas, ubicacion, status,
                     monto_total, created_at, updated_at
                 ) VALUES (
                     :id, :cliente_id, :tipo_evento_id, :fecha_evento,
-                    :hora_inicio, :hora_fin, :ubicacion, 0,
+                    :hora_inicio, :hora_fin, :num_personas, :ubicacion, 0,
                     :monto_total, NOW(), NOW()
                 )
             """),
@@ -58,6 +58,7 @@ class MySQLPedidoRepository:
                 "fecha_evento": fecha_evento,
                 "hora_inicio": hora_inicio,
                 "hora_fin": hora_fin,
+                "num_personas": num_personas,
                 "ubicacion": ubicacion,
                 "monto_total": monto_total,
             },
@@ -75,11 +76,13 @@ class MySQLPedidoRepository:
                   pe.id,
                   pe.cliente_id,
                   pe.tipo_evento_id,
+                  te.nombre AS tipo_evento_nombre,
                   (SELECT i.referencia_id FROM ev_contratacion.item_pedido_evento i
                      WHERE i.pedido_id = pe.id AND i.tipo_item = 'PAQUETE' LIMIT 1) AS paquete_id,
                   pe.fecha_evento,
                   pe.hora_inicio,
                   pe.hora_fin,
+                  pe.num_personas,
                   pe.ubicacion,
                   pe.status,
                   pe.monto_total,
@@ -87,6 +90,7 @@ class MySQLPedidoRepository:
                   pe.created_at,
                   pe.updated_at
                 FROM ev_contratacion.pedido_evento pe
+                LEFT JOIN ev_catalogo.tipo_evento te ON te.id = pe.tipo_evento_id
                 WHERE pe.id = :pedido_id
                 LIMIT 1
             """),
@@ -104,7 +108,7 @@ class MySQLPedidoRepository:
             fecha_evento=row["fecha_evento"],
             hora_inicio=str(row["hora_inicio"]),
             hora_fin=str(row["hora_fin"]) if row["hora_fin"] else None,
-            num_personas=1, # Default value as column doesn't exist
+            num_personas=row["num_personas"],
             ubicacion=row["ubicacion"],
             status=row["status"],
             monto_total=row["monto_total"],
@@ -112,9 +116,9 @@ class MySQLPedidoRepository:
             notas=None,
             created_at=row["created_at"],
             updated_at=row["updated_at"],
-            cliente_nombre=None,  # Not available without cross-schema JOIN
-            cliente_email=None,   # Not available without cross-schema JOIN
-            tipo_evento_nombre=None,  # Not available without cross-schema JOIN
+            cliente_nombre=None,
+            cliente_email=None,
+            tipo_evento_nombre=row["tipo_evento_nombre"],
         )
     
     def listar_por_cliente(
@@ -136,6 +140,7 @@ class MySQLPedidoRepository:
                   pe.fecha_evento,
                   pe.hora_inicio,
                   pe.hora_fin,
+                  pe.num_personas,
                   pe.ubicacion,
                   pe.status,
                   pe.monto_total,
@@ -159,7 +164,7 @@ class MySQLPedidoRepository:
                 fecha_evento=row["fecha_evento"],
                 hora_inicio=str(row["hora_inicio"]),
                 hora_fin=str(row["hora_fin"]) if row["hora_fin"] else None,
-                num_personas=1, # Default value
+                num_personas=row["num_personas"],
                 ubicacion=row["ubicacion"],
                 status=row["status"],
                 monto_total=row["monto_total"],
@@ -195,6 +200,7 @@ class MySQLPedidoRepository:
                       pe.fecha_evento,
                       pe.hora_inicio,
                       pe.hora_fin,
+                      pe.num_personas,
                       pe.ubicacion,
                       pe.status,
                       pe.monto_total,
@@ -220,6 +226,7 @@ class MySQLPedidoRepository:
                       pe.fecha_evento,
                       pe.hora_inicio,
                       pe.hora_fin,
+                      pe.num_personas,
                       pe.ubicacion,
                       pe.status,
                       pe.monto_total,
@@ -242,7 +249,7 @@ class MySQLPedidoRepository:
                 fecha_evento=row["fecha_evento"],
                 hora_inicio=str(row["hora_inicio"]),
                 hora_fin=str(row["hora_fin"]) if row["hora_fin"] else None,
-                num_personas=1, # Default value
+                num_personas=row["num_personas"],
                 ubicacion=row["ubicacion"],
                 status=row["status"],
                 monto_total=row["monto_total"],

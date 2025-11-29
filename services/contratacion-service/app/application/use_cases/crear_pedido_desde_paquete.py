@@ -8,7 +8,7 @@ from decimal import Decimal
 from sqlalchemy import text
 
 from ...domain.models import Pedido
-from ...domain.ports import CatalogoQueryPort, PedidoRepository, ItemPedidoRepository
+from ...domain.ports import CatalogoQueryPort, PedidoRepository, ItemPedidoRepository, ReservaRepository
 from ...domain.exceptions import PaqueteNoEncontrado, ErrorCotizacion
 
 
@@ -22,10 +22,12 @@ class CrearPedidoDesdePaqueteUseCase:
         self,
         pedido_repo: PedidoRepository,
         item_repo: ItemPedidoRepository,
+        reserva_repo: ReservaRepository,
         catalogo_client: CatalogoQueryPort
     ):
         self.pedido_repo = pedido_repo
         self.item_repo = item_repo
+        self.reserva_repo = reserva_repo
         self.catalogo_client = catalogo_client
     
     def execute(
@@ -96,6 +98,16 @@ class CrearPedidoDesdePaqueteUseCase:
             notas=notas
         )
         
+        # Mapa de proveedores seleccionados {opcion_id: proveedor_id}
+        prov_map = {}
+        if proveedores_seleccionados:
+            for p in proveedores_seleccionados:
+                # p puede ser dict o objeto pydantic convertido a dict
+                oid = p.get("opcion_servicio_id")
+                pid = p.get("proveedor_id")
+                if oid and pid:
+                    prov_map[str(oid)] = str(pid)
+
         # 4. Crear items del pedido basados en el paquete
         items = paquete.get("items", [])
         for item in items:
@@ -103,16 +115,38 @@ class CrearPedidoDesdePaqueteUseCase:
             cantidad = item.get("cantidad", 1)
             precio_unitario = float(item.get("precio_unit_vigente", 0))
             subtotal = cantidad * precio_unitario
+            opcion_id = item["opcion_servicio_id"]
             
-            self.item_repo.crear(
+            item_creado = self.item_repo.crear(
                 session,
                 pedido_id=pedido.id,
-                opcion_servicio_id=item["opcion_servicio_id"],
+                opcion_servicio_id=opcion_id,
                 nombre_servicio=item.get("servicio_nombre", item.get("opcion_nombre", "Servicio")),
                 cantidad=cantidad,
                 precio_unitario=precio_unitario,
                 subtotal=subtotal
             )
+
+            # Crear reserva si hay proveedor seleccionado para esta opción
+            if str(opcion_id) in prov_map:
+                # Calcular horas para fin (simple logic, should be robust)
+                # Asumimos fecha_evento + hora_inicio/fin
+                # Por ahora usamos fecha_evento 00:00 si no hay horas precisas
+                # TODO: Mejorar manejo de fechas/horas para reservas
+                dt_inicio = datetime.combine(fecha_evento, datetime.min.time())
+                dt_fin = dt_inicio # Placeholder
+                
+                self.reserva_repo.crear(
+                    session,
+                    pedido_id=pedido.id,
+                    item_pedido_id=item_creado.id,
+                    proveedor_id=prov_map[str(opcion_id)],
+                    opcion_servicio_id=opcion_id,
+                    inicio=dt_inicio,
+                    fin=dt_fin,
+                    status=0, # PENDIENTE
+                    monto=Decimal(0) # Por definir
+                )
         
         # 5. Agregar servicios adicionales si existen
         if servicios_adicionales:

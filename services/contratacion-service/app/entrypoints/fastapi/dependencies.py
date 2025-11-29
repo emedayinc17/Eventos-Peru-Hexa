@@ -91,6 +91,7 @@ def get_proveedores_client(settings: Settings = None) -> ProveedoresClient:
 def get_crear_pedido_desde_paquete_use_case(
     pedido_repo: MySQLPedidoRepository = None,
     item_repo: MySQLItemPedidoRepository = None,
+    reserva_repo: MySQLReservaRepository = None,
     catalogo_client: CatalogoClient = None
 ) -> CrearPedidoDesdePaqueteUseCase:
     """Factory para CrearPedidoDesdePaqueteUseCase"""
@@ -98,10 +99,12 @@ def get_crear_pedido_desde_paquete_use_case(
         pedido_repo = get_pedido_repository()
     if item_repo is None:
         item_repo = get_item_pedido_repository()
+    if reserva_repo is None:
+        reserva_repo = get_reserva_repository()
     if catalogo_client is None:
         catalogo_client = get_catalogo_client()
     
-    return CrearPedidoDesdePaqueteUseCase(pedido_repo, item_repo, catalogo_client)
+    return CrearPedidoDesdePaqueteUseCase(pedido_repo, item_repo, reserva_repo, catalogo_client)
 
 
 def get_crear_pedido_custom_use_case(
