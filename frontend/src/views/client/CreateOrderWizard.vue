@@ -156,6 +156,32 @@
             />
             <p class="text-sm text-gray-500 mt-1">Entre 10 y 1000 personas</p>
           </div>
+
+          <!-- Ubicación del Evento -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              Ubicación del Evento <span class="text-red-500">*</span>
+            </label>
+            <input
+              v-model="draft.ubicacion"
+              type="text"
+              class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+              placeholder="Ej: Miraflores, Lima"
+              required
+            />
+          </div>
+
+          <!-- Hora inicio / fin -->
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Hora Inicio</label>
+              <input v-model="draft.hora_inicio" type="time" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Hora Fin</label>
+              <input v-model="draft.hora_fin" type="time" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500" />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -364,7 +390,7 @@
     </div>
 
     <!-- Success Modal -->
-    <Modal v-model="showSuccessModal" title="¡Pedido Creado Exitosamente!">
+    <Modal v-model:open="showSuccessModal" title="¡Pedido Creado Exitosamente!">
       <div class="text-center py-6">
         <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
           <CheckIcon class="h-6 w-6 text-green-600" />
@@ -567,15 +593,15 @@ const confirmOrder = async () => {
     
     let orderData: any;
     
-    if (draft.value.paquete_id) {
+      if (draft.value.paquete_id) {
       // CASO 1 y 3: Con paquete (con o sin servicios adicionales)
-      orderData = {
+        orderData = {
         tipo_evento_id: draft.value.tipo_evento_id!,
         fecha_evento: draft.value.fecha_evento!,
-        num_personas: draft.value.num_invitados!,
-        hora_inicio: '10:00',
-        hora_fin: '18:00',
-        ubicacion: 'Por definir',
+          num_personas: draft.value.num_invitados || 1,
+          hora_inicio: draft.value.hora_inicio || '10:00:00',
+          hora_fin: draft.value.hora_fin || '18:00:00',
+        ubicacion: draft.value.ubicacion || 'Por definir',
         paquete_id: draft.value.paquete_id,
         notas: draft.value.comentarios,
       };
@@ -587,7 +613,7 @@ const confirmOrder = async () => {
           cantidad: 1
         }));
       }
-    } else {
+      } else {
       // CASO 2: Sin paquete (pedido custom)
       const items = draft.value.servicios_adicionales.map((servicioId: number) => ({
         opcion_servicio_id: String(servicioId),
@@ -596,11 +622,11 @@ const confirmOrder = async () => {
       
       orderData = {
         tipo_evento_id: draft.value.tipo_evento_id!,
-        fecha_evento: draft.value.fecha_evento!,
-        num_personas: draft.value.num_invitados!,
-        hora_inicio: '10:00',
-        hora_fin: '18:00',
-        ubicacion: 'Por definir',
+          fecha_evento: draft.value.fecha_evento!,
+          num_personas: draft.value.num_invitados || 1,
+          hora_inicio: draft.value.hora_inicio || '10:00:00',
+          hora_fin: draft.value.hora_fin || '18:00:00',
+        ubicacion: draft.value.ubicacion || 'Por definir',
         items: items,
       };
     }

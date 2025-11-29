@@ -21,10 +21,13 @@ class CatalogoClient:
         """
         base = self.base_url.rstrip('/')
         # base may already include the '/catalogo' prefix (legacy). Normalize to avoid duplication.
+        # Correct endpoints exposed by catalogo-service are either:
+        #  - <base>/v1/paquetes/{id}   when base already includes '/catalogo'
+        #  - <base>/catalogo/v1/paquetes/{id} when base is root host:port
         if base.endswith('/catalogo'):
-            url = f"{base}/v1/catalogo/paquetes/{paquete_id}"
+            url = f"{base}/v1/paquetes/{paquete_id}"
         else:
-            url = f"{base}/catalogo/v1/catalogo/paquetes/{paquete_id}"
+            url = f"{base}/catalogo/v1/paquetes/{paquete_id}"
         
         try:
             with httpx.Client(timeout=self.timeout) as client:
@@ -100,13 +103,13 @@ class CatalogoClient:
     def get_tipo_evento(self, tipo_evento_id: str) -> Optional[Dict[str, Any]]:
         """
         Obtiene información de un tipo de evento.
-        GET /catalogo/v1/catalogo/tipos
+        GET /catalogo/v1/tipos (or /v1/tipos if base already contains /catalogo)
         """
         base = self.base_url.rstrip('/')
         if base.endswith('/catalogo'):
-            url = f"{base}/v1/catalogo/tipos"
+            url = f"{base}/v1/tipos"
         else:
-            url = f"{base}/catalogo/v1/catalogo/tipos"
+            url = f"{base}/catalogo/v1/tipos"
         
         try:
             with httpx.Client(timeout=self.timeout) as client:

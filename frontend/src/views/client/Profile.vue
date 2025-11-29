@@ -242,7 +242,7 @@
     </div>
 
     <!-- Success Modal -->
-    <Modal v-model="showSuccessModal" title="¡Todo listo!">
+    <Modal v-model:open="showSuccessModal" title="¡Todo listo!">
       <div class="text-center py-6">
         <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-6 animate-bounce">
           <svg class="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">

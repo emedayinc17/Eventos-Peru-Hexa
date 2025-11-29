@@ -120,7 +120,7 @@
     </div>
 
     <!-- Details Modal -->
-    <Modal v-model="showDetailsModal" title="Detalles del Pedido" max-width="2xl">
+    <Modal v-model:open="showDetailsModal" title="Detalles del Pedido" max-width="2xl">
       <div v-if="selectedPedido" class="space-y-4">
         <div class="grid grid-cols-2 gap-4 pb-4 border-b">
           <div>

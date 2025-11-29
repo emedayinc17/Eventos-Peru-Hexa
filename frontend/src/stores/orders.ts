@@ -10,8 +10,21 @@ export const useOrdersStore = defineStore('orders', () => {
   const loading = ref(false);
   const error = ref<string | null>(null);
 
-  // Draft order state (para wizard)
-  const draftOrder = ref<Partial<CreatePedidoRequest>>({});
+  // Draft order state (para wizard) - inicializar con valores por defecto
+  const defaultDraft: Partial<CreatePedidoRequest> = {
+    tipo_evento_id: null,
+    paquete_id: null,
+    fecha_evento: undefined,
+    num_personas: 0,
+    num_invitados: 0,
+    servicios_adicionales: [],
+    comentarios: '',
+    ubicacion: '',
+    hora_inicio: '',
+    hora_fin: '',
+  };
+
+  const draftOrder = ref<Partial<CreatePedidoRequest>>({ ...defaultDraft });
 
   // Actions
   async function fetchPedidos(usuarioId?: number | string, estado?: string, admin = false): Promise<void> {
@@ -113,7 +126,7 @@ export const useOrdersStore = defineStore('orders', () => {
   }
 
   function clearDraft(): void {
-    draftOrder.value = {};
+    draftOrder.value = { ...defaultDraft };
   }
 
   function getDraft(): Partial<CreatePedidoRequest> {

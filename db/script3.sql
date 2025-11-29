@@ -20,6 +20,15 @@ SET @SYS_ADMIN = 'ee111111-1111-4111-8111-aaaaaaaaaaa1';
 -- Demo user (exists in bootstrap.sql)
 SET @DEMO_USER = 'aaaa2222-2222-2222-2222-aaaaaaaaaaa2';
 
+-- Asegurar que el demo user referenciado por @DEMO_USER exista (idempotente)
+INSERT IGNORE INTO ev_iam.usuario (id, email, password_hash, nombre, telefono, status) VALUES
+(@DEMO_USER, 'demo.user@eventos.test', '$bcrypt-sha256$v=2,t=2b,r=12$0mZ35JSikYcRUxPds2IKK.$G/4eI2JPqTURMzE34fgCa2qNRYdlnSC', 'Demo Usuario', '+51 900003003', 1)
+ON DUPLICATE KEY UPDATE email=VALUES(email), nombre=VALUES(nombre), status=VALUES(status);
+
+-- Asegurar rol CLIENTE para el demo user
+INSERT IGNORE INTO ev_iam.usuario_rol (id, usuario_id, rol_id) VALUES
+(UUID(), @DEMO_USER, 'aaaa1111-1111-1111-1111-aaaaaaaaaaa2');
+
 -- === Extra deterministic seeds for robust E2E ===
 -- All new records are idempotent and cross-linked for relational coverage
 
@@ -691,6 +700,8 @@ WHERE id IN (
    ) AS _tmp_prov_email
 );
 
+INSERT IGNORE INTO ev_catalogo.tipo_evento (id, nombre, descripcion, status)
+VALUES ('1','Demo Tipo 1','Tipo de evento de prueba',1);
 COMMIT;
 
 -- Verificaciones finales: listar filas incompletas para inspección manual

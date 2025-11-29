@@ -4,6 +4,8 @@ Crea un pedido basado en opciones individuales seleccionadas
 """
 from typing import Any, List, Dict, Optional
 from datetime import datetime
+from sqlalchemy import text
+from decimal import Decimal
 
 from ...domain.models import Pedido
 from ...domain.ports import CatalogoQueryPort, PedidoRepository, ItemPedidoRepository
@@ -121,4 +123,36 @@ class CrearPedidoCustomUseCase:
                 subtotal=item_data["subtotal"]
             )
         
+        # Intentar devolver objeto Pedido enriquecido desde la vista de lectura
+        try:
+            vp = session.execute(
+                text("SELECT * FROM ev_contratacion.v_pedido_con_cliente WHERE id = :pid LIMIT 1"),
+                {"pid": pedido.id}
+            ).mappings().first()
+            if vp:
+                r = dict(vp)
+                enriched = Pedido(
+                    id=r.get('id'),
+                    cliente_id=r.get('cliente_id'),
+                    tipo_evento_id=r.get('tipo_evento_id'),
+                    paquete_id=r.get('paquete_id'),
+                    fecha_evento=r.get('fecha_evento'),
+                    hora_inicio=str(r.get('hora_inicio')),
+                    hora_fin=str(r.get('hora_fin')) if r.get('hora_fin') else None,
+                    num_personas=r.get('num_personas') or 1,
+                    ubicacion=r.get('ubicacion'),
+                    status=int(r.get('status') or 0),
+                    monto_total=Decimal(str(r.get('monto_total') or 0)),
+                    created_at=r.get('created_at'),
+                    updated_at=r.get('updated_at') or r.get('created_at'),
+                    moneda=r.get('moneda') or 'PEN',
+                    notas=r.get('notas'),
+                    cliente_nombre=r.get('cliente_nombre'),
+                    cliente_email=r.get('cliente_email'),
+                    tipo_evento_nombre=r.get('tipo_evento_nombre')
+                )
+                return enriched
+        except Exception:
+            pass
+
         return pedido

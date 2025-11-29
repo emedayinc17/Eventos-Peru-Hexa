@@ -601,11 +601,13 @@ SELECT
   u.email       AS cliente_email,
   COALESCE(u.nombre,'') AS cliente_nombre,
   pe.tipo_evento_id,
+  te.nombre     AS tipo_evento_nombre,
   pe.fecha_evento, pe.hora_inicio, pe.hora_fin,
   pe.ubicacion, pe.monto_total, pe.moneda,
   pe.status, pe.created_at, pe.updated_at
 FROM ev_contratacion.pedido_evento pe
-LEFT JOIN ev_iam.usuario u ON u.id = pe.cliente_id;
+LEFT JOIN ev_iam.usuario u ON u.id = pe.cliente_id
+LEFT JOIN ev_catalogo.tipo_evento te ON te.id = pe.tipo_evento_id;
 
 -- NUEVA: Parrilla de proveedores por servicio (para filtros por tipo_evento)
 CREATE OR REPLACE VIEW ev_proveedores.v_servicio_proveedor_habilidad AS

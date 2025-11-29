@@ -17,8 +17,10 @@ if r.status_code == 200:
     token = r.json().get('access_token')
     headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
     sample = {
-        "paquete_id": "some-paquete-id",
+        "tipo_evento_id": "11111111-1111-1111-1111-111111111111",
+        "paquete_id": "pkg-matr-0001",
         "fecha_evento": "2025-12-01",
+        "num_personas": 100,
         "hora_inicio": "18:00:00",
         "hora_fin": "22:00:00",
         "ubicacion": "Lugar de prueba"
