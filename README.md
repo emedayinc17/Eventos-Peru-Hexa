@@ -1,50 +1,83 @@
 
-## 📦 Estructura Kustomize Final (Frontend y Backend)
+# Eventos Perú Hexagonal
 
-La carpeta `k8s/` en la raíz contiene la estructura real y recomendada para despliegues multi-entorno con Kustomize:
+Plataforma moderna y componible para la gestión integral de eventos y contrataciones, basada en microservicios (FastAPI, Python 3.12+) y un frontend SPA profesional (Vue 3 + Vite + TypeScript + TailwindCSS). Arquitectura hexagonal, despliegue en Docker/Kubernetes, APIs seguras y test automáticos.
+
+---
+
+## ⚙️ Prerrequisitos para Desarrollo Local
+
+Debes tener instalado:
+
+- **Docker** y **Docker Compose**  
+	[Descargar Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows/Mac) o [Docker Engine](https://docs.docker.com/engine/install/) (Linux)
+- **Python 3.12+** y pip  
+	[Descargar Python](https://www.python.org/downloads/)
+- **Node.js 18+** y npm  
+	[Descargar Node.js](https://nodejs.org/)
+- **Git**  
+	[Descargar Git](https://git-scm.com/downloads)
+- (Opcional) **kubectl** y **kustomize** para pruebas en Kubernetes local ([MicroK8s](https://microk8s.io/), [Minikube](https://minikube.sigs.k8s.io/docs/))
+
+> **Recomendado:**
+> - Windows: Usa PowerShell o WSL2 para comandos y scripts.
+> - Linux/Mac: Bash/zsh y Docker Engine.
+> - Docker Desktop debe estar corriendo antes de levantar servicios.
+
+---
+
+## 📦 Estructura Kustomize y del Repositorio
 
 ```plaintext
-k8s/
-	frontend/
-		base/
-			deployment.yaml
-			service.yaml
-			ingress.yaml
-			kustomization.yaml
-		overlays/
-			dev/
-				kustomization.yaml
-			prod/
-				kustomization.yaml
-	backend/
-		base/
-			ingress/
-				ingress.yaml
-			namespace.yaml
-			serviceaccount.yaml
-			services/
-				iam/
-					deploy-svc.yaml
-				catalogo/
-					deploy-svc.yaml
-				contratacion/
-					deploy-svc.yaml
-				proveedores/
-					deploy-svc.yaml
-				mysql/
-					statefulset.yaml
-					svc.yaml
-					svc-headless.yaml
-					configmap.yaml
-					secret-root.yaml
-					nodeport.yaml
-			kustomization.yaml
-		overlays/
-			dev/
-				kustomization.yaml
-			prod/
-				kustomization.yaml
+eventos-peru-hexagonal/
+├── db/                 # Scripts SQL de inicialización y migración
+├── deploy/             # Dockerfile, docker-compose, K8s manifests
+├── docs/               # Documentación técnica y funcional
+├── frontend/           # SPA Vue 3 + Vite (src/, views/, router/, stores/)
+├── gateway/            # API Gateway (FastAPI)
+├── libs/               # Librerías compartidas (Python)
+├── services/           # Microservicios backend (IAM, Catálogo, etc.)
+├── tests/              # Pruebas: software y seguridad
+├── tools/              # Scripts utilitarios y E2E
+├── k8s/                # Manifiestos y overlays Kustomize
+│   ├── frontend/
+│   │   ├── base/
+│   │   │   ├── deployment.yaml
+│   │   │   ├── service.yaml
+│   │   │   ├── ingress.yaml
+│   │   │   └── kustomization.yaml
+│   │   └── overlays/
+│   │       ├── dev/
+│   │       │   └── kustomization.yaml
+│   │       └── prod/
+│   │           └── kustomization.yaml
+│   └── backend/
+│       ├── base/
+│       │   ├── ingress/
+│       │   │   └── ingress.yaml
+│       │   ├── namespace.yaml
+│       │   ├── serviceaccount.yaml
+│       │   ├── services/
+│       │   │   ├── iam/deploy-svc.yaml
+│       │   │   ├── catalogo/deploy-svc.yaml
+│       │   │   ├── contratacion/deploy-svc.yaml
+│       │   │   ├── proveedores/deploy-svc.yaml
+│       │   │   └── mysql/
+│       │   │       ├── statefulset.yaml
+│       │   │       ├── svc.yaml
+│       │   │       ├── svc-headless.yaml
+│       │   │       ├── configmap.yaml
+│       │   │       ├── secret-root.yaml
+│       │   │       └── nodeport.yaml
+│       │   └── kustomization.yaml
+│       └── overlays/
+│           ├── dev/
+│           │   └── kustomization.yaml
+│           └── prod/
+│               └── kustomization.yaml
+└── start-services.ps1  # Orquestador local (PowerShell)
 ```
+
 
 
 **Ventajas:**
@@ -52,7 +85,8 @@ k8s/
 - ArgoCD puede apuntar a `k8s/frontend/overlays/prod` o `k8s/backend/overlays/prod` según el entorno.
 - Estructura clara: cada microservicio backend tiene su subcarpeta bajo `services/`.
 
-**Ejemplo de kustomization.yaml para backend/base:**
+
+**Ejemplo real de kustomization.yaml para backend/base:**
 
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -75,7 +109,8 @@ resources:
 	- services/mysql/nodeport.yaml
 ```
 
-**Ejemplo de Ingress (API Gateway):**
+
+**Ejemplo real de Ingress (API Gateway):**
 
 ```yaml
 apiVersion: networking.k8s.io/v1
@@ -119,18 +154,15 @@ spec:
 									number: 8040
 ```
 
+
 **Frontend:**
 - Se expone en la raíz del dominio (`/`).
 - Backend accesible bajo `/api/{servicio}`.
 
----
 
 
-# Eventos Perú Hexagonal
 
-Plataforma moderna y componible para la gestión integral de eventos y contrataciones, basada en **microservicios** (FastAPI, Python 3.12+) y un **frontend SPA** profesional (Vue 3 + Vite + TypeScript + TailwindCSS). Arquitectura hexagonal, despliegue en Docker/Kubernetes, APIs seguras y test automáticos.
 
----
 
 ## 🚀 Propuesta de Valor
 
@@ -143,7 +175,9 @@ Plataforma moderna y componible para la gestión integral de eventos y contratac
 
 ---
 
-## 🏗️ Arquitectura General (Diagrama)
+
+
+## 🏗️ Arquitectura General
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -151,18 +185,18 @@ Plataforma moderna y componible para la gestión integral de eventos y contratac
 │                                                             │
 │  Accede a: http://localhost:5174                            │
 └───────────────┬──────────────────────────────────────────────┘
-								│
-								│ HTTP Requests
-								▼
+		    │
+		    │ HTTP Requests
+		    ▼
 ┌──────────────────────────────────────────────────────────────┐
 │              🖥️  FRONTEND (Vue 3 + Vite)                    │
 │                  Puerto: 5174                               │
 │  - Vue 3.4 + TypeScript, Pinia, Vue Router, TailwindCSS     │
 │  - Axios, JWT, Guards, Vite Proxy                           │
 └───────────────┬──────────────────────────────────────────────┘
-								│
-								│ Proxy: /api/*
-								▼
+		    │
+		    │ Proxy: /api/*
+		    ▼
 ┌──────────────────────────────────────────────────────────────┐
 │           🛡️ API GATEWAY (FastAPI, httpx, CORS)             │
 │                  Puerto: 8000                               │
@@ -171,15 +205,15 @@ Plataforma moderna y componible para la gestión integral de eventos y contratac
 │  - /api/proveedores    → Proveedores Service (8030)         │
 │  - /api/contratacion   → Contratación Service (8040)        │
 └─────┬─────┬─────┬─────┬─────────────────────────────────────┘
-			│     │     │     │
-			▼     ▼     ▼     ▼
+	│     │     │     │
+	▼     ▼     ▼     ▼
 ┌───────┐ ┌───────┐ ┌───────┐ ┌────────────────────┐
 │ IAM   │ │Catálogo│ │Proveedor│ │  Contratación    │
 │Service│ │Service │ │Service  │ │    Service       │
 │:8010  │ │:8020   │ │:8030    │ │     :8040        │
 └───────┘ └───────┘ └───────┘ └────────────────────┘
-			│     │     │     │
-			▼     ▼     ▼     ▼
+	│     │     │     │
+	▼     ▼     ▼     ▼
 ┌───────┐ ┌───────┐ ┌───────┐ ┌────────────────────┐
 │ ev_iam│ │ev_catalog│ │ev_proveed│ │ ev_contratacion  │
 │ MySQL │ │ MySQL   │ │ MySQL   │ │     MySQL        │
@@ -187,9 +221,7 @@ Plataforma moderna y componible para la gestión integral de eventos y contratac
 └───────┘ └───────┘ └───────┘ └────────────────────┘
 ```
 
----
-
-## 📂 Estructura del Repositorio
+## 📂 Estructura del Repositorio y Kustomize
 
 ```plaintext
 eventos-peru-hexagonal/
@@ -202,12 +234,53 @@ eventos-peru-hexagonal/
 ├── services/           # Microservicios backend (IAM, Catálogo, etc.)
 ├── tests/              # Pruebas: software y seguridad
 ├── tools/              # Scripts utilitarios y E2E
+├── k8s/                # Manifiestos y overlays Kustomize
+│   ├── frontend/
+│   │   ├── base/
+│   │   │   ├── deployment.yaml
+│   │   │   ├── service.yaml
+│   │   │   ├── ingress.yaml
+│   │   │   └── kustomization.yaml
+│   │   └── overlays/
+│   │       ├── dev/
+│   │       │   └── kustomization.yaml
+│   │       └── prod/
+│   │           └── kustomization.yaml
+│   └── backend/
+│       ├── base/
+│       │   ├── ingress/
+│       │   │   └── ingress.yaml
+│       │   ├── namespace.yaml
+│       │   ├── serviceaccount.yaml
+│       │   ├── services/
+│       │   │   ├── iam/deploy-svc.yaml
+│       │   │   ├── catalogo/deploy-svc.yaml
+│       │   │   ├── contratacion/deploy-svc.yaml
+│       │   │   ├── proveedores/deploy-svc.yaml
+│       │   │   └── mysql/
+│       │   │       ├── statefulset.yaml
+│       │   │       ├── svc.yaml
+│       │   │       ├── svc-headless.yaml
+│       │   │       ├── configmap.yaml
+│       │   │       ├── secret-root.yaml
+│       │   │       └── nodeport.yaml
+│       │   └── kustomization.yaml
+│       └── overlays/
+│           ├── dev/
+│           │   └── kustomization.yaml
+│           └── prod/
+│               └── kustomization.yaml
 └── start-services.ps1  # Orquestador local (PowerShell)
 ```
 
 ---
 
-## 🧩 Microservicios y Componentes
+
+
+---
+
+
+## 🧩 Microservicios y Componentes (Detalle)
 
 ### 1. IAM Service (Identidad y Acceso)
 - **Puerto:** 8010
@@ -267,6 +340,7 @@ eventos-peru-hexagonal/
 
 ---
 
+
 ## 🔄 Flujo de Usuario (Texto + Diagrama)
 
 ### Camino A: Pedido desde Paquete
@@ -300,31 +374,41 @@ eventos-peru-hexagonal/
 
 ---
 
+
 ## 🛠️ Quickstart (Desarrollo Local)
 
-1. Clonar el repositorio:
-	 ```bash
-	 git clone <repo-url>
-	 cd eventos-peru-hexagonal
-	 ```
-2. Levantar servicios con Docker Compose:
-	 ```bash
-	 docker-compose -f deploy/docker-compose.yml up --build -d
-	 ```
-3. Iniciar frontend en modo desarrollo:
-	 ```bash
-	 cd frontend
-	 npm install
-	 npm run dev
-	 # Accede a http://localhost:5174
-	 ```
-4. Ejecutar pruebas:
-	 ```bash
-	 python -m venv .venv
-	 .\.venv\Scripts\Activate.ps1
-	 pip install -r tests/requirements.txt
-	 pytest tests/PRUEBAS_DE_SOFTWARE/funcionales -q
-	 ```
+1. Clona el repositorio:
+	```bash
+	git clone <repo-url>
+	cd eventos-peru-hexagonal
+	```
+2. Levanta los servicios backend, base de datos y gateway:
+	```bash
+	docker-compose -f deploy/docker-compose.yml up --build -d
+	# Verifica con docker ps que estén corriendo los contenedores
+	```
+3. Inicia el frontend en modo desarrollo (Vite):
+	```bash
+	cd frontend
+	npm install
+	npm run dev
+	# Accede a http://localhost:5174 (o el puerto que indique Vite)
+	# El proxy de Vite (/api) ya enruta al backend automáticamente
+	```
+	> El backend debe estar corriendo antes de iniciar el frontend para que el proxy funcione correctamente.
+4. Ejecuta pruebas de backend:
+	```bash
+	python -m venv .venv
+	.\.venv\Scripts\Activate.ps1
+	pip install -r tests/requirements.txt
+	pytest tests/PRUEBAS_DE_SOFTWARE/funcionales -q
+	```
+5. (Opcional) Despliega en Kubernetes local:
+	```bash
+	kubectl apply -k k8s/backend/overlays/dev
+	kubectl apply -k k8s/frontend/overlays/dev
+	# O usa overlays/prod para entorno productivo
+	```
 
 ---
 

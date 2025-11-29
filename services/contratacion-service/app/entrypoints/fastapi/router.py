@@ -6,7 +6,7 @@ from typing import Dict, Any
 from dataclasses import asdict
 from datetime import datetime
 import os
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Header
 
 from ev_shared.config import Settings
 
@@ -330,6 +330,7 @@ def admin_listar_pedidos(
     offset: int = 0,
     settings: Settings = Depends(get_settings),
     admin=Depends(require_role("admin")),
+    authorization: str | None = Header(None),
 ):
     """
     Lista TODOS los pedidos del sistema - SOLO ADMIN
@@ -337,13 +338,19 @@ def admin_listar_pedidos(
     """
     use_case = get_listar_pedidos_admin_use_case()
     
+    # Extract token for enrichment
+    token = None
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization.split(" ", 1)[1]
+    
     try:
         for session in get_db_session(settings):
             pedidos = use_case.execute(
                 session,
                 status=estado,
                 limit=limit,
-                offset=offset
+                offset=offset,
+                auth_token=token
             )
 
             # Serializar lista con tolerancia a filas problemáticas

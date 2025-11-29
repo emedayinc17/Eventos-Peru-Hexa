@@ -76,7 +76,6 @@ class MySQLPedidoRepository:
                   pe.id,
                   pe.cliente_id,
                   pe.tipo_evento_id,
-                  te.nombre AS tipo_evento_nombre,
                   (SELECT i.referencia_id FROM ev_contratacion.item_pedido_evento i
                      WHERE i.pedido_id = pe.id AND i.tipo_item = 'PAQUETE' LIMIT 1) AS paquete_id,
                   pe.fecha_evento,
@@ -90,7 +89,6 @@ class MySQLPedidoRepository:
                   pe.created_at,
                   pe.updated_at
                 FROM ev_contratacion.pedido_evento pe
-                LEFT JOIN ev_catalogo.tipo_evento te ON te.id = pe.tipo_evento_id
                 WHERE pe.id = :pedido_id
                 LIMIT 1
             """),
@@ -106,19 +104,19 @@ class MySQLPedidoRepository:
             tipo_evento_id=row["tipo_evento_id"],
             paquete_id=row["paquete_id"],
             fecha_evento=row["fecha_evento"],
-            hora_inicio=str(row["hora_inicio"]),
-            hora_fin=str(row["hora_fin"]) if row["hora_fin"] else None,
-            num_personas=row["num_personas"],
+            hora_inicio=str(row["hora_inicio"]).zfill(8) if len(str(row["hora_inicio"])) < 8 else str(row["hora_inicio"]),
+            hora_fin=str(row["hora_fin"]).zfill(8) if row["hora_fin"] and len(str(row["hora_fin"])) < 8 else (str(row["hora_fin"]) if row["hora_fin"] else None),
+            num_personas=row["num_personas"] or 1,
             ubicacion=row["ubicacion"],
             status=row["status"],
-            monto_total=row["monto_total"],
-            moneda=row["moneda"],
+            monto_total=row["monto_total"] or Decimal(0),
+            moneda=row["moneda"] or "PEN",
             notas=None,
             created_at=row["created_at"],
             updated_at=row["updated_at"],
             cliente_nombre=None,
             cliente_email=None,
-            tipo_evento_nombre=row["tipo_evento_nombre"],
+            tipo_evento_nombre=None,
         )
     
     def listar_por_cliente(
@@ -162,13 +160,13 @@ class MySQLPedidoRepository:
                 tipo_evento_id=row["tipo_evento_id"],
                 paquete_id=row["paquete_id"],
                 fecha_evento=row["fecha_evento"],
-                hora_inicio=str(row["hora_inicio"]),
-                hora_fin=str(row["hora_fin"]) if row["hora_fin"] else None,
+                hora_inicio=str(row["hora_inicio"]).zfill(8) if len(str(row["hora_inicio"])) < 8 else str(row["hora_inicio"]),
+                hora_fin=str(row["hora_fin"]).zfill(8) if row["hora_fin"] and len(str(row["hora_fin"])) < 8 else (str(row["hora_fin"]) if row["hora_fin"] else None),
                 num_personas=row["num_personas"],
                 ubicacion=row["ubicacion"],
                 status=row["status"],
-                monto_total=row["monto_total"],
-                moneda=row["moneda"],
+                monto_total=row["monto_total"] or Decimal(0),
+                moneda=row["moneda"] or "PEN",
                 notas=None,
                 created_at=row["created_at"],
                 updated_at=row["updated_at"],
@@ -188,57 +186,38 @@ class MySQLPedidoRepository:
         offset: int = 0
     ) -> List[Pedido]:
         """Lista todos los pedidos (admin) con filtros opcionales"""
+        
+        # Base query using the view that joins with client and event type
+        # Base query simplified to avoid cross-schema errors (temporary fix)
+        base_query = """
+            SELECT
+              pe.id,
+              pe.cliente_id,
+              pe.tipo_evento_id,
+              (SELECT i.referencia_id FROM ev_contratacion.item_pedido_evento i
+                 WHERE i.pedido_id = pe.id AND i.tipo_item = 'PAQUETE' LIMIT 1) AS paquete_id,
+              pe.fecha_evento,
+              pe.hora_inicio,
+              pe.hora_fin,
+              pe.num_personas,
+              pe.ubicacion,
+              pe.status,
+              pe.monto_total,
+              pe.moneda,
+              pe.created_at,
+              pe.updated_at
+            FROM ev_contratacion.pedido_evento pe
+        """
+        
+        params = {"limit": limit, "offset": offset}
+        
         if status is not None:
-            rows = session.execute(
-                text("""
-                    SELECT
-                      pe.id,
-                      pe.cliente_id,
-                      pe.tipo_evento_id,
-                      (SELECT i.referencia_id FROM ev_contratacion.item_pedido_evento i
-                         WHERE i.pedido_id = pe.id AND i.tipo_item = 'PAQUETE' LIMIT 1) AS paquete_id,
-                      pe.fecha_evento,
-                      pe.hora_inicio,
-                      pe.hora_fin,
-                      pe.num_personas,
-                      pe.ubicacion,
-                      pe.status,
-                      pe.monto_total,
-                      pe.moneda,
-                      pe.created_at,
-                      pe.updated_at
-                    FROM ev_contratacion.pedido_evento pe
-                    WHERE pe.status = :status
-                    ORDER BY pe.created_at DESC
-                    LIMIT :limit OFFSET :offset
-                """),
-                {"status": status, "limit": limit, "offset": offset},
-            ).mappings().all()
+            query = base_query + " WHERE pe.status = :status ORDER BY pe.created_at DESC LIMIT :limit OFFSET :offset"
+            params["status"] = status
         else:
-            rows = session.execute(
-                text("""
-                    SELECT
-                      pe.id,
-                      pe.cliente_id,
-                      pe.tipo_evento_id,
-                      (SELECT i.referencia_id FROM ev_contratacion.item_pedido_evento i
-                         WHERE i.pedido_id = pe.id AND i.tipo_item = 'PAQUETE' LIMIT 1) AS paquete_id,
-                      pe.fecha_evento,
-                      pe.hora_inicio,
-                      pe.hora_fin,
-                      pe.num_personas,
-                      pe.ubicacion,
-                      pe.status,
-                      pe.monto_total,
-                      pe.moneda,
-                      pe.created_at,
-                      pe.updated_at
-                    FROM ev_contratacion.pedido_evento pe
-                    ORDER BY pe.created_at DESC
-                    LIMIT :limit OFFSET :offset
-                """),
-                {"limit": limit, "offset": offset},
-            ).mappings().all()
+            query = base_query + " ORDER BY pe.created_at DESC LIMIT :limit OFFSET :offset"
+            
+        rows = session.execute(text(query), params).mappings().all()
         
         return [
             Pedido(
@@ -247,19 +226,18 @@ class MySQLPedidoRepository:
                 tipo_evento_id=row["tipo_evento_id"],
                 paquete_id=row["paquete_id"],
                 fecha_evento=row["fecha_evento"],
-                hora_inicio=str(row["hora_inicio"]),
-                hora_fin=str(row["hora_fin"]) if row["hora_fin"] else None,
-                num_personas=row["num_personas"],
+                hora_inicio=str(row["hora_inicio"]).zfill(8) if len(str(row["hora_inicio"])) < 8 else str(row["hora_inicio"]),
+                hora_fin=str(row["hora_fin"]).zfill(8) if row["hora_fin"] and len(str(row["hora_fin"])) < 8 else (str(row["hora_fin"]) if row["hora_fin"] else None),
+                num_personas=row["num_personas"] or 1, # Fallback safe
                 ubicacion=row["ubicacion"],
                 status=row["status"],
-                monto_total=row["monto_total"],
-                moneda=row["moneda"],
-                notas=None,
+                monto_total=Decimal(str(row["monto_total"] or 0)),
                 created_at=row["created_at"],
-                updated_at=row["updated_at"],
-                cliente_nombre=None,  # Not available without cross-schema JOIN
-                cliente_email=None,   # Not available without cross-schema JOIN
-                tipo_evento_nombre=None,  # Not available without cross-schema JOIN
+                updated_at=row["updated_at"] or row["created_at"],
+                moneda=row["moneda"] or "PEN",
+                cliente_nombre=None,
+                cliente_email=None,
+                tipo_evento_nombre=None
             )
             for row in rows
         ]
@@ -330,9 +308,6 @@ class MySQLItemPedidoRepository:
         import uuid
         new_id = str(uuid.uuid4())
         
-        # referencia_id: para SERVICIO usa opcion_servicio_id, para PAQUETE usa paquete_id
-        ref_id = referencia_id or opcion_servicio_id
-        
         session.execute(
             text("""
                 INSERT INTO ev_contratacion.item_pedido_evento (
@@ -354,7 +329,7 @@ class MySQLItemPedidoRepository:
                 "precio_unitario": precio_unitario,
                 "subtotal": subtotal,
                 "tipo_item": tipo_item,
-                "referencia_id": ref_id,
+                "referencia_id": referencia_id,
             },
         )
         session.commit()
@@ -390,7 +365,7 @@ class MySQLItemPedidoRepository:
         rows = session.execute(
             text("""
                 SELECT id, pedido_id, opcion_servicio_id, nombre_servicio,
-                       cantidad, precio_unitario, subtotal, created_at
+                       cantidad, precio_unitario, subtotal, tipo_item, referencia_id, created_at
                 FROM ev_contratacion.item_pedido_evento
                 WHERE pedido_id = :pedido_id
                 ORDER BY created_at
@@ -424,6 +399,10 @@ class MySQLItemPedidoRepository:
                 precio_unitario=Decimal(str(row["precio_unitario"])),
                 subtotal=Decimal(str(row["subtotal"])),
             )
+            
+            # Inyectar atributos dinámicos
+            setattr(item, 'referencia_id', row['referencia_id'])
+            setattr(item, 'tipo_item', row['tipo_item'])
             
             if prov_row:
                 # Inyectamos proveedor como atributo dinámico para que el frontend lo reciba

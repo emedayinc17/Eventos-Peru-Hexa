@@ -17,6 +17,7 @@ from ...infrastructure.db.repositories import (
 )
 from ...infrastructure.http.catalogo_client import CatalogoClient
 from ...infrastructure.http.proveedores_client import ProveedoresClient
+from ...infrastructure.http.iam_client import IamClient
 
 # Use Cases
 from ...application.use_cases import (
@@ -86,6 +87,13 @@ def get_proveedores_client(settings: Settings = None) -> ProveedoresClient:
     return ProveedoresClient(settings)
 
 
+def get_iam_client(settings: Settings = None) -> IamClient:
+    """Factory para cliente HTTP de IAM"""
+    if settings is None:
+        settings = get_settings()
+    return IamClient(settings)
+
+
 # === Use Cases ===
 
 def get_crear_pedido_desde_paquete_use_case(
@@ -133,12 +141,19 @@ def get_listar_pedidos_cliente_use_case(
 
 
 def get_listar_pedidos_admin_use_case(
-    pedido_repo: MySQLPedidoRepository = None
+    pedido_repo: MySQLPedidoRepository = None,
+    iam_client: IamClient = None,
+    catalogo_client: CatalogoClient = None
 ) -> ListarPedidosAdminUseCase:
     """Factory para ListarPedidosAdminUseCase"""
     if pedido_repo is None:
         pedido_repo = get_pedido_repository()
-    return ListarPedidosAdminUseCase(pedido_repo)
+    if iam_client is None:
+        iam_client = get_iam_client()
+    if catalogo_client is None:
+        catalogo_client = get_catalogo_client()
+    
+    return ListarPedidosAdminUseCase(pedido_repo, iam_client, catalogo_client)
 
 
 def get_obtener_pedido_detalle_use_case(

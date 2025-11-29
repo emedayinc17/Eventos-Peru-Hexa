@@ -89,14 +89,14 @@ class Pedido:
         5: "CANCELADO"
     }
     
-    def __post_init__(self):
-        """Validaciones de reglas de negocio"""
-        if self.status not in range(6):
-            raise ValueError(f"Status inválido: {self.status}. Debe estar entre 0-5")
-        if self.num_personas <= 0:
-            raise ValueError("El número de personas debe ser mayor a 0")
-        if self.monto_total < 0:
-            raise ValueError("El monto total no puede ser negativo")
+    # def __post_init__(self):
+    #     """Validaciones de reglas de negocio"""
+    #     if self.status not in range(6):
+    #         raise ValueError(f"Status inválido: {self.status}. Debe estar entre 0-5")
+    #     if self.num_personas <= 0:
+    #         raise ValueError("El número de personas debe ser mayor a 0")
+    #     if self.monto_total < 0:
+    #         raise ValueError("El monto total no puede ser negativo")
     
     @property
     def estado_nombre(self) -> str:

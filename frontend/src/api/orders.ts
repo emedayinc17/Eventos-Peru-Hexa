@@ -43,4 +43,16 @@ export const ordersApi = {
   async deletePedido(id: number | string): Promise<void> {
     await apiClient.patch(`${ORDERS_BASE}/admin/pedidos/${id}`, { estado: 5 });
   },
+
+  async addItems(id: number | string, items: any[]): Promise<any> {
+    const response = await apiClient.post(`${ORDERS_BASE}/admin/pedidos/${id}/items`, { items });
+    return response.data;
+  },
+
+  async deleteItems(id: number | string, itemIds: string[]): Promise<any> {
+    const response = await apiClient.delete(`${ORDERS_BASE}/admin/pedidos/${id}/items`, {
+      data: { item_ids: itemIds }
+    });
+    return response.data;
+  },
 };

@@ -438,8 +438,21 @@ const confirmCancel = async (pedido: any) => {
 };
 
 const loadPedidos = async () => {
-  if (authStore.user) {
-    await ordersStore.fetchPedidos(authStore.user.id);
+  try {
+    if (authStore.user) {
+      await ordersStore.fetchPedidos(authStore.user.id);
+    } else {
+      // fallback: intentar cargar pedidos sin usuario (server usa session/token en /pedidos/mios)
+      await ordersStore.fetchPedidos();
+    }
+  } catch (e) {
+    // Si la petición falla por auth, redirigir a login
+    const err: any = e;
+    if (err && err.response && err.response.status === 401) {
+      window.location.href = '/login';
+    } else {
+      console.error('Error cargando pedidos:', e);
+    }
   }
 };
 

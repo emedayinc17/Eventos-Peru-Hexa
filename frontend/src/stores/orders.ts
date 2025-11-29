@@ -51,13 +51,12 @@ export const useOrdersStore = defineStore('orders', () => {
     }
   }
 
-  async function fetchPedido(id: number | string): Promise<void> {
+  async function fetchPedido(id: number | string, admin = false): Promise<void> {
     loading.value = true;
     error.value = null;
 
     try {
-      // For client-side detail views use the non-admin endpoint
-      currentPedido.value = await ordersApi.getPedido(id, false);
+      currentPedido.value = await ordersApi.getPedido(id, admin);
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Error al cargar pedido';
       throw err;
@@ -96,7 +95,8 @@ export const useOrdersStore = defineStore('orders', () => {
       const updated = await ordersApi.updatePedido(id, data);
       const index = pedidos.value.findIndex(p => String(p.id) === String(id));
       if (index !== -1) {
-        pedidos.value[index] = updated;
+        // Merge update into existing to preserve enriched fields (like cliente_nombre)
+        pedidos.value[index] = { ...pedidos.value[index], ...updated };
       }
       return updated;
     } catch (err: any) {
@@ -120,6 +120,41 @@ export const useOrdersStore = defineStore('orders', () => {
       }
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Error al eliminar pedido';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function addItems(id: number | string, items: any[]): Promise<void> {
+    loading.value = true;
+    error.value = null;
+    try {
+      await ordersApi.addItems(id, items);
+      // Result contains updated pedido info, we might want to refresh the current pedido
+      if (currentPedido.value && String((currentPedido.value as any).pedido?.id || (currentPedido.value as any).id) === String(id)) {
+        // Refresh details
+        await fetchPedido(id);
+      }
+    } catch (err: any) {
+      error.value = err.response?.data?.detail || 'Error al agregar items';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function deleteItems(id: number | string, itemIds: string[]): Promise<void> {
+    loading.value = true;
+    error.value = null;
+    try {
+      await ordersApi.deleteItems(id, itemIds);
+      // Refresh details
+      if (currentPedido.value && String((currentPedido.value as any).pedido?.id || (currentPedido.value as any).id) === String(id)) {
+        await fetchPedido(id);
+      }
+    } catch (err: any) {
+      error.value = err.response?.data?.detail || 'Error al eliminar items';
       throw err;
     } finally {
       loading.value = false;
@@ -152,6 +187,8 @@ export const useOrdersStore = defineStore('orders', () => {
     createPedido,
     updatePedido,
     deletePedido,
+    addItems,
+    deleteItems,
     updateDraft,
     clearDraft,
     getDraft,

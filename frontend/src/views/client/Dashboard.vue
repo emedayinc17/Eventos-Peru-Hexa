@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { catalogApi } from '@/api/catalog';
 import { useAuthStore } from '@/stores/auth';
 import { useOrdersStore } from '@/stores/orders';
 import { useRouter } from 'vue-router';
@@ -16,29 +17,84 @@ const ordersStore = useOrdersStore();
 const router = useRouter();
 
 const loading = ref(true);
+const tipoMap = ref<Record<string, string>>({});
 
 // Computed properties for statistics
 const totalPedidos = computed(() => ordersStore.pedidos.length);
 
+const resolveEstado = (p: any) => {
+  const raw = p.status ?? p.estado ?? p.estado_value ?? p.estadoValue ?? p.estado_text ?? p.estadoNombre ?? p.estado_nombre;
+  if (raw === undefined || raw === null) return -1;
+  const n = Number(raw);
+  if (!Number.isNaN(n)) return n;
+  const s = String(raw).toLowerCase();
+  if (s.includes('cerr') || s.includes('complet')) return 4;
+  if (s.includes('cancel')) return 5;
+  if (s.includes('asign')) return 3;
+  if (s.includes('aprob')) return 2;
+  if (s.includes('cotiz') || s.includes('draft')) return 1;
+  return -1;
+};
+
 const pedidosPendientes = computed(() => {
-  return ordersStore.pedidos.filter(p => 
-    p.estado === 1 || p.estado === 2 // PENDIENTE o EN_PROCESO
-  ).length;
+  // Considerar DRAFT/COTIZADO/APROBADO como pendientes
+  return ordersStore.pedidos.filter(p => {
+    const s = resolveEstado(p);
+    return s === 0 || s === 1 || s === 2;
+  }).length;
 });
 
 const pedidosCompletados = computed(() => {
-  return ordersStore.pedidos.filter(p => p.estado === 4).length; // COMPLETADO
+  return ordersStore.pedidos.filter(p => resolveEstado(p) === 4).length; // COMPLETADO
 });
 
 const totalGastado = computed(() => {
-  return ordersStore.pedidos
-    .filter(p => p.estado === 4) // Solo pedidos completados
-    .reduce((sum, p) => sum + (p.monto_total || 0), 0);
+  const sum = ordersStore.pedidos
+    .filter(p => resolveEstado(p) === 4) // Solo pedidos completados
+    .reduce((acc, p) => {
+      const raw = p.monto_total ?? p.total ?? p.monto ?? 0;
+      // Aceptar strings y posibles separadores de miles/coma decimal
+      let num = 0;
+      if (raw === null || raw === undefined) num = 0;
+      else if (typeof raw === 'number') num = raw;
+      else {
+        const cleaned = String(raw).replace(/[^0-9.,-]/g, '').replace(/\.(?=.*\.)/g, '');
+        // Reemplazar coma decimal por punto si aplica
+        const norm = cleaned.replace(',', '.');
+        num = Number(norm) || 0;
+      }
+      return acc + num;
+    }, 0);
+  return sum;
+});
+
+const totalEstimado = computed(() => {
+  const sum = ordersStore.pedidos
+    .filter(p => {
+      const s = resolveEstado(p);
+      return s === 0 || s === 1 || s === 2; // DRAFT, COTIZADO, APROBADO
+    })
+    .reduce((acc, p) => {
+      const raw = p.monto_total ?? p.total ?? p.monto ?? 0;
+      let num = 0;
+      if (raw === null || raw === undefined) num = 0;
+      else if (typeof raw === 'number') num = raw;
+      else {
+        const cleaned = String(raw).replace(/[^0-9.,-]/g, '').replace(/\.(?=.*\.)/g, '');
+        const norm = cleaned.replace(',', '.');
+        num = Number(norm) || 0;
+      }
+      return acc + num;
+    }, 0);
+  return sum;
 });
 
 const proximosPedidos = computed(() => {
   return ordersStore.pedidos
-    .filter(p => p.estado === 1 || p.estado === 2) // PENDIENTE o EN_PROCESO
+    .filter(p => {
+      const s = resolveEstado(p);
+      return s === 0 || s === 1 || s === 2; // mostrar DRAFT/COTIZADO/APROBADO como próximos
+    })
     .sort((a, b) => {
       const dateA = new Date(a.fecha_evento || a.created_at);
       const dateB = new Date(b.fecha_evento || b.created_at);
@@ -100,6 +156,16 @@ onMounted(async () => {
       // Fetch client's pedidos (not admin)
       await ordersStore.fetchPedidos();
     }
+    // Load tipos de evento once for readable labels
+    try {
+      const tipos = await catalogApi.getTiposEvento();
+      const items: any[] = Array.isArray(tipos) ? tipos as any[] : (tipos as any).items || (tipos as any).data || [];
+      items.forEach(t => {
+        if (t && t.id) tipoMap.value[String(t.id)] = t.nombre ?? t.nombre_tipo ?? t.name ?? '';
+      });
+    } catch (e) {
+      console.debug('[Dashboard] failed to load tipos-evento', e);
+    }
   } catch (error) {
     console.error('Error loading dashboard data:', error);
   } finally {
@@ -125,7 +191,7 @@ onMounted(async () => {
     <!-- Dashboard Content -->
     <div v-else>
       <!-- Statistics Cards -->
-      <div class="grid grid-cols-1 gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-6 sm:mb-8">
+      <div class="grid grid-cols-1 gap-4 sm:gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 mb-6 sm:mb-8">
         <div class="card hover:shadow-lg transition-shadow">
           <div class="flex items-center justify-between">
             <div>
@@ -156,6 +222,17 @@ onMounted(async () => {
               <p class="text-xs text-gray-500 mt-1">Monto acumulado</p>
             </div>
             <CurrencyDollarIcon class="w-12 h-12 text-green-200" />
+          </div>
+        </div>
+
+        <div class="card hover:shadow-lg transition-shadow">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-sm sm:text-base font-semibold mb-2 text-gray-700">Estimado a Gastar</h3>
+              <p class="text-2xl sm:text-3xl font-bold text-indigo-600">{{ formatCurrency(totalEstimado) }}</p>
+              <p class="text-xs text-gray-500 mt-1">Incluye pedidos cotizados y aprobados</p>
+            </div>
+            <PlusIcon class="w-12 h-12 text-indigo-200" />
           </div>
         </div>
 
@@ -193,8 +270,7 @@ onMounted(async () => {
           <div
             v-for="pedido in proximosPedidos"
             :key="pedido.id"
-            class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
-            @click="viewPedido(pedido.id)"
+            class="border border-gray-200 rounded-lg p-4"
           >
             <div class="flex items-start justify-between">
               <div class="flex-1">
@@ -202,9 +278,9 @@ onMounted(async () => {
                   <h3 class="font-semibold text-gray-900">Pedido #{{ pedido.id }}</h3>
                   <span
                     class="px-2 py-1 text-xs font-semibold rounded-full"
-                    :class="getEstadoBadgeClass(pedido.estado)"
+                    :class="getEstadoBadgeClass(resolveEstado(pedido))"
                   >
-                    {{ getEstadoText(pedido.estado) }}
+                    {{ getEstadoText(resolveEstado(pedido)) }}
                   </span>
                 </div>
                 
@@ -213,8 +289,12 @@ onMounted(async () => {
                     <CalendarIcon class="w-4 h-4 inline mr-1" />
                     Fecha del evento: {{ formatDate(pedido.fecha_evento) }}
                   </p>
-                  <p v-if="pedido.tipo_evento_nombre">
-                    Tipo: {{ pedido.tipo_evento_nombre }}
+                  <p>
+                    Tipo:
+                    {{
+                      pedido.tipo_evento_nombre ||
+                        (tipoMap[pedido.tipo_evento_id] ? tipoMap[pedido.tipo_evento_id] : (pedido.tipo_evento_id ? 'ID ' + pedido.tipo_evento_id : 'Sin tipo'))
+                    }}
                   </p>
                   <p v-if="pedido.paquete_nombre">
                     Paquete: {{ pedido.paquete_nombre }}

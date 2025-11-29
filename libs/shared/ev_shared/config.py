@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     PROVEEDORES_SERVICE_URL: str = Field(default="http://127.0.0.1:8030/proveedores")
     CATALOGO_SERVICE_URL: str = Field(default="http://127.0.0.1:8020/catalogo")
     CONTRATACION_SERVICE_URL: str = Field(default="http://127.0.0.1:8040/contratacion")
+    IAM_SERVICE_URL: str = Field(default="http://127.0.0.1:8010/iam")
 
     # Vault (placeholder para despliegue)
     VAULT_ENABLED: bool = Field(default=False)
