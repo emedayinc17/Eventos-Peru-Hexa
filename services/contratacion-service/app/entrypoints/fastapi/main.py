@@ -6,6 +6,9 @@ from ev_shared.config import load_settings, Settings
 from ev_shared.logger import get_logger
 from ev_shared.http_debug import build_debug_router
 from .router import build_api_router
+from fastapi.responses import JSONResponse
+import os
+import traceback
 
 settings: Settings = load_settings(service_name="contratacion-service")
 log = get_logger(__name__, service_name=settings.SERVICE_NAME)
@@ -42,6 +45,23 @@ app.openapi = custom_openapi  # 👈 activa el esquema en OpenAPI
 # the router definitions already include their full paths (e.g. '/v1/contratacion/...').
 app.include_router(build_api_router(settings))
 app.include_router(build_debug_router(settings))
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    """Manejador global de excepciones para devolver traza en modo debug."""
+    # Log completo en servidor
+    log.exception("Unhandled exception in request: %s %s", request.method, request.url)
+    # Si está activado el debug por variable de entorno, incluir traza en la respuesta JSON
+    if os.environ.get('CONTRATACION_DEBUG', '0') == '1':
+        tb = traceback.format_exc()
+        return JSONResponse(status_code=500, content={
+            "code": "ERROR_INTERNO",
+            "message": str(exc),
+            "trace": tb,
+        })
+    # Modo normal: no exponer traza
+    return JSONResponse(status_code=500, content={"code": "ERROR_INTERNO", "message": "Internal server error"})
 
 @app.on_event("startup")
 async def on_startup():
