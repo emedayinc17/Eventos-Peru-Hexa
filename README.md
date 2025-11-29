@@ -1,6 +1,7 @@
-## 📦 Ejemplo de Estructura Kustomize (Frontend y Backend)
 
-Se recomienda tener una carpeta `k8s/` en la raíz de cada repo (o en el monorepo), con la siguiente estructura para aprovechar Kustomize y facilitar despliegues multi-entorno:
+## 📦 Estructura Kustomize Final (Frontend y Backend)
+
+La carpeta `k8s/` en la raíz contiene la estructura real y recomendada para despliegues multi-entorno con Kustomize:
 
 ```plaintext
 k8s/
@@ -17,7 +18,27 @@ k8s/
 				kustomization.yaml
 	backend/
 		base/
-			(todos los microservicios: deployment.yaml, service.yaml, ingress.yaml, kustomization.yaml)
+			ingress/
+				ingress.yaml
+			namespace.yaml
+			serviceaccount.yaml
+			services/
+				iam/
+					deploy-svc.yaml
+				catalogo/
+					deploy-svc.yaml
+				contratacion/
+					deploy-svc.yaml
+				proveedores/
+					deploy-svc.yaml
+				mysql/
+					statefulset.yaml
+					svc.yaml
+					svc-headless.yaml
+					configmap.yaml
+					secret-root.yaml
+					nodeport.yaml
+			kustomization.yaml
 		overlays/
 			dev/
 				kustomization.yaml
@@ -25,38 +46,82 @@ k8s/
 				kustomization.yaml
 ```
 
+
 **Ventajas:**
-- Puedes personalizar imágenes, dominios, réplicas, variables por entorno sin duplicar YAML.
+- Personalización de imágenes, dominios, réplicas y variables por entorno sin duplicar YAML.
 - ArgoCD puede apuntar a `k8s/frontend/overlays/prod` o `k8s/backend/overlays/prod` según el entorno.
-- Mantienes independencia y flexibilidad para frontend y backend.
+- Estructura clara: cada microservicio backend tiene su subcarpeta bajo `services/`.
 
-**Ejemplo de kustomization.yaml para un overlay:**
+**Ejemplo de kustomization.yaml para backend/base:**
 
 ```yaml
-# k8s/frontend/overlays/prod/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: eventos-peru
+
 resources:
-	- ../../base
-images:
-	- name: emeday17/eventos-frontend
-		newTag: 1.0.0-prod
-patches:
-	- path: replicas-patch.yaml
-		target:
-			kind: Deployment
-			name: eventos-frontend
+	- namespace.yaml
+	- serviceaccount.yaml
+	- ingress/ingress.yaml
+	- services/iam/deploy-svc.yaml
+	- services/catalogo/deploy-svc.yaml
+	- services/contratacion/deploy-svc.yaml
+	- services/proveedores/deploy-svc.yaml
+	- services/mysql/statefulset.yaml
+	- services/mysql/svc.yaml
+	- services/mysql/svc-headless.yaml
+	- services/mysql/configmap.yaml
+	- services/mysql/secret-root.yaml
+	- services/mysql/nodeport.yaml
 ```
+
+**Ejemplo de Ingress (API Gateway):**
 
 ```yaml
-# k8s/frontend/overlays/prod/replicas-patch.yaml
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: networking.k8s.io/v1
+kind: Ingress
 metadata:
-	name: eventos-frontend
+	name: eventos-api
+	namespace: eventos-peru
 spec:
-	replicas: 3
+	ingressClassName: public
+	rules:
+		- host: eventos.emeday.inc
+			http:
+				paths:
+					- path: /api/iam
+						pathType: Prefix
+						backend:
+							service:
+								name: iam-service
+								port:
+									number: 8010
+					- path: /api/catalogo
+						pathType: Prefix
+						backend:
+							service:
+								name: catalogo-service
+								port:
+									number: 8020
+					- path: /api/proveedores
+						pathType: Prefix
+						backend:
+							service:
+								name: proveedores-service
+								port:
+									number: 8030
+					- path: /api/contratacion
+						pathType: Prefix
+						backend:
+							service:
+								name: contratacion-service
+								port:
+									number: 8040
 ```
 
-**Repite la misma lógica para backend y sus microservicios.**
+**Frontend:**
+- Se expone en la raíz del dominio (`/`).
+- Backend accesible bajo `/api/{servicio}`.
 
 ---
 
@@ -101,10 +166,10 @@ Plataforma moderna y componible para la gestión integral de eventos y contratac
 ┌──────────────────────────────────────────────────────────────┐
 │           🛡️ API GATEWAY (FastAPI, httpx, CORS)             │
 │                  Puerto: 8000                               │
-│  - /api/iam/*          → IAM Service (8010)                 │
-│  - /api/catalogo/*     → Catálogo Service (8020)            │
-│  - /api/proveedores/*  → Proveedores Service (8030)         │
-│  - /api/contratacion/* → Contratación Service (8040)        │
+│  - /api/iam            → IAM Service (8010)                 │
+│  - /api/catalogo       → Catálogo Service (8020)            │
+│  - /api/proveedores    → Proveedores Service (8030)         │
+│  - /api/contratacion   → Contratación Service (8040)        │
 └─────┬─────┬─────┬─────┬─────────────────────────────────────┘
 			│     │     │     │
 			▼     ▼     ▼     ▼
