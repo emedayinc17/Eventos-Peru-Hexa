@@ -14,6 +14,7 @@ const props = withDefaults(defineProps<ModalProps>(), {
 
 const emit = defineEmits<{
   close: [];
+  'update:open': (v: boolean) => void;
 }>();
 
 const maxWidthClass = {
@@ -27,7 +28,7 @@ const maxWidthClass = {
 
 <template>
   <TransitionRoot :show="open" as="template">
-    <Dialog as="div" class="relative z-50" @close="emit('close')">
+    <Dialog as="div" class="relative z-50" @close="() => { emit('update:open', false); emit('close'); }">
       <TransitionChild
         as="template"
         enter="ease-out duration-300"
@@ -65,7 +66,7 @@ const maxWidthClass = {
                   <button
                     type="button"
                     class="rounded-md bg-white text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-                    @click="emit('close')"
+                    @click="() => { emit('update:open', false); emit('close'); }"
                   >
                     <span class="sr-only">Cerrar</span>
                     <XMarkIcon class="h-6 w-6" aria-hidden="true" />

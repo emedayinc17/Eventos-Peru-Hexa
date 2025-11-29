@@ -150,6 +150,7 @@ CREATE TABLE IF NOT EXISTS ev_catalogo.servicio (
   id             CHAR(36) PRIMARY KEY,
   nombre         VARCHAR(120) NOT NULL,
   descripcion    VARCHAR(500) NULL,
+  categoria      VARCHAR(80)  NULL,
   tipo_evento_id CHAR(36) NOT NULL,      -- referencia lógica
   status         TINYINT     NOT NULL DEFAULT 1,
   created_at     TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -158,6 +159,7 @@ CREATE TABLE IF NOT EXISTS ev_catalogo.servicio (
   created_by     CHAR(36)    NULL,
   updated_by     CHAR(36)    NULL,
   INDEX idx_serv_tipo   (tipo_evento_id),
+  INDEX idx_serv_categoria (categoria),
   INDEX idx_serv_status (status),
   INDEX idx_serv_actor  (created_by, updated_by)
 ) ENGINE=InnoDB;
@@ -193,6 +195,40 @@ CREATE TABLE IF NOT EXISTS ev_catalogo.precio_servicio (
 ) ENGINE=InnoDB;
 
 /* CHECK/Índice únicos idempotentes */
+  /* Asegurar columnas adicionales idempotentemente: tipo_evento_id, categoria */
+  SET @exists_col := (
+     SELECT COUNT(*) FROM information_schema.columns
+     WHERE table_schema = 'ev_catalogo' AND table_name = 'opcion_servicio' AND column_name = 'tipo_evento_id'
+  );
+  SET @sql := IF(@exists_col=0,
+     'ALTER TABLE ev_catalogo.opcion_servicio ADD COLUMN tipo_evento_id CHAR(36) NULL AFTER servicio_id',
+     'SELECT 1'); PREPARE s_op1 FROM @sql; EXECUTE s_op1; DEALLOCATE PREPARE s_op1;
+
+  SET @exists_col2 := (
+     SELECT COUNT(*) FROM information_schema.columns
+     WHERE table_schema = 'ev_catalogo' AND table_name = 'opcion_servicio' AND column_name = 'categoria'
+  );
+  SET @sql := IF(@exists_col2=0,
+     'ALTER TABLE ev_catalogo.opcion_servicio ADD COLUMN categoria VARCHAR(50) NULL AFTER nombre',
+     'SELECT 1'); PREPARE s_op2 FROM @sql; EXECUTE s_op2; DEALLOCATE PREPARE s_op2;
+
+  /* Índices para facilitar filtrado por categoría/tipo */
+  SET @exists_idx := (
+    SELECT COUNT(*) FROM information_schema.statistics
+    WHERE table_schema='ev_catalogo' AND table_name='opcion_servicio' AND index_name='idx_op_categoria'
+  );
+  SET @sql := IF(@exists_idx=0,
+    'CREATE INDEX idx_op_categoria ON ev_catalogo.opcion_servicio (categoria)',
+    'SELECT 1'); PREPARE s_op3 FROM @sql; EXECUTE s_op3; DEALLOCATE PREPARE s_op3;
+
+  SET @exists_idx2 := (
+    SELECT COUNT(*) FROM information_schema.statistics
+    WHERE table_schema='ev_catalogo' AND table_name='opcion_servicio' AND index_name='idx_op_tipo_evento'
+  );
+  SET @sql := IF(@exists_idx2=0,
+    'CREATE INDEX idx_op_tipo_evento ON ev_catalogo.opcion_servicio (tipo_evento_id)',
+    'SELECT 1'); PREPARE s_op4 FROM @sql; EXECUTE s_op4; DEALLOCATE PREPARE s_op4;
+
 SET @exists := (
   SELECT COUNT(*) FROM information_schema.table_constraints
   WHERE constraint_schema='ev_catalogo'
@@ -222,6 +258,7 @@ CREATE TABLE IF NOT EXISTS ev_paquetes.paquete (
   codigo       VARCHAR(50)  NOT NULL UNIQUE,
   nombre       VARCHAR(120) NOT NULL,
   descripcion  VARCHAR(500) NULL,
+  moneda       CHAR(3)      NOT NULL DEFAULT 'PEN',
   status       TINYINT      NOT NULL DEFAULT 1,
   created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at   TIMESTAMP    NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
@@ -231,11 +268,13 @@ CREATE TABLE IF NOT EXISTS ev_paquetes.paquete (
   INDEX idx_pkg_actor (created_by, updated_by)
 ) ENGINE=InnoDB;
 
+
 CREATE TABLE IF NOT EXISTS ev_paquetes.item_paquete (
   id                 CHAR(36) PRIMARY KEY,
   paquete_id         CHAR(36) NOT NULL,
   opcion_servicio_id CHAR(36) NOT NULL,
   cantidad           INT NOT NULL DEFAULT 1,
+  created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_item_pkg (paquete_id),
   INDEX idx_item_opt (opcion_servicio_id)
 ) ENGINE=InnoDB;
@@ -294,6 +333,10 @@ SET @sql := IF(@exists=0,
 CREATE TABLE IF NOT EXISTS ev_proveedores.proveedor (
   id           CHAR(36) PRIMARY KEY,
   nombre       VARCHAR(150) NOT NULL,
+  categoria    VARCHAR(80)  NULL,
+  ruc          VARCHAR(50)  NULL,
+  contacto     VARCHAR(150) NULL,
+  direccion    VARCHAR(255) NULL,
   email        VARCHAR(150) NULL,
   telefono     VARCHAR(50)  NULL,
   rating_prom  DECIMAL(3,2) NULL DEFAULT 0.0,
@@ -890,6 +933,15 @@ SET @sql := IF(@exists>0,
   'ALTER TABLE ev_contratacion.pedido_evento DROP CHECK chk_ped_horas',
   'SELECT 1');
 PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
+
+-- Roles (solo una vez)
+INSERT IGNORE INTO ev_iam.rol (id, codigo, nombre, descripcion, status) VALUES
+ ('aaaa1111-1111-1111-1111-aaaaaaaaaaa1','ADMIN','Administrador','Acceso administrativo completo del sistema',1);
+
+-- Unico administrador con contraseña: Evoluti0n
+INSERT IGNORE INTO ev_iam.usuario (id, email, password_hash, nombre, telefono, status) VALUES
+ ('ee111111-1111-4111-8111-aaaaaaaaaaa1','admin@eventos.pe','$bcrypt-sha256$v=2,t=2b,r=12$0mZ35JSikYcRUxPds2IKK.$G/4eI2JPqTURMzE34fgCa2qNRYdlnSC','Administrador Principal','+51 900 111 000',1);
+
 
 FLUSH PRIVILEGES;
 

@@ -46,12 +46,21 @@ const publicNavigation = [
             </RouterLink>
           </template>
           <template v-else>
-            <RouterLink
-              to="/login"
-              class="inline-flex items-center rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700"
-            >
-              Iniciar Sesión
-            </RouterLink>
+            <div class="inline-flex items-center space-x-2">
+              <RouterLink
+                to="/login"
+                class="inline-flex items-center rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700"
+              >
+                Iniciar Sesión
+              </RouterLink>
+
+              <RouterLink
+                :to="{ path: '/login', query: { register: 'true' } }"
+                class="inline-flex items-center rounded-md border border-primary-600 px-3 py-2 text-sm font-semibold text-primary-600 bg-white hover:bg-primary-50"
+              >
+                Crear cuenta
+              </RouterLink>
+            </div>
           </template>
         </div>
         <div class="-mr-2 flex items-center sm:hidden">

@@ -1,5 +1,17 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import sys
+from pathlib import Path
+
+# Ensure `ev_shared` package from repo `libs/shared` is on sys.path when running locally
+repo_file = Path(__file__).resolve()
+for parent in repo_file.parents:
+    candidate = parent / 'libs' / 'shared'
+    if candidate.exists():
+        if str(candidate) not in sys.path:
+            sys.path.insert(0, str(candidate))
+        break
+
 from ev_shared.config import load_settings, Settings
 from ev_shared.logger import get_logger
 from ev_shared.http_debug import build_debug_router

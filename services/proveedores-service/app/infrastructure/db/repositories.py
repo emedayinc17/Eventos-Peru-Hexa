@@ -387,15 +387,18 @@ class MySQLHoldsRepository:
 class MySQLProveedorCommandRepository:
     """Repositorio de comandos para proveedores: create/update/delete, habilidades y calendario."""
 
-    def create_proveedor(self, s, *, nombre: str, email: str | None = None, telefono: str | None = None) -> dict:
+    def create_proveedor(self, s, *, nombre: str, email: str | None = None, telefono: str | None = None, categoria: str | None = None, ruc: str | None = None, contacto: str | None = None, direccion: str | None = None, activo: bool | None = None) -> dict:
+        import uuid
+        new_id = str(uuid.uuid4())
+        # Map 'activo' boolean to status integer stored in DB
+        status_val = 1 if (activo is None or activo) else 0
         s.execute(
-            text("INSERT INTO ev_proveedores.proveedor (id, nombre, email, telefono, status, is_deleted, created_at) VALUES (UUID(), :nombre, :email, :telefono, 1, 0, NOW())"),
-            {"nombre": nombre, "email": email, "telefono": telefono},
+            text("INSERT INTO ev_proveedores.proveedor (id, nombre, email, telefono, categoria, ruc, contacto, direccion, status, is_deleted, created_at) VALUES (:id, :nombre, :email, :telefono, :categoria, :ruc, :contacto, :direccion, :status, 0, NOW())"),
+            {"id": new_id, "nombre": nombre, "email": email, "telefono": telefono, "categoria": categoria, "ruc": ruc, "contacto": contacto, "direccion": direccion, "status": status_val},
         )
-        id_row = s.execute(text("SELECT LAST_INSERT_ID() AS id")).mappings().first()
-        return {"id": id_row["id"], "nombre": nombre}
+        return {"id": new_id, "nombre": nombre, "email": email, "telefono": telefono, "categoria": categoria, "ruc": ruc, "contacto": contacto, "direccion": direccion, "status": status_val, "rating_prom": 0}
 
-    def update_proveedor(self, s, *, proveedor_id: str, nombre: str | None = None, email: str | None = None, telefono: str | None = None) -> None:
+    def update_proveedor(self, s, *, proveedor_id: str, nombre: str | None = None, email: str | None = None, telefono: str | None = None, categoria: str | None = None, ruc: str | None = None, contacto: str | None = None, direccion: str | None = None, activo: bool | None = None) -> dict:
         updates = []
         params = {"id": proveedor_id}
         if nombre is not None:
@@ -407,10 +410,37 @@ class MySQLProveedorCommandRepository:
         if telefono is not None:
             updates.append("telefono = :telefono")
             params["telefono"] = telefono
+        if categoria is not None:
+            updates.append("categoria = :categoria")
+            params["categoria"] = categoria
+        if ruc is not None:
+            updates.append("ruc = :ruc")
+            params["ruc"] = ruc
+        if contacto is not None:
+            updates.append("contacto = :contacto")
+            params["contacto"] = contacto
+        if direccion is not None:
+            updates.append("direccion = :direccion")
+            params["direccion"] = direccion
+        if activo is not None:
+            # convert boolean to status integer
+            params["status"] = 1 if activo else 0
+            updates.append("status = :status")
         if not updates:
-            return
+            row = s.execute(
+                text("SELECT id, nombre, email, telefono, categoria, ruc, contacto, direccion, status, rating_prom FROM ev_proveedores.proveedor WHERE id = :id"),
+                {"id": proveedor_id}
+            ).mappings().first()
+            return dict(row) if row else {"id": proveedor_id}
+
         sql = f"UPDATE ev_proveedores.proveedor SET {', '.join(updates)}, updated_at = NOW() WHERE id = :id"
         s.execute(text(sql), params)
+
+        row = s.execute(
+            text("SELECT id, nombre, email, telefono, categoria, ruc, contacto, direccion, status, rating_prom FROM ev_proveedores.proveedor WHERE id = :id"),
+            {"id": proveedor_id}
+        ).mappings().first()
+        return dict(row) if row else {"id": proveedor_id}
 
     def delete_proveedor(self, s, *, proveedor_id: str) -> None:
         s.execute(text("UPDATE ev_proveedores.proveedor SET is_deleted = 1, updated_at = NOW() WHERE id = :id"), {"id": proveedor_id})

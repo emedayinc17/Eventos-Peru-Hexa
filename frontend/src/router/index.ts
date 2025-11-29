@@ -76,6 +76,20 @@ const routes: RouteRecordRaw[] = [
     ],
   },
 
+  // Perfil route (Shortcut)
+  {
+    path: '/perfil',
+    component: ClientLayout,
+    meta: { requiresAuth: true, role: 'CLIENTE' },
+    children: [
+      {
+        path: '',
+        name: 'perfil-direct',
+        component: () => import('@/views/client/Profile.vue'),
+      },
+    ],
+  },
+
   // Admin routes
   {
     path: '/admin',

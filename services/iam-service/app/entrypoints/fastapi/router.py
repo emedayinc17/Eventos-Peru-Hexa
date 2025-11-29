@@ -16,6 +16,8 @@ from app.application.use_cases.admin_get_user import AdminGetUserUseCase
 from app.application.use_cases.admin_create_user import AdminCreateUserUseCase
 from app.application.use_cases.admin_patch_user import AdminPatchUserUseCase
 from app.application.use_cases.admin_delete_user import AdminDeleteUserUseCase
+from app.application.use_cases.update_profile import UpdateProfileUseCase
+from app.application.use_cases.change_password import ChangePasswordUseCase
 
 from .schemas import (
     Health,
@@ -25,6 +27,8 @@ from .schemas import (
     UsuarioOut,
     CrearUsuarioAdminRequest,
     UpdateUsuarioRequest,
+    UpdateProfileRequest,
+    ChangePasswordRequest,
 )
 
 def get_settings() -> Settings:
@@ -38,6 +42,12 @@ def make_register_uc(settings: Settings) -> RegisterUserUseCase:
 
 def make_profile_uc(settings: Settings) -> GetProfileUseCase:
     return GetProfileUseCase(settings=settings, user_repo=UserRepositoryAdapter(), role_reader=RoleReaderAdapter())
+
+def make_update_profile_uc(settings: Settings) -> UpdateProfileUseCase:
+    return UpdateProfileUseCase(settings=settings, user_repo=UserRepositoryAdapter(), role_reader=RoleReaderAdapter())
+
+def make_change_password_uc(settings: Settings) -> ChangePasswordUseCase:
+    return ChangePasswordUseCase(settings=settings, user_repo=UserRepositoryAdapter())
 
 def make_admin_list_uc(settings: Settings) -> AdminListUsersUseCase:
     return AdminListUsersUseCase(settings=settings, user_repo=UserRepositoryAdapter(), role_reader=RoleReaderAdapter())
@@ -116,6 +126,19 @@ def build_api_router(settings: Settings) -> APIRouter:
         uc = make_profile_uc(settings)
         res = uc.execute(user_id=user["id"])
         return UsuarioOut(**res)
+
+    @r.put("/auth/profile", response_model=UsuarioOut, operation_id="iam_update_profile", openapi_extra={"security": [{"HTTPBearer": []}]})
+    def update_profile(data: UpdateProfileRequest = Body(...), user=Depends(get_current_user), settings: Settings = Depends(get_settings)):
+        uc = make_update_profile_uc(settings)
+        changes = data.model_dump(exclude_unset=True)
+        res = uc.execute(user_id=user["id"], changes=changes)
+        return UsuarioOut(**res)
+
+    @r.post("/auth/change-password", status_code=status.HTTP_204_NO_CONTENT, operation_id="iam_change_password", openapi_extra={"security": [{"HTTPBearer": []}]})
+    def change_password(data: ChangePasswordRequest = Body(...), user=Depends(get_current_user), settings: Settings = Depends(get_settings)):
+        uc = make_change_password_uc(settings)
+        uc.execute(user_id=user["id"], current_password=data.current_password, new_password=data.new_password)
+        return
 
     @r.get("/admin/users", response_model=List[UsuarioOut], operation_id="iam_admin_list_users", openapi_extra={"security": [{"HTTPBearer": []}]})
     def admin_list_users(limit: int = 50, offset: int = 0, admin=Depends(require_role("ADMIN")), settings: Settings = Depends(get_settings)):

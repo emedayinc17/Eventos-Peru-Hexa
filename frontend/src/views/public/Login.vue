@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores';
 import Button from '@/components/common/Button.vue';
 import Input from '@/components/common/Input.vue';
+import Modal from '@/components/common/Modal.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -79,20 +80,85 @@ const quickLogin = async (role: 'admin' | 'cliente') => {
   // Ejecutar login automáticamente
   await handleSubmit();
 };
+
+// Open register modal if query param present
+onMounted(() => {
+  if (route.query.register === 'true' || route.query.register === true) {
+    showRegisterModal.value = true;
+  }
+});
+
+watch(() => route.query.register, (val) => {
+  if (val === 'true' || val === true) showRegisterModal.value = true;
+});
+
+// Register modal state
+const showRegisterModal = ref(false);
+const registerForm = ref({ nombre: '', email: '', telefono: '', password: '', passwordConfirm: '' });
+const registerErrors = ref<Record<string, string>>({});
+const registerLoading = ref(false);
+
+const validateRegister = (): boolean => {
+  registerErrors.value = {};
+
+  if (!registerForm.value.nombre) registerErrors.value.nombre = 'Nombre es requerido';
+  if (!registerForm.value.email) registerErrors.value.email = 'Email es requerido';
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registerForm.value.email)) registerErrors.value.email = 'Email inválido';
+  if (!registerForm.value.password) registerErrors.value.password = 'Contraseña es requerida';
+  if (registerForm.value.password !== registerForm.value.passwordConfirm) registerErrors.value.passwordConfirm = 'Las contraseñas no coinciden';
+
+  return Object.keys(registerErrors.value).length === 0;
+};
+
+const handleRegister = async () => {
+  if (!validateRegister()) return;
+
+  registerLoading.value = true;
+  registerErrors.value = {};
+
+  try {
+    const ok = await authStore.register({
+      nombre: registerForm.value.nombre,
+      email: registerForm.value.email,
+      telefono: registerForm.value.telefono,
+      password: registerForm.value.password,
+    });
+
+    if (ok) {
+      // Prefill login email and close modal
+      form.value.email = registerForm.value.email;
+      form.value.password = '';
+      showRegisterModal.value = false;
+      // Show a lightweight success feedback in the login errors area
+      errors.value.general = 'Registro creado. Por favor inicia sesión con tus credenciales.';
+    } else {
+      registerErrors.value.general = authStore.error || 'Error al registrarse';
+    }
+  } catch (err) {
+    registerErrors.value.general = 'Error al registrarse. Intenta nuevamente.';
+  } finally {
+    registerLoading.value = false;
+  }
+};
 </script>
 
 <template>
   <div class="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8">
-    <div class="sm:mx-auto sm:w-full sm:max-w-md">
-      <h2 class="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">
-        Iniciar Sesión
-      </h2>
-      <p class="mt-2 text-center text-sm text-gray-600">
-        O
-        <router-link to="/" class="font-medium text-primary-600 hover:text-primary-500">
-          volver al inicio
-        </router-link>
-      </p>
+    <div class="sm:mx-auto sm:w-full sm:max-w-md flex items-center justify-between">
+      <div>
+        <h2 class="mt-6 text-left text-3xl font-bold tracking-tight text-gray-900">
+          Iniciar Sesión
+        </h2>
+        <p class="mt-2 text-left text-sm text-gray-600">
+          O
+          <router-link to="/" class="font-medium text-primary-600 hover:text-primary-500">
+            volver al inicio
+          </router-link>
+        </p>
+      </div>
+      <div class="ml-4">
+        <!-- 'Regístrate' removed — registration available via navbar 'Crear cuenta' -->
+      </div>
     </div>
 
     <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
@@ -146,11 +212,13 @@ const quickLogin = async (role: 'admin' | 'cliente') => {
             size="lg"
             :loading="loading"
             :disabled="loading"
-            full-width
+            :fullWidth="true"
           >
             Iniciar Sesión
           </Button>
         </form>
+
+        <!-- removed misplaced 'Crear cuenta' link; registration accessible via the button next to 'Iniciar Sesión' -->
 
         <div class="mt-6">
           <div class="relative">
@@ -192,6 +260,23 @@ const quickLogin = async (role: 'admin' | 'cliente') => {
             Haz clic en un botón para acceder rápidamente
           </p>
         </div>
+        
+        <!-- Register modal -->
+        <Modal v-model:open="showRegisterModal" title="Crear cuenta">
+          <div class="space-y-3">
+            <Input v-model="registerForm.nombre" label="Nombre" :error="registerErrors.nombre" />
+            <Input v-model="registerForm.email" label="Email" :error="registerErrors.email" />
+            <Input v-model="registerForm.telefono" label="Teléfono" :error="registerErrors.telefono" />
+            <Input v-model="registerForm.password" type="password" label="Contraseña" :error="registerErrors.password" />
+            <Input v-model="registerForm.passwordConfirm" type="password" label="Confirmar Contraseña" :error="registerErrors.passwordConfirm" />
+
+            <div class="pt-2">
+              <Button class="w-full" :loading="registerLoading" @click="handleRegister">Crear cuenta</Button>
+            </div>
+
+            <div v-if="registerErrors.general" class="text-sm text-red-600">{{ registerErrors.general }}</div>
+          </div>
+        </Modal>
       </div>
     </div>
   </div>

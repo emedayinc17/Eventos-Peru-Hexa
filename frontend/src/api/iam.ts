@@ -27,9 +27,16 @@ export const iamApi = {
     return response.data;
   },
 
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    await apiClient.post(`${IAM_BASE}/auth/change-password`, {
+      current_password: currentPassword,
+      new_password: newPassword,
+    });
+  },
+
   // Gestión de usuarios (ADMIN)
-  async getUsers(): Promise<{ data: User[] }> {
-    const response = await apiClient.get<{ data: User[] }>(`${IAM_BASE}/admin/users`);
+  async getUsers(params?: { limit?: number; offset?: number }): Promise<User[]> {
+    const response = await apiClient.get<User[]>(`${IAM_BASE}/admin/users`, { params });
     return response.data;
   },
 
@@ -38,12 +45,12 @@ export const iamApi = {
     return response.data;
   },
 
-  async updateUser(userId: number, userData: Partial<User>): Promise<User> {
-    const response = await apiClient.put<User>(`${IAM_BASE}/admin/users/${userId}`, userData);
+  async updateUser(userId: number | string, userData: Partial<User> & { password?: string }): Promise<User> {
+    const response = await apiClient.patch<User>(`${IAM_BASE}/admin/users/${userId}`, userData);
     return response.data;
   },
 
-  async deleteUser(userId: number): Promise<void> {
+  async deleteUser(userId: number | string): Promise<void> {
     await apiClient.delete(`${IAM_BASE}/admin/users/${userId}`);
   },
 };

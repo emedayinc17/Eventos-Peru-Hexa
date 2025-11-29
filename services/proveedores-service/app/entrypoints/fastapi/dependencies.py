@@ -12,6 +12,7 @@ from fastapi import HTTPException
 from ...infrastructure.db.repositories import (
     MySQLProveedorQueryRepository,
     MySQLHoldsRepository,
+    MySQLProveedorCommandRepository,
 )
 from ...application.use_cases import (
     BuscarProveedoresDisponiblesUseCase,
@@ -19,6 +20,9 @@ from ...application.use_cases import (
     ConfirmarHoldUseCase,
     LiberarHoldUseCase,
     ObtenerHoldUseCase,
+    CreateProveedorUseCase,
+    UpdateProveedorUseCase,
+    DeleteProveedorUseCase,
 )
 
 
@@ -106,3 +110,32 @@ def get_obtener_hold_use_case(
     if holds_repo is None:
         holds_repo = get_holds_repository()
     return ObtenerHoldUseCase(holds_repo)
+
+
+def get_proveedor_command_repository() -> MySQLProveedorCommandRepository:
+    """Factory para el repositorio de comandos de proveedores."""
+    return MySQLProveedorCommandRepository()
+
+
+def get_create_proveedor_use_case(
+    repo: MySQLProveedorCommandRepository = None
+) -> CreateProveedorUseCase:
+    if repo is None:
+        repo = get_proveedor_command_repository()
+    return CreateProveedorUseCase(repo)
+
+
+def get_update_proveedor_use_case(
+    repo: MySQLProveedorCommandRepository = None
+) -> UpdateProveedorUseCase:
+    if repo is None:
+        repo = get_proveedor_command_repository()
+    return UpdateProveedorUseCase(repo)
+
+
+def get_delete_proveedor_use_case(
+    repo: MySQLProveedorCommandRepository = None
+) -> DeleteProveedorUseCase:
+    if repo is None:
+        repo = get_proveedor_command_repository()
+    return DeleteProveedorUseCase(repo)

@@ -85,8 +85,13 @@ class MySQLPedidoRepository:
                   pe.monto_total,
                   pe.moneda,
                   pe.created_at,
-                  pe.updated_at
+                  pe.updated_at,
+                  u.nombre as cliente_nombre,
+                  u.email as cliente_email,
+                  te.nombre as tipo_evento_nombre
                 FROM ev_contratacion.pedido_evento pe
+                LEFT JOIN ev_iam.usuario u ON u.id = pe.cliente_id
+                LEFT JOIN ev_catalogo.tipo_evento te ON te.id = pe.tipo_evento_id
                 WHERE pe.id = :pedido_id
                 LIMIT 1
             """),
@@ -112,6 +117,9 @@ class MySQLPedidoRepository:
             notas=None,
             created_at=row["created_at"],
             updated_at=row["updated_at"],
+            cliente_nombre=row["cliente_nombre"],
+            cliente_email=row["cliente_email"],
+            tipo_evento_nombre=row["tipo_evento_nombre"],
         )
     
     def listar_por_cliente(
@@ -138,8 +146,13 @@ class MySQLPedidoRepository:
                   pe.monto_total,
                   pe.moneda,
                   pe.created_at,
-                  pe.updated_at
+                  pe.updated_at,
+                  u.nombre as cliente_nombre,
+                  u.email as cliente_email,
+                  te.nombre as tipo_evento_nombre
                 FROM ev_contratacion.pedido_evento pe
+                LEFT JOIN ev_iam.usuario u ON u.id = pe.cliente_id
+                LEFT JOIN ev_catalogo.tipo_evento te ON te.id = pe.tipo_evento_id
                 WHERE pe.cliente_id = :cliente_id
                 ORDER BY pe.created_at DESC
                 LIMIT :limit OFFSET :offset
@@ -164,6 +177,9 @@ class MySQLPedidoRepository:
                 notas=None,
                 created_at=row["created_at"],
                 updated_at=row["updated_at"],
+                cliente_nombre=row["cliente_nombre"],
+                cliente_email=row["cliente_email"],
+                tipo_evento_nombre=row["tipo_evento_nombre"],
             )
             for row in rows
         ]
@@ -194,8 +210,13 @@ class MySQLPedidoRepository:
                       pe.monto_total,
                       pe.moneda,
                       pe.created_at,
-                      pe.updated_at
+                      pe.updated_at,
+                      u.nombre as cliente_nombre,
+                      u.email as cliente_email,
+                      te.nombre as tipo_evento_nombre
                     FROM ev_contratacion.pedido_evento pe
+                    LEFT JOIN ev_iam.usuario u ON u.id = pe.cliente_id
+                    LEFT JOIN ev_catalogo.tipo_evento te ON te.id = pe.tipo_evento_id
                     WHERE pe.status = :status
                     ORDER BY pe.created_at DESC
                     LIMIT :limit OFFSET :offset
@@ -219,8 +240,13 @@ class MySQLPedidoRepository:
                       pe.monto_total,
                       pe.moneda,
                       pe.created_at,
-                      pe.updated_at
+                      pe.updated_at,
+                      u.nombre as cliente_nombre,
+                      u.email as cliente_email,
+                      te.nombre as tipo_evento_nombre
                     FROM ev_contratacion.pedido_evento pe
+                    LEFT JOIN ev_iam.usuario u ON u.id = pe.cliente_id
+                    LEFT JOIN ev_catalogo.tipo_evento te ON te.id = pe.tipo_evento_id
                     ORDER BY pe.created_at DESC
                     LIMIT :limit OFFSET :offset
                 """),
@@ -244,6 +270,9 @@ class MySQLPedidoRepository:
                 notas=None,
                 created_at=row["created_at"],
                 updated_at=row["updated_at"],
+                cliente_nombre=row["cliente_nombre"],
+                cliente_email=row["cliente_email"],
+                tipo_evento_nombre=row["tipo_evento_nombre"],
             )
             for row in rows
         ]

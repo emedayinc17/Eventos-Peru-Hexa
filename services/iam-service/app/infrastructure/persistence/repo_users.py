@@ -28,7 +28,7 @@ def get_active_by_email(s, email: str) -> Optional[Dict[str, Any]]:
 
 def get_by_id(s, user_id: str) -> Optional[Dict[str, Any]]:
     q = text(f"""
-        SELECT id, email, nombre, telefono, status, is_deleted, created_at, updated_at, last_login
+        SELECT id, email, password_hash, nombre, telefono, status, is_deleted, created_at, updated_at, last_login
           FROM {USERS_TABLE}
          WHERE id = :id AND is_deleted = 0
          LIMIT 1

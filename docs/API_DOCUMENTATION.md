@@ -500,6 +500,45 @@ Authorization: Bearer <token>
 
 ---
 
+### 2.5 Administración de Proveedores (Admin)
+
+**Endpoint Base**: `/proveedores/v1/admin/proveedores`  
+**Autenticación**: Requerida (Role: ADMIN)  
+**Nota**: Los endpoints base no deben llevar slash final (`/`).
+
+#### Listar Proveedores (Admin)
+**Endpoint**: `GET /proveedores/v1/admin/proveedores`  
+**Descripción**: Lista todos los proveedores para gestión administrativa.
+
+#### Crear Proveedor
+**Endpoint**: `POST /proveedores/v1/admin/proveedores`  
+**Body**:
+```json
+{
+  "nombre": "Nombre Proveedor",
+  "email": "email@proveedor.com",
+  "telefono": "999888777"
+}
+```
+
+#### Actualizar Proveedor
+**Endpoint**: `PUT /proveedores/v1/admin/proveedores/{id}`  
+**Body**:
+```json
+{
+  "nombre": "Nuevo Nombre",
+  "email": "nuevo@email.com",
+  "telefono": "999888777"
+}
+```
+
+#### Eliminar Proveedor
+**Endpoint**: `DELETE /proveedores/v1/admin/proveedores/{id}`  
+**Response**: 204 No Content
+
+---
+
+
 ### 3. Crear Hold Temporal (Interno)
 
 **Endpoint**: `POST /proveedores/internal/holds`  

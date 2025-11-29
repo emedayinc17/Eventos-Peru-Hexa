@@ -9,8 +9,8 @@ export interface Servicio {
   id: number;
   nombre: string;
   descripcion?: string;
-  categoria: 'DECORACION' | 'CATERING' | 'FOTOGRAFIA' | 'VIDEO' | 'ENTRETENIMIENTO' | 'OTRO';
-  precio_unitario: number;
+  categoria?: 'DECORACION' | 'CATERING' | 'FOTOGRAFIA' | 'VIDEO' | 'ENTRETENIMIENTO' | 'OTRO';
+  precio_unitario?: number;
   disponible: boolean;
   tipo_evento_id?: number;
 }

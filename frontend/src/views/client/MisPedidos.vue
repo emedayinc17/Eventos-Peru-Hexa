@@ -251,7 +251,7 @@ const viewDetails = (pedido: any) => {
 };
 
 const confirmCancel = async (pedido: any) => {
-  const ok = await ui.showConfirm(`¿Está seguro de cancelar el pedido #${pedido.id}?`, 'Cancelar pedido');
+  const ok = await ui.showConfirmWithFallback(`¿Está seguro de cancelar el pedido #${pedido.id}?`, 'Cancelar pedido');
   if (!ok) return;
   try {
     // map cancel to deletePedido which sets estado=CANCELADO on backend

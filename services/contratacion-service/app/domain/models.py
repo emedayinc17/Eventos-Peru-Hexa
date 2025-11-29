@@ -66,6 +66,9 @@ class Pedido:
     updated_at: datetime
     moneda: str = "PEN"  # Default value
     notas: Optional[str] = None
+    cliente_nombre: Optional[str] = None
+    cliente_email: Optional[str] = None
+    tipo_evento_nombre: Optional[str] = None
     
     # Transiciones de estado válidas
     VALID_TRANSITIONS = {

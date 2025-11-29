@@ -60,6 +60,7 @@ class PedidoEventoOut(BaseModel):
     cliente_email: Optional[str] = None
     cliente_nombre: Optional[str] = None
     tipo_evento_id: str
+    tipo_evento_nombre: Optional[str] = None
     fecha_evento: date
     hora_inicio: time
     hora_fin: Optional[time] = None
@@ -93,7 +94,7 @@ class AdminAddItemsRequest(BaseModel):
 
 class AdminDeleteItemsRequest(BaseModel):
     item_ids: List[str]
-
+    
 class AdminAsignarProveedorRequest(BaseModel):
     proveedor_id: str
     item_pedido_id: str  # AGREGADO: necesario para asignar proveedor a un item específico

@@ -35,10 +35,18 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error: AxiosError) => {
+    // If the request set the `X-Suppress-Error` header, skip global error handling/logging
+    const cfg = (error.config as any) || {};
+    const suppress = cfg.headers && (cfg.headers['X-Suppress-Error'] || cfg.headers['x-suppress-error']);
+
     if (error.response) {
       // El servidor respondió con un status code fuera del rango 2xx
       const status = error.response.status;
       
+      if (suppress) {
+        return Promise.reject(error);
+      }
+
       if (status === 401) {
         // Token inválido o expirado - limpiar y redirigir a login
         localStorage.removeItem('access_token');
@@ -54,10 +62,10 @@ apiClient.interceptors.response.use(
       }
     } else if (error.request) {
       // La petición fue hecha pero no hubo respuesta
-      console.error('Error de red: No se pudo conectar con el servidor');
+      if (!suppress) console.error('Error de red: No se pudo conectar con el servidor');
     } else {
       // Algo pasó al configurar la petición
-      console.error('Error al procesar la petición:', error.message);
+      if (!suppress) console.error('Error al procesar la petición:', error.message);
     }
     
     return Promise.reject(error);

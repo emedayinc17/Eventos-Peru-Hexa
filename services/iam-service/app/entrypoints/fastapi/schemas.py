@@ -50,3 +50,13 @@ class UpdateUsuarioRequest(BaseModel):
     status: Optional[int] = None  # 0/1
     role: Optional[str] = None    # "admin" | "cliente"
     password: Optional[str] = None  # ✅ AGREGAR ESTE CAMPO - opcional para cambios de password
+
+class UpdateProfileRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    nombre: Optional[str] = None
+    telefono: Optional[str] = None
+
+class ChangePasswordRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    current_password: str
+    new_password: str

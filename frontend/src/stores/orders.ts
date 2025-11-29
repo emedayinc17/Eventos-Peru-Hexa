@@ -14,13 +14,12 @@ export const useOrdersStore = defineStore('orders', () => {
   const draftOrder = ref<Partial<CreatePedidoRequest>>({});
 
   // Actions
-  async function fetchPedidos(usuarioId?: number, estado?: string): Promise<void> {
+  async function fetchPedidos(usuarioId?: number | string, estado?: string, admin = false): Promise<void> {
     loading.value = true;
     error.value = null;
-    
+
     try {
-      // Try client 'mis pedidos' first; if empty and caller wants admin, caller can pass admin=true
-      const response = await ordersApi.getPedidos(usuarioId, estado);
+      const response = await ordersApi.getPedidos(usuarioId, estado, admin);
       // response may be { items: [...] } or array or ApiResponse
       if (Array.isArray(response)) {
         pedidos.value = response;
@@ -39,12 +38,12 @@ export const useOrdersStore = defineStore('orders', () => {
     }
   }
 
-  async function fetchPedido(id: number): Promise<void> {
+  async function fetchPedido(id: number | string): Promise<void> {
     loading.value = true;
     error.value = null;
-    
+
     try {
-      currentPedido.value = await ordersApi.getPedido(id);
+      currentPedido.value = await ordersApi.getPedido(id, true);
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Error al cargar pedido';
       throw err;
@@ -56,7 +55,7 @@ export const useOrdersStore = defineStore('orders', () => {
   async function createPedido(data: CreatePedidoRequest): Promise<Pedido> {
     loading.value = true;
     error.value = null;
-    
+
     try {
       const newPedido = await ordersApi.createPedido(data);
       pedidos.value.unshift(newPedido);
@@ -70,13 +69,13 @@ export const useOrdersStore = defineStore('orders', () => {
     }
   }
 
-  async function updatePedido(id: number, data: UpdatePedidoRequest): Promise<Pedido> {
+  async function updatePedido(id: number | string, data: UpdatePedidoRequest): Promise<Pedido> {
     loading.value = true;
     error.value = null;
-    
+
     try {
       const updated = await ordersApi.updatePedido(id, data);
-      const index = pedidos.value.findIndex(p => p.id === id);
+      const index = pedidos.value.findIndex(p => String(p.id) === String(id));
       if (index !== -1) {
         pedidos.value[index] = updated;
       }
@@ -89,13 +88,17 @@ export const useOrdersStore = defineStore('orders', () => {
     }
   }
 
-  async function deletePedido(id: number): Promise<void> {
+  async function deletePedido(id: number | string): Promise<void> {
     loading.value = true;
     error.value = null;
-    
+
     try {
       await ordersApi.deletePedido(id);
-      pedidos.value = pedidos.value.filter(p => p.id !== id);
+      // Update local state assuming CANCELADO (status 5)
+      const index = pedidos.value.findIndex(p => String(p.id) === String(id));
+      if (index !== -1) {
+        pedidos.value[index].estado = 5; // CANCELADO
+      }
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Error al eliminar pedido';
       throw err;

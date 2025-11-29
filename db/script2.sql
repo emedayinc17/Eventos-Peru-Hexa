@@ -502,3 +502,30 @@ VALUES (
 -- Nota: Usa los siguientes valores en tu script de verificación o pruebas:
 -- SAMPLE_SERVICIO_ID = aaaaaaaa-1111-2222-3333-aaaaaaaaaaaa
 -- SAMPLE_PROVEEDOR_ID = cccccccc-3333-4444-5555-cccccccccccc
+
+/* ============================================================
+    BLOQUE ADICIONAL: Paquetes determinísticos para pruebas E2E
+    - Añade 3 paquetes (Matrimonio, Cumpleaños, Corporativo)
+    - Ítems referencian opciones determinísticas ya seedadas en bootstrap.sql
+    - Precios con `vigente_desde = CURRENT_DATE()` y `vigente_hasta = NULL`
+    INSERT IGNORE se usa para evitar duplicados si se ejecuta varias veces.
+    ============================================================ */
+
+INSERT IGNORE INTO ev_paquetes.paquete (id, codigo, nombre, descripcion, status, created_by) VALUES
+('pkg11111-1111-1111-1111-111111111111','PKG-TEST-MATRIMONIO','Test Paquete Matrimonio','Paquete de prueba para tipo Matrimonio (test)',1,'ee111111-1111-4111-8111-aaaaaaaaaaa1'),
+('pkg22222-2222-2222-2222-222222222222','PKG-TEST-CUMPLE','Test Paquete Cumpleaños','Paquete de prueba para tipo Cumpleaños (test)',1,'ee111111-1111-4111-8111-aaaaaaaaaaa1'),
+('pkg33333-3333-3333-3333-333333333333','PKG-TEST-CORP','Test Paquete Corporativo','Paquete de prueba para tipo Corporativo (test)',1,'ee111111-1111-4111-8111-aaaaaaaaaaa1');
+
+INSERT IGNORE INTO ev_paquetes.item_paquete (id, paquete_id, opcion_servicio_id, cantidad) VALUES
+('itmpkg11-1111-1111-1111-111111111111','pkg11111-1111-1111-1111-111111111111','77777777-7777-7777-7777-777777777777',1),
+('itmpkg12-1111-1111-1111-111111111112','pkg11111-1111-1111-1111-111111111111','88888888-8888-8888-8888-888888888888',1),
+('itmpkg21-2222-2222-2222-222222222221','pkg22222-2222-2222-2222-222222222222','88888888-8888-8888-8888-888888888888',1),
+('itmpkg22-2222-2222-2222-222222222222','pkg22222-2222-2222-2222-222222222222','77777777-7777-7777-7777-777777777777',1),
+('itmpkg31-3333-3333-3333-333333333331','pkg33333-3333-3333-3333-333333333333','99999999-9999-9999-9999-999999999999',1),
+('itmpkg32-3333-3333-3333-333333333332','pkg33333-3333-3333-3333-333333333333','77777777-7777-7777-7777-777777777777',1);
+
+INSERT IGNORE INTO ev_paquetes.precio_paquete (id, paquete_id, moneda, monto, vigente_desde, vigente_hasta, created_by) VALUES
+('prpkg11-1111-1111-1111-111111111111','pkg11111-1111-1111-1111-111111111111','PEN',9500.00,CURRENT_DATE(),NULL,'ee111111-1111-4111-8111-aaaaaaaaaaa1'),
+('prpkg22-2222-2222-2222-222222222222','pkg22222-2222-2222-2222-222222222222','PEN',7200.00,CURRENT_DATE(),NULL,'ee111111-1111-4111-8111-aaaaaaaaaaa1'),
+('prpkg33-3333-3333-3333-333333333333','pkg33333-3333-3333-3333-333333333333','PEN',4800.00,CURRENT_DATE(),NULL,'ee111111-1111-4111-8111-aaaaaaaaaaa1');
+

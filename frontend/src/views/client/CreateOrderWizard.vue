@@ -554,7 +554,7 @@ const previousStep = () => {
 };
 
 const cancelWizard = async () => {
-  const ok = await ui.showConfirm('¿Está seguro de cancelar? Se perderán los datos ingresados.', 'Cancelar');
+  const ok = await ui.showConfirmWithFallback('¿Está seguro de cancelar? Se perderán los datos ingresados.', 'Cancelar');
   if (ok) {
     ordersStore.clearDraft();
     router.push('/cliente/dashboard');

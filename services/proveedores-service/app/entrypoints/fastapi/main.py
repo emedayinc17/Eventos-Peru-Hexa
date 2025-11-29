@@ -37,6 +37,9 @@ app.include_router(build_public_router(settings), prefix="/proveedores")
 app.include_router(build_internal_router(settings), prefix="/proveedores")
 app.include_router(build_debug_router(settings), prefix="/proveedores")
 
+from .router_admin import router as admin_router
+app.include_router(admin_router, prefix="/proveedores")
+
 @app.on_event("startup")
 async def on_startup():
     log.info("Starting %s on %s:%s",

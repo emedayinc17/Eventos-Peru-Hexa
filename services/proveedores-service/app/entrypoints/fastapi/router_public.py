@@ -10,6 +10,8 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime
 
 from ev_shared.config import Settings
+from sqlalchemy import text
+from ev_shared.db import session_scope
 
 from .dependencies import (
     get_db_session,
@@ -106,6 +108,38 @@ def build_public_router(settings: Settings) -> APIRouter:
             d["rating_prom"] = float(d["rating_prom"])
             result.append(d)
         
+        return result
+
+    # === GET /v1/proveedores ===
+    @r.get("/v1/proveedores", openapi_extra={"security": []})
+    def listar_proveedores_public(limit: int = Query(10, ge=1, le=1000), offset: int = Query(0, ge=0)) -> List[Dict[str, Any]]:
+        """
+        Lista pública de proveedores (solo lectura) — sin filtros de disponibilidad.
+        Devuelve los proveedores activos (status = 1) y no borrados.
+        Por defecto devuelve 10 items para forzar paginación cuando hay más registros.
+        """
+        # Consulta solicitada (se añaden id para referencias en frontend)
+        sql = text("""
+            SELECT id, nombre AS nombre_comercial, email, telefono, direccion, contacto, rating_prom, status
+            FROM ev_proveedores.proveedor
+            WHERE status = 1
+            ORDER BY rating_prom DESC
+            LIMIT :lim OFFSET :off
+        """)
+
+        with session_scope(settings) as s:
+            rows = s.execute(sql, {"lim": limit, "off": offset}).mappings().all()
+
+        result = []
+        for row in rows:
+            d = dict(row)
+            # Ensure rating_prom is JSON serializable
+            try:
+                d["rating_prom"] = float(d.get("rating_prom") or 0)
+            except Exception:
+                d["rating_prom"] = 0.0
+            result.append(d)
+
         return result
 
     # === POST /v1/reservas ===
