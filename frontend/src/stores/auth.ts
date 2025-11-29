@@ -130,6 +130,22 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true;
     error.value = null;
 
+    // Dev/debug helper: log register payload to help verify frontend is sending password
+    try {
+      const debugAll = (import.meta.env && import.meta.env.VITE_DEBUG_AUTH === 'true');
+      if (debugAll) {
+        // Verbose: show full payload (use only in development with VITE_DEBUG_AUTH=true)
+        // eslint-disable-next-line no-console
+        console.debug('[auth] register payload (VERBOSE):', userData);
+      } else {
+        // Non-verbose: only indicate presence/length to avoid leaking passwords in normal dev
+        // eslint-disable-next-line no-console
+        console.debug('[auth] register payload:', { email: userData.email, password_present: !!userData.password, password_length: userData.password ? userData.password.length : 0 });
+      }
+    } catch (e) {
+      // ignore if env not available
+    }
+
     try {
       await iamApi.register(userData);
       return true;

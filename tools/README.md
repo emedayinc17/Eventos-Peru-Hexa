@@ -1,3 +1,26 @@
+# Tools
+
+This directory contains utility scripts migrated from the repository root. Before running any script, review its content and make a backup if it modifies service or frontend files.
+
+Scripts included:
+
+- `check_db.py` - DB connection/checks
+- `check_columns.py` - verify DB columns
+- `check_package_price.py` - package price checks
+- `check_prices.py` - price validation
+- `check_repo_method.py` - repository method checks
+- `check_secrets.py` - secrets/credentials checks
+- `check_tipos_evento.py` - event type validations
+- `debug_delete.py` - debug deletion helper
+- `patch_frontend.py` - frontend patching utilities
+- `patch_router.py` - router patch utilities
+- `patch_schema.py` - schema patch utilities
+- `patch_usecase.py` - use-case patch utilities
+- `recalculate_package_prices.py` - recalculation utilities
+- `verify_functional.py` - functional verifications
+- `verify_routes.py` - route verifications
+
+Add descriptions or usage examples as needed.
 # Herramientas de Utilidad (Tools)
 
 Este directorio contiene scripts de utilidad para el mantenimiento, verificación y configuración del ecosistema de microservicios de Eventos Perú.

@@ -56,7 +56,8 @@ export const useOrdersStore = defineStore('orders', () => {
     error.value = null;
 
     try {
-      currentPedido.value = await ordersApi.getPedido(id, true);
+      // For client-side detail views use the non-admin endpoint
+      currentPedido.value = await ordersApi.getPedido(id, false);
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Error al cargar pedido';
       throw err;
@@ -71,6 +72,11 @@ export const useOrdersStore = defineStore('orders', () => {
 
     try {
       const newPedido = await ordersApi.createPedido(data);
+      // Ensure the newly created pedido has an initial estado (first state)
+      if (newPedido && (newPedido as any).estado === undefined) {
+        // Use string 'PENDIENTE' as initial display state; backend should override when available
+        (newPedido as any).estado = 'PENDIENTE';
+      }
       pedidos.value.unshift(newPedido);
       clearDraft();
       return newPedido;

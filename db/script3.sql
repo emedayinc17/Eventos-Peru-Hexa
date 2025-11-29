@@ -14,6 +14,10 @@
     mysql -u app_api -p'Api_2025!' -h 127.0.0.1 < db/script3.sql
 */
 
+-- Forzar la colación de la sesión al valor oficial usado en `db/bootstrap.sql`
+SET NAMES utf8mb4 COLLATE 'utf8mb4_unicode_ci';
+SET collation_connection = 'utf8mb4_unicode_ci';
+SET character_set_connection = 'utf8mb4';
 START TRANSACTION;
 
 SET @SYS_ADMIN = 'ee111111-1111-4111-8111-aaaaaaaaaaa1';
@@ -703,6 +707,79 @@ WHERE id IN (
 INSERT IGNORE INTO ev_catalogo.tipo_evento (id, nombre, descripcion, status)
 VALUES ('1','Demo Tipo 1','Tipo de evento de prueba',1);
 COMMIT;
+
+/* ============================================================
+    10) Demo pedido/fix agregado por assistant
+    - IDs usan formato UUID 36-char para evitar "Data too long for column 'id'"
+    - Idempotente: usa INSERT ... ON DUPLICATE KEY UPDATE y actualiza monto_total
+    - Usa opciones/proveedores ya creados en este script (op-cater-100, op-dj-4h, prov-009)
+    ============================================================ */
+
+START TRANSACTION;
+SET @PEDIDO_ID = 'dddddd11-1111-4111-8111-111111111111';
+SET @CLIENTE_ID = @DEMO_USER; -- ya definido arriba en este script
+SET @TIPO_EVENTO_ID = '11111111-1111-1111-1111-111111111111';
+SET @MONEDA = 'PEN';
+SET @ITEM1_ID = 'aaaa1111-2222-3333-4444-aaaaaaaa0001';
+SET @ITEM2_ID = 'aaaa1111-2222-3333-4444-aaaaaaaa0002';
+SET @RESV1_ID = 'ccccccc0-cccc-cccc-cccc-ccccccccccc0';
+
+-- 1) Insert/Update pedido_evento (idempotente)
+INSERT INTO ev_contratacion.pedido_evento (id, cliente_id, tipo_evento_id, fecha_evento, hora_inicio, hora_fin, ubicacion, monto_total, moneda, status, created_by)
+VALUES (
+   @PEDIDO_ID,
+   @CLIENTE_ID,
+   @TIPO_EVENTO_ID,
+   DATE_ADD(CURRENT_DATE(), INTERVAL 14 DAY),
+   '12:00:00',
+   '18:00:00',
+   'Local demo',
+   8300.00,
+   @MONEDA,
+   0,
+   @CLIENTE_ID
+)
+ON DUPLICATE KEY UPDATE
+   fecha_evento = VALUES(fecha_evento),
+   hora_inicio = VALUES(hora_inicio),
+   hora_fin = VALUES(hora_fin),
+   ubicacion = VALUES(ubicacion),
+   moneda = VALUES(moneda),
+   status = VALUES(status),
+   created_by = VALUES(created_by);
+
+-- 2) Items for the pedido (two example items referencing opciones existentes)
+INSERT INTO ev_contratacion.item_pedido_evento (id, pedido_id, opcion_servicio_id, nombre_servicio, cantidad, precio_unitario, subtotal, tipo_item, referencia_id, created_by)
+VALUES
+(@ITEM1_ID, @PEDIDO_ID, 'op-cater-100', 'Buffet 100 pax', 1, 6500.00, 6500.00, 'SERVICIO', 'op-cater-100', @CLIENTE_ID)
+ON DUPLICATE KEY UPDATE
+   pedido_id = VALUES(pedido_id), opcion_servicio_id = VALUES(opcion_servicio_id), nombre_servicio = VALUES(nombre_servicio), cantidad = VALUES(cantidad), precio_unitario = VALUES(precio_unitario), subtotal = VALUES(subtotal), tipo_item = VALUES(tipo_item), referencia_id = VALUES(referencia_id), created_by = VALUES(created_by);
+
+INSERT INTO ev_contratacion.item_pedido_evento (id, pedido_id, opcion_servicio_id, nombre_servicio, cantidad, precio_unitario, subtotal, tipo_item, referencia_id, created_by)
+VALUES
+(@ITEM2_ID, @PEDIDO_ID, 'op-dj-4h', 'DJ Pro 4h', 1, 1800.00, 1800.00, 'SERVICIO', 'op-dj-4h', @CLIENTE_ID)
+ON DUPLICATE KEY UPDATE
+   pedido_id = VALUES(pedido_id), opcion_servicio_id = VALUES(opcion_servicio_id), nombre_servicio = VALUES(nombre_servicio), cantidad = VALUES(cantidad), precio_unitario = VALUES(precio_unitario), subtotal = VALUES(subtotal), tipo_item = VALUES(tipo_item), referencia_id = VALUES(referencia_id), created_by = VALUES(created_by);
+
+-- 3) Recalcular y actualizar monto_total del pedido de forma segura
+-- Usamos UPDATE ... JOIN para que la cláusula WHERE use la PK (evita safe-update error 1175)
+UPDATE ev_contratacion.pedido_evento pe
+JOIN (
+   SELECT pedido_id COLLATE utf8mb4_unicode_ci AS pedido_id, COALESCE(SUM(COALESCE(subtotal, precio_total, 0)),0) AS total
+   FROM ev_contratacion.item_pedido_evento
+   WHERE pedido_id COLLATE utf8mb4_unicode_ci = @PEDIDO_ID COLLATE utf8mb4_unicode_ci
+   GROUP BY pedido_id
+) t ON pe.id COLLATE utf8mb4_unicode_ci = t.pedido_id COLLATE utf8mb4_unicode_ci
+SET pe.monto_total = t.total
+WHERE pe.id COLLATE utf8mb4_unicode_ci = @PEDIDO_ID COLLATE utf8mb4_unicode_ci;
+
+-- 4) Crear/Actualizar reserva para primer item asignando un proveedor existente (prov-009)
+INSERT INTO ev_contratacion.reserva (id, item_pedido_id, proveedor_id, inicio, fin, status, created_by)
+VALUES (@RESV1_ID, @ITEM1_ID, 'prov-009', DATE_ADD(NOW(), INTERVAL 1 HOUR), DATE_ADD(NOW(), INTERVAL 7 HOUR), 1, @CLIENTE_ID)
+ON DUPLICATE KEY UPDATE inicio = VALUES(inicio), fin = VALUES(fin), status = VALUES(status), proveedor_id = VALUES(proveedor_id), created_by = VALUES(created_by);
+
+COMMIT;
+
 
 -- Verificaciones finales: listar filas incompletas para inspección manual
 -- SELECT id,nombre,categoria,ruc,contacto,direccion,email,telefono,rating_prom FROM ev_proveedores.proveedor WHERE categoria IS NULL OR email IS NULL OR telefono IS NULL OR direccion IS NULL;

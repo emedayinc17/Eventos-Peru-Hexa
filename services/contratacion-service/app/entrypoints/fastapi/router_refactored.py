@@ -125,13 +125,19 @@ def crear_pedido(
             )
         
         use_case = get_crear_pedido_desde_paquete_use_case()
+        # Map incoming payload fields to the use case parameter names
         params = {
             "cliente_id": cliente_id,
             "paquete_id": payload.paquete_id,
             "tipo_evento_id": payload.tipo_evento_id,
+            "fecha_evento": payload.fecha_evento,
+            "hora_inicio": getattr(payload, 'hora_inicio', None),
+            "hora_fin": getattr(payload, 'hora_fin', None),
             "num_personas": payload.num_personas,
-            "fecha": payload.fecha,
-            "observaciones": payload.observaciones,
+            "ubicacion": getattr(payload, 'ubicacion', None),
+            "notas": getattr(payload, 'notas', None),
+            "servicios_adicionales": getattr(payload, 'servicios_adicionales', None),
+            "proveedores_seleccionados": getattr(payload, 'proveedores_seleccionados', None),
         }
     else:
         # Crear custom
@@ -144,13 +150,18 @@ def crear_pedido(
             )
         
         use_case = get_crear_pedido_custom_use_case()
+        # CrearPedidoCustom schema provides fecha_evento and hora_inicio/time types
         params = {
             "cliente_id": cliente_id,
             "items": [item.dict() for item in payload.items],
             "tipo_evento_id": payload.tipo_evento_id,
-            "num_personas": payload.num_personas,
-            "fecha": payload.fecha,
-            "observaciones": payload.observaciones,
+            "fecha_evento": payload.fecha_evento,
+            "hora_inicio": getattr(payload, 'hora_inicio', None),
+            "hora_fin": getattr(payload, 'hora_fin', None),
+            "num_personas": getattr(payload, 'num_personas', 1),
+            "ubicacion": getattr(payload, 'ubicacion', None),
+            # notas may be provided under several aliases from clients; prefer explicit 'notas' then 'observaciones'
+            "notas": body.get('notas') or body.get('observaciones') or None,
         }
     
     try:

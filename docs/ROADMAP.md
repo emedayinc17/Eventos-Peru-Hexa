@@ -177,3 +177,31 @@
 
 **Última Actualización**: 27 de Noviembre, 2025  
 **Próxima Revisión**: Al completar Frontend v1.0
+
+---
+
+## Anexo: Resumen Final (migrado desde `summary_final.md`)
+
+Fecha: 27-11-2025
+
+Resumen: este documento recoge la planificación, arquitectura, diseño, pruebas, despliegue y mantenimiento del proyecto "Eventos-Perú" (arquitectura hexagonal con microservicios y frontend en Vue3). Incluye diagramas, cuadros de decisión y propuestas para pruebas y operaciones.
+
+### Contenido resumido (ver anexo completo en `docs/summary_final_migrated.md`)
+
+- Planificación del proyecto
+- Definición de objetivos y alcance
+- Análisis de requerimientos
+- Diseño de la arquitectura
+- Tecnologías usadas
+- Diagrama de clases
+- Modelamiento de base de datos
+- Implementación de patrones
+- Arquitectura por capas
+- Pruebas de software (unitarias, funcionales, integración, rendimiento, seguridad)
+- Plan de despliegue
+- Plan de monitoreo
+- Plan de mantenimiento
+- Repositorio de código y control de versiones
+- Reportes estadísticos
+
+> Nota: se ha migrado el contenido completo de `summary_final.md` a la carpeta `docs/` dentro de `docs/summary_final_migrated.md` para mantener una única fuente de verdad.

@@ -91,7 +91,9 @@ async def proveedores_gateway(path: str, request: Request):
 @app.api_route("/api/contratacion/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
 async def contratacion_gateway(path: str, request: Request):
     """Ruta requests a Contratación Service"""
-    return await proxy_request(SERVICES["contratacion"], f"/contratacion/{path}", request)
+    # Contratacion service router defines its own paths (e.g. '/health', '/pedidos').
+    # Forward the incoming subpath directly so the service receives the expected route.
+    return await proxy_request(SERVICES["contratacion"], f"/{path}", request)
 
 
 @app.get("/health")

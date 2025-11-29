@@ -948,6 +948,55 @@ INSERT IGNORE INTO ev_iam.usuario (id, email, password_hash, nombre, telefono, s
 FLUSH PRIVILEGES;
 
 /* ============================================================
+   OPTIONAL: Alinear colaciones de tablas al valor oficial
+   - Este bloque crea un procedimiento temporal que recorre las tablas
+     de los esquemas del proyecto y ejecuta ALTER TABLE ... CONVERT TO
+     CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci solo si la tabla
+     tiene una colación distinta. Es idempotente y seguro ejecutarlo
+     en despliegues iniciales.
+   - NOTA: puede tardar en bases grandes y bloquear tablas mientras se
+     realiza la conversión. Ejecútalo en ventana de mantenimiento si aplica.
+   - Si no quieres aplicarlo automáticamente, coméntalo o elimínalo.
+*/
+-- Seleccionar una base por defecto para que DROP/CREATE PROCEDURE
+-- y CALL funcionen aunque el cliente no haya seleccionado un schema.
+DELIMITER $$
+DROP PROCEDURE IF EXISTS ev_contratacion.ev_align_collations$$
+CREATE PROCEDURE ev_contratacion.ev_align_collations()
+BEGIN
+  DECLARE done INT DEFAULT FALSE;
+  DECLARE tschema VARCHAR(64);
+  DECLARE tname VARCHAR(64);
+  DECLARE cur CURSOR FOR
+    SELECT table_schema, table_name
+    FROM information_schema.tables
+    WHERE table_schema IN ('ev_iam','ev_catalogo','ev_paquetes','ev_proveedores','ev_contratacion','ev_mensajeria')
+      AND table_type = 'BASE TABLE'
+      AND TABLE_COLLATION IS NOT NULL
+      AND TABLE_COLLATION <> 'utf8mb4_unicode_ci';
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+  OPEN cur;
+  read_loop: LOOP
+    FETCH cur INTO tschema, tname;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+    SET @s = CONCAT('ALTER TABLE `', tschema, '`.`', tname, '` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
+    PREPARE stmt FROM @s;
+    EXECUTE stmt;
+    DEALLOCATE PREPARE stmt;
+  END LOOP;
+  CLOSE cur;
+END$$
+DELIMITER ;
+
+-- Ejecutar la corrección en bootstrap (comentar si no quieres ejecutar automáticamente)
+CALL ev_contratacion.ev_align_collations();
+DROP PROCEDURE IF EXISTS ev_contratacion.ev_align_collations;
+
+
+/* ============================================================
    12) CONSULTAS de verificación (opcionales)
    ============================================================ */
 -- SHOW GRANTS FOR 'app_api'@'%';

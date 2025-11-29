@@ -38,8 +38,10 @@ def custom_openapi():
 app.openapi = custom_openapi  # 👈 activa el esquema en OpenAPI
 
 # Routers (primary + debug)
-app.include_router(build_api_router(settings), prefix="/contratacion")
-app.include_router(build_debug_router(settings), prefix="/contratacion")
+# Register routers without an extra '/contratacion' prefix because
+# the router definitions already include their full paths (e.g. '/v1/contratacion/...').
+app.include_router(build_api_router(settings))
+app.include_router(build_debug_router(settings))
 
 @app.on_event("startup")
 async def on_startup():

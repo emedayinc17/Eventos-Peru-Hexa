@@ -99,6 +99,14 @@ class CatalogoClient:
         except Exception as e:
             raise RuntimeError(f"Error al consultar precio de opción: {str(e)}")
     
+    # Compatibilidad con código legado / use-cases
+    def obtener_precio_opcion(self, opcion_servicio_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Wrapper para mantener compatibilidad con use-cases que llaman
+        a `obtener_precio_opcion`. Delegates to `get_opcion_servicio_precio`.
+        """
+        return self.get_opcion_servicio_precio(opcion_servicio_id)
+    
     
     def get_tipo_evento(self, tipo_evento_id: str) -> Optional[Dict[str, Any]]:
         """
