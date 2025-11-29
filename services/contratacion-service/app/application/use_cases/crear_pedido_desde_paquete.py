@@ -40,6 +40,7 @@ class CrearPedidoDesdePaqueteUseCase:
         num_personas: int,
         ubicacion: str,
         notas: Optional[str] = None,
+        servicios_adicionales: Optional[list] = None,
         proveedores_seleccionados: Optional[list] = None
     ) -> Pedido:
         """
@@ -111,5 +112,46 @@ class CrearPedidoDesdePaqueteUseCase:
                 precio_unitario=precio_unitario,
                 subtotal=subtotal
             )
+        
+        # 5. Agregar servicios adicionales si existen
+        if servicios_adicionales:
+            for servicio_adicional in servicios_adicionales:
+                # Obtener precio del servicio desde catálogo
+                opcion_id = servicio_adicional.get("opcion_servicio_id")
+                cantidad_adicional = servicio_adicional.get("cantidad", 1)
+                
+                # Consultar precio vigente
+                try:
+                    precio_vigente = self.catalogo_client.obtener_precio_opcion(opcion_id)
+                    precio_unitario_adicional = float(precio_vigente)
+                except Exception:
+                    # Si no se puede obtener precio, usar 0 (debería manejarse mejor)
+                    precio_unitario_adicional = 0.0
+                
+                subtotal_adicional = cantidad_adicional * precio_unitario_adicional
+                
+                # Crear item adicional
+                self.item_repo.crear(
+                    session,
+                    pedido_id=pedido.id,
+                    opcion_servicio_id=opcion_id,
+                    nombre_servicio="Servicio Adicional",  # Podría obtenerse del catálogo
+                    cantidad=cantidad_adicional,
+                    precio_unitario=precio_unitario_adicional,
+                    subtotal=subtotal_adicional,
+                    tipo_item='SERVICIO',
+                    referencia_id=opcion_id
+                )
+                
+                # Actualizar monto total del pedido
+                monto_total += subtotal_adicional
+            
+            # Actualizar el monto total del pedido si hubo servicios adicionales
+            if servicios_adicionales:
+                pedido = self.pedido_repo.actualizar_monto(
+                    session,
+                    pedido_id=pedido.id,
+                    nuevo_monto=monto_total
+                )
         
         return pedido

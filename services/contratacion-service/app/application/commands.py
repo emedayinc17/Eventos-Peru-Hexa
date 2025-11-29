@@ -209,6 +209,10 @@ def crear_pedido_desde_paquete(settings: Settings, cliente_id: str, payload: Dic
             SELECT * FROM ev_contratacion.pedido_evento WHERE request_id=:req LIMIT 1
         """)
 
+        sql_get_latest_by_cliente = text("""
+            SELECT * FROM ev_contratacion.pedido_evento WHERE cliente_id = :cid ORDER BY created_at DESC LIMIT 1
+        """)
+
         sql_insert_item = text("""
             INSERT INTO ev_contratacion.item_pedido_evento
                 (id, pedido_id, tipo_item, referencia_id, cantidad, precio_unit, precio_total, created_at)
@@ -237,9 +241,12 @@ def crear_pedido_desde_paquete(settings: Settings, cliente_id: str, payload: Dic
                 _rollback_holds(hold_ids_creados, proveedores_client)
                 raise
 
-            # Obtener el pedido insertado
+            # Obtener el pedido insertado (por request_id si se envió, sino el último pedido del cliente)
             print(f"🔍 [DEBUG] Obteniendo pedido creado...")
-            prow = s.execute(sql_get_by_req, {"req": payload.get("request_id")}).mappings().first()
+            if payload.get("request_id"):
+                prow = s.execute(sql_get_by_req, {"req": payload.get("request_id")}).mappings().first()
+            else:
+                prow = s.execute(sql_get_latest_by_cliente, {"cid": cliente_id}).mappings().first()
             if not prow:
                 _rollback_holds(hold_ids_creados, proveedores_client)
                 raise ValueError("NO_SE_PUDO_RECUPERAR_PEDIDO_CREADO")
@@ -292,9 +299,40 @@ def crear_pedido_desde_paquete(settings: Settings, cliente_id: str, payload: Dic
                 raise
 
             print(f"✅ [DEBUG] Pedido creado exitosamente con {len(hold_ids_creados)} holds")
+            # Preparamos resultado base y salimos de la transacción (commit)
             result = dict(prow)
             result["holds_creados"] = hold_ids_creados
-            return result
+
+            # Intento final de rellenar campos relacionados sobre el resultado base
+            try:
+                _fill_missing_related_fields(settings, result)
+            except Exception as e:
+                print(f"⚠️ [WARN] Fallback rellenado sobre resultado base falló: {e}")
+
+        # Después del commit, intentamos leer la vista desde una nueva sesión
+        try:
+            with session_scope(settings) as s2:
+                vp = s2.execute(text("SELECT * FROM ev_contratacion.v_pedido_con_cliente WHERE id = :pid LIMIT 1"), {"pid": pedido_id}).mappings().first()
+                if vp:
+                    print(f"🔍 [DEBUG] Vista v_pedido_con_cliente encontrada post-commit para pedido {pedido_id}")
+                    data = dict(vp)
+                    # Convierte timedeltas a time si aplica
+                    if "hora_inicio" in data:
+                        data["hora_inicio"] = _convert_timedelta_to_time(data["hora_inicio"])
+                    if "hora_fin" in data:
+                        data["hora_fin"] = _convert_timedelta_to_time(data["hora_fin"])
+                    try:
+                        _fill_missing_related_fields(settings, data)
+                    except Exception as e:
+                        print(f"⚠️ [WARN] Fallback rellenado falló (post-commit): {e}")
+                    data["holds_creados"] = hold_ids_creados
+                    return data
+                else:
+                    print(f"⚠️ [WARN] Vista v_pedido_con_cliente NO devolvió filas post-commit para pedido {pedido_id}")
+        except Exception as e:
+            print(f"⚠️ [WARN] No se pudo leer vista post-commit: {e}")
+
+        return result
 
     except ValueError as e:
         print(f"❌ [ERROR] ValueError en crear_pedido_desde_paquete: {e}")
@@ -374,6 +412,10 @@ def crear_pedido_custom(settings: Settings, cliente_id: str, payload: Dict[str, 
             SELECT * FROM ev_contratacion.pedido_evento WHERE request_id=:req LIMIT 1
         """)
 
+        sql_get_latest_by_cliente = text("""
+            SELECT * FROM ev_contratacion.pedido_evento WHERE cliente_id = :cid ORDER BY created_at DESC LIMIT 1
+        """)
+
         sql_insert_item = text("""
             INSERT INTO ev_contratacion.item_pedido_evento
                 (id, pedido_id, tipo_item, referencia_id, cantidad, precio_unit, precio_total, created_at)
@@ -405,7 +447,10 @@ def crear_pedido_custom(settings: Settings, cliente_id: str, payload: Dict[str, 
                 _rollback_holds(hold_ids_creados, proveedores_client)
                 raise
 
-            prow = s.execute(sql_get_by_req, {"req": payload.get("request_id")}).mappings().first()
+            if payload.get("request_id"):
+                prow = s.execute(sql_get_by_req, {"req": payload.get("request_id")}).mappings().first()
+            else:
+                prow = s.execute(sql_get_latest_by_cliente, {"cid": cliente_id}).mappings().first()
             if not prow:
                 _rollback_holds(hold_ids_creados, proveedores_client)
                 raise ValueError("NO_SE_PUDO_RECUPERAR_PEDIDO_CREADO")
@@ -427,7 +472,27 @@ def crear_pedido_custom(settings: Settings, cliente_id: str, payload: Dict[str, 
 
             result = dict(prow)
             result["holds_creados"] = hold_ids_creados
-            return result
+
+        # Post-commit: intentar leer la vista desde una nueva sesión para incluir campos relacionados
+        try:
+            with session_scope(settings) as s2:
+                vp = s2.execute(text("SELECT * FROM ev_contratacion.v_pedido_con_cliente WHERE id = :pid LIMIT 1"), {"pid": pedido_id}).mappings().first()
+                if vp:
+                    data = dict(vp)
+                    if "hora_inicio" in data:
+                        data["hora_inicio"] = _convert_timedelta_to_time(data["hora_inicio"])
+                    if "hora_fin" in data:
+                        data["hora_fin"] = _convert_timedelta_to_time(data["hora_fin"])
+                    try:
+                        _fill_missing_related_fields(settings, data)
+                    except Exception as e:
+                        print(f"⚠️ [WARN] Fallback rellenado falló (post-commit custom): {e}")
+                    data["holds_creados"] = hold_ids_creados
+                    return data
+        except Exception as e:
+            print(f"⚠️ [WARN] No se pudo leer vista post-commit (custom): {e}")
+
+        return result
             
     except Exception as e:
         # Último catch-all para asegurar rollback
@@ -615,6 +680,51 @@ def _convert_timedelta_to_time(td):
     seconds = total_seconds % 60
     
     return datetime.time(hour=hours, minute=minutes, second=seconds)
+
+
+def _fill_missing_related_fields(settings: Settings, data: Dict[str, Any]) -> None:
+    """Rellena campos relacionados faltantes en el diccionario `data`.
+
+    - intenta obtener `tipo_evento_nombre` desde `ev_catalogo.tipo_evento` si falta
+    - intenta obtener `cliente_email` y `cliente_nombre` desde `ev_iam.usuario` si faltan
+    Fallos en estas consultas no deberían lanzar errores hacia el caller (se atrapan internamente).
+    """
+    try:
+        with session_scope(settings) as s:
+            # tipo_evento_nombre
+            te_id = data.get("tipo_evento_id")
+            if te_id and not data.get("tipo_evento_nombre"):
+                try:
+                    row = s.execute(text("SELECT nombre FROM ev_catalogo.tipo_evento WHERE id = :tid LIMIT 1"), {"tid": te_id}).mappings().first()
+                    if row and row.get("nombre"):
+                        data["tipo_evento_nombre"] = row.get("nombre")
+                    else:
+                        # Dejar cadena vacía si no existe
+                        data.setdefault("tipo_evento_nombre", "")
+                except Exception as e:
+                    print(f"⚠️ [WARN] No se pudo obtener tipo_evento_nombre: {e}")
+                    data.setdefault("tipo_evento_nombre", "")
+
+            # cliente_nombre / cliente_email
+            cid = data.get("cliente_id")
+            if cid and (not data.get("cliente_nombre") or not data.get("cliente_email")):
+                try:
+                    # Intentamos leer directamente; podría fallar por permisos (1142)
+                    row = s.execute(text("SELECT id, email, nombre FROM ev_iam.usuario WHERE id = :uid LIMIT 1"), {"uid": cid}).mappings().first()
+                    if row:
+                        if not data.get("cliente_email"):
+                            data["cliente_email"] = row.get("email") or data.get("cliente_email")
+                        if not data.get("cliente_nombre"):
+                            data["cliente_nombre"] = row.get("nombre") or data.get("cliente_nombre")
+                except OperationalError as oe:
+                    # Propagar información de permiso en logs, no lanzar.
+                    print(f"⚠️ [WARN] No tiene permiso para leer ev_iam.usuario: {oe}")
+                except Exception as e:
+                    print(f"⚠️ [WARN] Error al leer ev_iam.usuario: {e}")
+
+    except Exception as e:
+        # No queremos romper el flujo principal por errores auxiliares
+        print(f"⚠️ [WARN] Falla general en _fill_missing_related_fields: {e}")
 
 def obtener_pedido(settings: Settings, cliente_id: str, pedido_id: str) -> Dict[str, Any]:
     sql_pedido = text("""

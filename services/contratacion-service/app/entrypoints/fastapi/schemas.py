@@ -8,28 +8,29 @@ class Health(BaseModel):
 
 # ---------- Cliente: crear pedido ----------
 class ProveedorSeleccionado(BaseModel):
-    opcion_servicio_id: str
-    proveedor_id: str
+    opcion_servicio_id: Union[str, int]
+    proveedor_id: Union[str, int]
 
 class CrearPedidoDesdePaquete(BaseModel):
-    paquete_id: str
-    tipo_evento_id: str
+    paquete_id: Union[str, int]
+    tipo_evento_id: Union[str, int]
     fecha_evento: date
     hora_inicio: str  # HH:MM format
     hora_fin: Optional[str] = None  # HH:MM format
     num_personas: int = Field(ge=1)
     ubicacion: str
     notas: Optional[str] = None
+    servicios_adicionales: Optional[List['ItemCustom']] = None  # Servicios extras además del paquete
     proveedores_seleccionados: Optional[List[ProveedorSeleccionado]] = None
     request_id: Optional[str] = None
     correlation_id: Optional[str] = None
 
 class ItemCustom(BaseModel):
-    opcion_servicio_id: str
+    opcion_servicio_id: Union[str, int]
     cantidad: int = Field(ge=1, default=1)
 
 class CrearPedidoCustom(BaseModel):
-    tipo_evento_id: str
+    tipo_evento_id: Union[str, int]
     items: List[ItemCustom]
     fecha_evento: date
     hora_inicio: time
@@ -86,7 +87,7 @@ class AdminPatchEstadoRequest(BaseModel):
     estado: int  # 0=DRAFT,1=COTIZADO,2=APROBADO,3=ASIGNADO,4=CERRADO,5=CANCELADO
 
 class AdminItemAdd(BaseModel):
-    opcion_servicio_id: str
+    opcion_servicio_id: Union[str, int]
     cantidad: int = Field(ge=1, default=1)
 
 class AdminAddItemsRequest(BaseModel):

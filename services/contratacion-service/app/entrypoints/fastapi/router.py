@@ -137,6 +137,11 @@ def crear_pedido(
         if payload.proveedores_seleccionados:
             proveedores = [p.dict() for p in payload.proveedores_seleccionados]
         
+        # Convertir servicios_adicionales a dict si existe
+        servicios_adicionales = None
+        if payload.servicios_adicionales:
+            servicios_adicionales = [s.dict() for s in payload.servicios_adicionales]
+        
         params = {
             "cliente_id": cliente_id,
             "paquete_id": payload.paquete_id,
@@ -147,6 +152,7 @@ def crear_pedido(
             "hora_fin": payload.hora_fin,
             "ubicacion": payload.ubicacion,
             "notas": payload.notas,
+            "servicios_adicionales": servicios_adicionales,
             "proveedores_seleccionados": proveedores,
             # Note: use case doesn't accept request_id/correlation_id
         }

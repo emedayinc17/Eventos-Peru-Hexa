@@ -173,16 +173,7 @@ onMounted(async () => {
 
       <!-- Próximos Eventos -->
       <div class="card">
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="text-lg sm:text-xl font-semibold">Próximos Eventos</h2>
-          <router-link
-            to="/cliente/pedido/nuevo"
-            class="inline-flex items-center justify-center btn-primary text-sm"
-          >
-            <PlusIcon class="w-5 h-5 mr-2" />
-            Nuevo Pedido
-          </router-link>
-        </div>
+        <h2 class="text-lg sm:text-xl font-semibold mb-4">Próximos Eventos</h2>
 
         <!-- Empty State -->
         <div v-if="proximosPedidos.length === 0" class="text-center py-8">
