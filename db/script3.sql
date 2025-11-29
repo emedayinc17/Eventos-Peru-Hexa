@@ -29,6 +29,10 @@ INSERT IGNORE INTO ev_iam.usuario (id, email, password_hash, nombre, telefono, s
 (@DEMO_USER, 'demo.user@eventos.test', '$bcrypt-sha256$v=2,t=2b,r=12$0mZ35JSikYcRUxPds2IKK.$G/4eI2JPqTURMzE34fgCa2qNRYdlnSC', 'Demo Usuario', '+51 900003003', 1)
 ON DUPLICATE KEY UPDATE email=VALUES(email), nombre=VALUES(nombre), status=VALUES(status);
 
+-- Asegurar rol CLIENTE (bootstrap solo crea ADMIN)
+INSERT IGNORE INTO ev_iam.rol (id, codigo, nombre, descripcion, status) VALUES
+('aaaa1111-1111-1111-1111-aaaaaaaaaaa2','CLIENTE','Cliente','Usuario final que contrata servicios de eventos',1);
+
 -- Asegurar rol CLIENTE para el demo user
 INSERT IGNORE INTO ev_iam.usuario_rol (id, usuario_id, rol_id) VALUES
 (UUID(), @DEMO_USER, 'aaaa1111-1111-1111-1111-aaaaaaaaaaa2');
@@ -250,16 +254,16 @@ INSERT IGNORE INTO ev_iam.usuario_rol (id, usuario_id, rol_id) VALUES
 
 -- Add 8 more pedidos, items, holds, reservas for coverage
 -- Pedidos: clientes 3-10, tipos de evento variados
-INSERT IGNORE INTO ev_contratacion.pedido_evento (id, cliente_id, tipo_evento_id, fecha_evento, hora_inicio, hora_fin, ubicacion, moneda, status, correlation_id, request_id, created_by)
+INSERT IGNORE INTO ev_contratacion.pedido_evento (id, cliente_id, tipo_evento_id, fecha_evento, hora_inicio, hora_fin, num_personas, ubicacion, moneda, status, correlation_id, request_id, created_by)
 VALUES
-('ped-0003', 'user-client-03', '44444444-1111-1111-1111-111111111111', DATE_ADD(CURRENT_DATE(), INTERVAL 50 DAY), '18:00:00','23:00:00','Surco','PEN',1,'corr-ped-0003','req-ped-0003', 'user-client-03'),
-('ped-0004', 'user-client-04', '55555555-1111-1111-1111-111111111111', DATE_ADD(CURRENT_DATE(), INTERVAL 60 DAY), '19:00:00','02:00:00','Barranco','PEN',1,'corr-ped-0004','req-ped-0004', 'user-client-04'),
-('ped-0005', 'user-client-05', '66666666-6666-6666-6666-666666666661', DATE_ADD(CURRENT_DATE(), INTERVAL 70 DAY), '10:00:00','15:00:00','San Borja','PEN',1,'corr-ped-0005','req-ped-0005', 'user-client-05'),
-('ped-0006', 'user-client-06', '77777777-7777-7777-7777-777777777771', DATE_ADD(CURRENT_DATE(), INTERVAL 80 DAY), '11:00:00','16:00:00','La Molina','PEN',1,'corr-ped-0006','req-ped-0006', 'user-client-06'),
-('ped-0007', 'user-client-07', '88888888-8888-8888-8888-888888888881', DATE_ADD(CURRENT_DATE(), INTERVAL 90 DAY), '12:00:00','17:00:00','San Miguel','PEN',1,'corr-ped-0007','req-ped-0007', 'user-client-07'),
-('ped-0008', 'user-client-08', '99999999-9999-9999-9999-999999999991', DATE_ADD(CURRENT_DATE(), INTERVAL 100 DAY), '13:00:00','18:00:00','Callao','PEN',1,'corr-ped-0008','req-ped-0008', 'user-client-08'),
-('ped-0009', 'user-client-09', 'aaaaaaa1-aaaa-aaaa-aaaa-aaaaaaaaaaa1', DATE_ADD(CURRENT_DATE(), INTERVAL 110 DAY), '14:00:00','19:00:00','Chorrillos','PEN',1,'corr-ped-0009','req-ped-0009', 'user-client-09'),
-('ped-0010', 'user-client-10', '11111111-1111-1111-1111-111111111111', DATE_ADD(CURRENT_DATE(), INTERVAL 120 DAY), '15:00:00','20:00:00','Lince','PEN',1,'corr-ped-0010','req-ped-0010', 'user-client-10')
+('ped-0003', 'user-client-03', '44444444-1111-1111-1111-111111111111', DATE_ADD(CURRENT_DATE(), INTERVAL 50 DAY), '18:00:00','23:00:00', 100, 'Surco','PEN',1,'corr-ped-0003','req-ped-0003', 'user-client-03'),
+('ped-0004', 'user-client-04', '55555555-1111-1111-1111-111111111111', DATE_ADD(CURRENT_DATE(), INTERVAL 60 DAY), '19:00:00','02:00:00', 500, 'Barranco','PEN',1,'corr-ped-0004','req-ped-0004', 'user-client-04'),
+('ped-0005', 'user-client-05', '66666666-6666-6666-6666-666666666661', DATE_ADD(CURRENT_DATE(), INTERVAL 70 DAY), '10:00:00','15:00:00', 40, 'San Borja','PEN',1,'corr-ped-0005','req-ped-0005', 'user-client-05'),
+('ped-0006', 'user-client-06', '77777777-7777-7777-7777-777777777771', DATE_ADD(CURRENT_DATE(), INTERVAL 80 DAY), '11:00:00','16:00:00', 60, 'La Molina','PEN',1,'corr-ped-0006','req-ped-0006', 'user-client-06'),
+('ped-0007', 'user-client-07', '88888888-8888-8888-8888-888888888881', DATE_ADD(CURRENT_DATE(), INTERVAL 90 DAY), '12:00:00','17:00:00', 80, 'San Miguel','PEN',1,'corr-ped-0007','req-ped-0007', 'user-client-07'),
+('ped-0008', 'user-client-08', '99999999-9999-9999-9999-999999999991', DATE_ADD(CURRENT_DATE(), INTERVAL 100 DAY), '13:00:00','18:00:00', 100, 'Callao','PEN',1,'corr-ped-0008','req-ped-0008', 'user-client-08'),
+('ped-0009', 'user-client-09', 'aaaaaaa1-aaaa-aaaa-aaaa-aaaaaaaaaaa1', DATE_ADD(CURRENT_DATE(), INTERVAL 110 DAY), '14:00:00','19:00:00', 120, 'Chorrillos','PEN',1,'corr-ped-0009','req-ped-0009', 'user-client-09'),
+('ped-0010', 'user-client-10', '11111111-1111-1111-1111-111111111111', DATE_ADD(CURRENT_DATE(), INTERVAL 120 DAY), '15:00:00','20:00:00', 100, 'Lince','PEN',1,'corr-ped-0010','req-ped-0010', 'user-client-10')
 ON DUPLICATE KEY UPDATE fecha_evento=VALUES(fecha_evento);
 
 -- Items para nuevos pedidos (servicios variados)
@@ -537,9 +541,9 @@ INSERT IGNORE INTO ev_iam.usuario_rol (id, usuario_id, rol_id) VALUES
    7) Pedidos de ejemplo (draft -> cotizado) + items
    ============================================================ */
 -- Pedido 1: demo user, paquete matrimonio
-INSERT IGNORE INTO ev_contratacion.pedido_evento (id, cliente_id, tipo_evento_id, fecha_evento, hora_inicio, hora_fin, ubicacion, moneda, status, correlation_id, request_id, created_by)
+INSERT IGNORE INTO ev_contratacion.pedido_evento (id, cliente_id, tipo_evento_id, fecha_evento, hora_inicio, hora_fin, num_personas, ubicacion, moneda, status, correlation_id, request_id, created_by)
 VALUES
-('ped-0001', @DEMO_USER, '11111111-1111-1111-1111-111111111111', DATE_ADD(CURRENT_DATE(), INTERVAL 20 DAY), '10:00:00','18:00:00','Miraflores','PEN',1,'corr-ped-0001','req-ped-0001', @DEMO_USER)
+('ped-0001', @DEMO_USER, '11111111-1111-1111-1111-111111111111', DATE_ADD(CURRENT_DATE(), INTERVAL 20 DAY), '10:00:00','18:00:00', 100, 'Miraflores','PEN',1,'corr-ped-0001','req-ped-0001', @DEMO_USER)
 ON DUPLICATE KEY UPDATE fecha_evento=VALUES(fecha_evento);
 
 INSERT IGNORE INTO ev_contratacion.item_pedido_evento (id, pedido_id, opcion_servicio_id, nombre_servicio, cantidad, precio_unitario, subtotal, tipo_item, referencia_id, created_by)
@@ -559,9 +563,9 @@ SET pe.monto_total = t.total
 WHERE pe.id = 'ped-0001';
 
 -- Pedido 2: cliente1, servicio local + deco
-INSERT IGNORE INTO ev_contratacion.pedido_evento (id, cliente_id, tipo_evento_id, fecha_evento, hora_inicio, hora_fin, ubicacion, moneda, status, correlation_id, request_id, created_by)
+INSERT IGNORE INTO ev_contratacion.pedido_evento (id, cliente_id, tipo_evento_id, fecha_evento, hora_inicio, hora_fin, num_personas, ubicacion, moneda, status, correlation_id, request_id, created_by)
 VALUES
-('ped-0002', 'user-client-01', '33333333-3333-3333-3333-333333333333', DATE_ADD(CURRENT_DATE(), INTERVAL 40 DAY), '09:00:00','17:00:00','San Isidro','PEN',1,'corr-ped-0002','req-ped-0002', 'user-client-01')
+('ped-0002', 'user-client-01', '33333333-3333-3333-3333-333333333333', DATE_ADD(CURRENT_DATE(), INTERVAL 40 DAY), '09:00:00','17:00:00', 150, 'San Isidro','PEN',1,'corr-ped-0002','req-ped-0002', 'user-client-01')
 ON DUPLICATE KEY UPDATE fecha_evento=VALUES(fecha_evento);
 
 INSERT IGNORE INTO ev_contratacion.item_pedido_evento (id, pedido_id, opcion_servicio_id, nombre_servicio, cantidad, precio_unitario, subtotal, tipo_item, referencia_id, created_by)
@@ -725,7 +729,7 @@ SET @ITEM2_ID = 'aaaa1111-2222-3333-4444-aaaaaaaa0002';
 SET @RESV1_ID = 'ccccccc0-cccc-cccc-cccc-ccccccccccc0';
 
 -- 1) Insert/Update pedido_evento (idempotente)
-INSERT INTO ev_contratacion.pedido_evento (id, cliente_id, tipo_evento_id, fecha_evento, hora_inicio, hora_fin, ubicacion, monto_total, moneda, status, created_by)
+INSERT INTO ev_contratacion.pedido_evento (id, cliente_id, tipo_evento_id, fecha_evento, hora_inicio, hora_fin, num_personas, ubicacion, monto_total, moneda, status, created_by)
 VALUES (
    @PEDIDO_ID,
    @CLIENTE_ID,
@@ -733,6 +737,7 @@ VALUES (
    DATE_ADD(CURRENT_DATE(), INTERVAL 14 DAY),
    '12:00:00',
    '18:00:00',
+   100,
    'Local demo',
    8300.00,
    @MONEDA,
@@ -743,6 +748,7 @@ ON DUPLICATE KEY UPDATE
    fecha_evento = VALUES(fecha_evento),
    hora_inicio = VALUES(hora_inicio),
    hora_fin = VALUES(hora_fin),
+   num_personas = VALUES(num_personas),
    ubicacion = VALUES(ubicacion),
    moneda = VALUES(moneda),
    status = VALUES(status),

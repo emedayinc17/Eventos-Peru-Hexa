@@ -89,7 +89,6 @@ class CatalogoClient:
                     "opcion_servicio_id": result["opcion_id"],
                     "nombre": result["opcion_nombre"],
                     "servicio_id": result["servicio_id"],
-                    "nombre_servicio": result["servicio_nombre"],
                     "servicio_nombre": result["servicio_nombre"],
                     "tipo_evento_id": result["tipo_evento_id"],
                     "moneda": result["moneda"],
@@ -133,3 +132,51 @@ class CatalogoClient:
                 return None
         except httpx.HTTPError as e:
             raise RuntimeError(f"Error al consultar catálogo: {str(e)}")
+
+    def get_first_option_for_service(self, servicio_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Obtiene la primera opción con precio vigente para un servicio dado.
+        Útil cuando el frontend envía un ID de servicio en lugar de una opción.
+        """
+        from sqlalchemy import text
+        from ev_shared.db import session_scope
+        from ev_shared.config import Settings
+        
+        settings = Settings()
+        
+        try:
+            with session_scope(settings) as db_session:
+                result = db_session.execute(
+                    text("""
+                        SELECT 
+                            v.opcion_id,
+                            v.nombre AS opcion_nombre,
+                            v.servicio_id,
+                            s.nombre AS servicio_nombre,
+                            s.tipo_evento_id,
+                            v.moneda,
+                            v.monto
+                        FROM ev_catalogo.v_opcion_con_precio_vigente v
+                        JOIN ev_catalogo.servicio s ON s.id = v.servicio_id
+                        WHERE v.servicio_id = :servicio_id
+                        LIMIT 1
+                    """),
+                    {"servicio_id": servicio_id}
+                ).mappings().first()
+                
+                if not result:
+                    return None
+                
+                return {
+                    "opcion_servicio_id": result["opcion_id"],
+                    "nombre": result["opcion_nombre"],
+                    "servicio_id": result["servicio_id"],
+                    "servicio_nombre": result["servicio_nombre"],
+                    "tipo_evento_id": result["tipo_evento_id"],
+                    "moneda": result["moneda"],
+                    "monto": float(result["monto"]),
+                    "precio": float(result["monto"]),
+                }
+        except Exception as e:
+            logger.error(f"Error al consultar opción por servicio: {str(e)}")
+            return None

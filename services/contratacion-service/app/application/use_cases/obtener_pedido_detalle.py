@@ -60,7 +60,10 @@ class ObtenerPedidoDetalleUseCase:
         # 4. Retornar estructura completa
         return {
             "pedido": asdict(pedido),
-            "items": [asdict(item) for item in items],
+            "items": [
+                {**asdict(item), "proveedor": getattr(item, "proveedor", None)} 
+                for item in items
+            ],
             "reservas": [asdict(reserva) for reserva in reservas],
             "estado_nombre": pedido.estado_nombre,
             "total_items": len(items),

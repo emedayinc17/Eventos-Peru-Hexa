@@ -150,7 +150,6 @@ CREATE TABLE IF NOT EXISTS ev_catalogo.servicio (
   id             CHAR(36) PRIMARY KEY,
   nombre         VARCHAR(120) NOT NULL,
   descripcion    VARCHAR(500) NULL,
-  categoria      VARCHAR(80)  NULL,
   tipo_evento_id CHAR(36) NOT NULL,      -- referencia lógica
   status         TINYINT     NOT NULL DEFAULT 1,
   created_at     TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -159,7 +158,6 @@ CREATE TABLE IF NOT EXISTS ev_catalogo.servicio (
   created_by     CHAR(36)    NULL,
   updated_by     CHAR(36)    NULL,
   INDEX idx_serv_tipo   (tipo_evento_id),
-  INDEX idx_serv_categoria (categoria),
   INDEX idx_serv_status (status),
   INDEX idx_serv_actor  (created_by, updated_by)
 ) ENGINE=InnoDB;
@@ -195,40 +193,6 @@ CREATE TABLE IF NOT EXISTS ev_catalogo.precio_servicio (
 ) ENGINE=InnoDB;
 
 /* CHECK/Índice únicos idempotentes */
-  /* Asegurar columnas adicionales idempotentemente: tipo_evento_id, categoria */
-  SET @exists_col := (
-     SELECT COUNT(*) FROM information_schema.columns
-     WHERE table_schema = 'ev_catalogo' AND table_name = 'opcion_servicio' AND column_name = 'tipo_evento_id'
-  );
-  SET @sql := IF(@exists_col=0,
-     'ALTER TABLE ev_catalogo.opcion_servicio ADD COLUMN tipo_evento_id CHAR(36) NULL AFTER servicio_id',
-     'SELECT 1'); PREPARE s_op1 FROM @sql; EXECUTE s_op1; DEALLOCATE PREPARE s_op1;
-
-  SET @exists_col2 := (
-     SELECT COUNT(*) FROM information_schema.columns
-     WHERE table_schema = 'ev_catalogo' AND table_name = 'opcion_servicio' AND column_name = 'categoria'
-  );
-  SET @sql := IF(@exists_col2=0,
-     'ALTER TABLE ev_catalogo.opcion_servicio ADD COLUMN categoria VARCHAR(50) NULL AFTER nombre',
-     'SELECT 1'); PREPARE s_op2 FROM @sql; EXECUTE s_op2; DEALLOCATE PREPARE s_op2;
-
-  /* Índices para facilitar filtrado por categoría/tipo */
-  SET @exists_idx := (
-    SELECT COUNT(*) FROM information_schema.statistics
-    WHERE table_schema='ev_catalogo' AND table_name='opcion_servicio' AND index_name='idx_op_categoria'
-  );
-  SET @sql := IF(@exists_idx=0,
-    'CREATE INDEX idx_op_categoria ON ev_catalogo.opcion_servicio (categoria)',
-    'SELECT 1'); PREPARE s_op3 FROM @sql; EXECUTE s_op3; DEALLOCATE PREPARE s_op3;
-
-  SET @exists_idx2 := (
-    SELECT COUNT(*) FROM information_schema.statistics
-    WHERE table_schema='ev_catalogo' AND table_name='opcion_servicio' AND index_name='idx_op_tipo_evento'
-  );
-  SET @sql := IF(@exists_idx2=0,
-    'CREATE INDEX idx_op_tipo_evento ON ev_catalogo.opcion_servicio (tipo_evento_id)',
-    'SELECT 1'); PREPARE s_op4 FROM @sql; EXECUTE s_op4; DEALLOCATE PREPARE s_op4;
-
 SET @exists := (
   SELECT COUNT(*) FROM information_schema.table_constraints
   WHERE constraint_schema='ev_catalogo'
@@ -258,7 +222,6 @@ CREATE TABLE IF NOT EXISTS ev_paquetes.paquete (
   codigo       VARCHAR(50)  NOT NULL UNIQUE,
   nombre       VARCHAR(120) NOT NULL,
   descripcion  VARCHAR(500) NULL,
-  moneda       CHAR(3)      NOT NULL DEFAULT 'PEN',
   status       TINYINT      NOT NULL DEFAULT 1,
   created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at   TIMESTAMP    NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
@@ -268,13 +231,11 @@ CREATE TABLE IF NOT EXISTS ev_paquetes.paquete (
   INDEX idx_pkg_actor (created_by, updated_by)
 ) ENGINE=InnoDB;
 
-
 CREATE TABLE IF NOT EXISTS ev_paquetes.item_paquete (
   id                 CHAR(36) PRIMARY KEY,
   paquete_id         CHAR(36) NOT NULL,
   opcion_servicio_id CHAR(36) NOT NULL,
   cantidad           INT NOT NULL DEFAULT 1,
-  created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_item_pkg (paquete_id),
   INDEX idx_item_opt (opcion_servicio_id)
 ) ENGINE=InnoDB;
@@ -333,10 +294,6 @@ SET @sql := IF(@exists=0,
 CREATE TABLE IF NOT EXISTS ev_proveedores.proveedor (
   id           CHAR(36) PRIMARY KEY,
   nombre       VARCHAR(150) NOT NULL,
-  categoria    VARCHAR(80)  NULL,
-  ruc          VARCHAR(50)  NULL,
-  contacto     VARCHAR(150) NULL,
-  direccion    VARCHAR(255) NULL,
   email        VARCHAR(150) NULL,
   telefono     VARCHAR(50)  NULL,
   rating_prom  DECIMAL(3,2) NULL DEFAULT 0.0,
@@ -382,7 +339,7 @@ CREATE TABLE IF NOT EXISTS ev_proveedores.reserva_temporal (
   fin                DATETIME NOT NULL,
   status             TINYINT  NOT NULL DEFAULT 0, -- 0=hold,1=confirmada,2=expirada,3=liberada
   expira_en          DATETIME NOT NULL,
-  correlation_id     VARCHAR(150) NULL,
+  correlation_id     VARCHAR(64) NULL,
   created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_by         CHAR(36)  NULL,
   INDEX idx_hold_prov_time (proveedor_id, inicio, fin),
@@ -413,12 +370,11 @@ CREATE TABLE IF NOT EXISTS ev_contratacion.pedido_evento (
   fecha_evento    DATE     NOT NULL,
   hora_inicio     TIME     NOT NULL,
   hora_fin        TIME     NULL,
-  num_personas    INT      NOT NULL DEFAULT 1,
   ubicacion       VARCHAR(255) NOT NULL,
   monto_total     DECIMAL(12,2) NULL DEFAULT 0.00,
   moneda          CHAR(3)  NOT NULL DEFAULT 'PEN',
   status          TINYINT  NOT NULL DEFAULT 0, -- 0=DRAFT,1=COTIZADO,2=APROBADO,3=ASIGNADO,4=CERRADO,5=CANCELADO
-  correlation_id  VARCHAR(150) NULL,
+  correlation_id  VARCHAR(64) NULL,
   request_id      VARCHAR(64) NULL,
   created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at      TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
@@ -474,7 +430,6 @@ CREATE TABLE IF NOT EXISTS ev_contratacion.reserva (
   fin            DATETIME NOT NULL,
   status         TINYINT  NOT NULL DEFAULT 0, -- 0=PEND,1=CONFIRMADA,2=FALLIDA,3=CANCELADA
   hold_id        CHAR(36) NULL,               -- ref lógica a reserva_temporal.id
-  correlation_id VARCHAR(150) NULL,
   created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_by     CHAR(36)  NULL,
   INDEX idx_reserva_prov_time (proveedor_id, inicio, fin),
@@ -602,14 +557,11 @@ SELECT
   u.email       AS cliente_email,
   COALESCE(u.nombre,'') AS cliente_nombre,
   pe.tipo_evento_id,
-  te.nombre     AS tipo_evento_nombre,
   pe.fecha_evento, pe.hora_inicio, pe.hora_fin,
-  pe.num_personas,
   pe.ubicacion, pe.monto_total, pe.moneda,
   pe.status, pe.created_at, pe.updated_at
 FROM ev_contratacion.pedido_evento pe
-LEFT JOIN ev_iam.usuario u ON u.id = pe.cliente_id
-LEFT JOIN ev_catalogo.tipo_evento te ON te.id = pe.tipo_evento_id;
+LEFT JOIN ev_iam.usuario u ON u.id = pe.cliente_id;
 
 -- NUEVA: Parrilla de proveedores por servicio (para filtros por tipo_evento)
 CREATE OR REPLACE VIEW ev_proveedores.v_servicio_proveedor_habilidad AS
@@ -724,7 +676,7 @@ ON DUPLICATE KEY UPDATE nombre=VALUES(nombre), descripcion=VALUES(descripcion), 
 INSERT INTO ev_iam.usuario (id, email, password_hash, nombre, telefono, status) VALUES
  ('aaaa2222-2222-2222-2222-aaaaaaaaaaa2',
   'demo@eventos.pe',
-  '$bcrypt-sha256$v=2,t=2b,r=12$0mZ35JSikYcRUxPds2IKK.$G/4eI2JPqTURMzE34fgCa2qNRYdlnSC', -- password: Evoluti0n
+  '$bcrypt-sha256$v=2,t=2b,r=12$X74k7ddCoyDNfEk02o3gHO$mmRQnZkaSGKInBAIlnL2lfB2VnHzfvu', -- password en texto plano: Admin_2025!
   'Usuario Demo',
   '+51 900 000 000',
   1)
@@ -909,9 +861,6 @@ GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_mensajeria.*    TO 'a
 GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_contratacion.*    TO 'app_contratacion'@'%';
 GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_contratacion.*    TO 'app_contratacion'@'localhost';
 
-GRANT INSERT, SELECT, UPDATE, DELETE ON ev_catalogo.* TO 'app_catalogo'@'%';
-GRANT INSERT, SELECT, UPDATE, DELETE ON ev_catalogo.* TO 'app_catalogo'@'localhost';
-
 -- NUEVO: Permisos de LECTURA para paquetes (necesario para calcular precios)
 GRANT SELECT ON ev_paquetes.* TO 'app_contratacion'@'%';
 GRANT SELECT ON ev_paquetes.* TO 'app_contratacion'@'localhost';
@@ -919,10 +868,6 @@ GRANT SELECT ON ev_paquetes.* TO 'app_contratacion'@'localhost';
 -- NUEVO: Permisos de LECTURA para catálogo (necesario para obtener tipos de evento)
 GRANT SELECT ON ev_catalogo.* TO 'app_contratacion'@'%';
 GRANT SELECT ON ev_catalogo.* TO 'app_contratacion'@'localhost';
-
--- NUEVO: Permisos de LECTURA para proveedores (necesario para enriquecer items con datos del proveedor)
-GRANT SELECT ON ev_proveedores.* TO 'app_contratacion'@'%';
-GRANT SELECT ON ev_proveedores.* TO 'app_contratacion'@'localhost';
 
 -- Contratacion en Mensajeria (para este MVP)
 GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON ev_mensajeria.* TO 'app_contratacion'@'%';
@@ -942,65 +887,7 @@ SET @sql := IF(@exists>0,
   'SELECT 1');
 PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
 
--- Roles (solo una vez)
-INSERT IGNORE INTO ev_iam.rol (id, codigo, nombre, descripcion, status) VALUES
- ('aaaa1111-1111-1111-1111-aaaaaaaaaaa1','ADMIN','Administrador','Acceso administrativo completo del sistema',1);
-
--- Unico administrador con contraseña: Evoluti0n
-INSERT IGNORE INTO ev_iam.usuario (id, email, password_hash, nombre, telefono, status) VALUES
- ('ee111111-1111-4111-8111-aaaaaaaaaaa1','admin@eventos.pe','$bcrypt-sha256$v=2,t=2b,r=12$0mZ35JSikYcRUxPds2IKK.$G/4eI2JPqTURMzE34fgCa2qNRYdlnSC','Administrador Principal','+51 900 111 000',1);
-
-
 FLUSH PRIVILEGES;
-
-/* ============================================================
-   OPTIONAL: Alinear colaciones de tablas al valor oficial
-   - Este bloque crea un procedimiento temporal que recorre las tablas
-     de los esquemas del proyecto y ejecuta ALTER TABLE ... CONVERT TO
-     CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci solo si la tabla
-     tiene una colación distinta. Es idempotente y seguro ejecutarlo
-     en despliegues iniciales.
-   - NOTA: puede tardar en bases grandes y bloquear tablas mientras se
-     realiza la conversión. Ejecútalo en ventana de mantenimiento si aplica.
-   - Si no quieres aplicarlo automáticamente, coméntalo o elimínalo.
-*/
--- Seleccionar una base por defecto para que DROP/CREATE PROCEDURE
--- y CALL funcionen aunque el cliente no haya seleccionado un schema.
-DELIMITER $$
-DROP PROCEDURE IF EXISTS ev_contratacion.ev_align_collations$$
-CREATE PROCEDURE ev_contratacion.ev_align_collations()
-BEGIN
-  DECLARE done INT DEFAULT FALSE;
-  DECLARE tschema VARCHAR(64);
-  DECLARE tname VARCHAR(64);
-  DECLARE cur CURSOR FOR
-    SELECT table_schema, table_name
-    FROM information_schema.tables
-    WHERE table_schema IN ('ev_iam','ev_catalogo','ev_paquetes','ev_proveedores','ev_contratacion','ev_mensajeria')
-      AND table_type = 'BASE TABLE'
-      AND TABLE_COLLATION IS NOT NULL
-      AND TABLE_COLLATION <> 'utf8mb4_unicode_ci';
-  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
-
-  OPEN cur;
-  read_loop: LOOP
-    FETCH cur INTO tschema, tname;
-    IF done THEN
-      LEAVE read_loop;
-    END IF;
-    SET @s = CONCAT('ALTER TABLE `', tschema, '`.`', tname, '` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
-    PREPARE stmt FROM @s;
-    EXECUTE stmt;
-    DEALLOCATE PREPARE stmt;
-  END LOOP;
-  CLOSE cur;
-END$$
-DELIMITER ;
-
--- Ejecutar la corrección en bootstrap (comentar si no quieres ejecutar automáticamente)
-CALL ev_contratacion.ev_align_collations();
-DROP PROCEDURE IF EXISTS ev_contratacion.ev_align_collations;
-
 
 /* ============================================================
    12) CONSULTAS de verificación (opcionales)

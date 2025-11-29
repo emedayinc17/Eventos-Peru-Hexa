@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: eventos-peru-dev
+spec:
+  destination:
+    name: ''
+    namespace: eventos-peru
+    server: https://kubernetes.default.svc
+  source:
+    path: services/k8s/argocd/overlays/dev/
+    repoURL: https://github.com/emedayinc17/Eventos-Peru-Hexa.git
+    targetRevision: emeday
+  project: default
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: false
+    syncOptions:
+      - PruneLast=true

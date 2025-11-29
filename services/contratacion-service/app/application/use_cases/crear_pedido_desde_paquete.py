@@ -114,8 +114,19 @@ class CrearPedidoDesdePaqueteUseCase:
             # Calcular subtotal = cantidad * precio_unitario
             cantidad = item.get("cantidad", 1)
             precio_unitario = float(item.get("precio_unit_vigente", 0))
-            subtotal = cantidad * precio_unitario
             opcion_id = item["opcion_servicio_id"]
+
+            # Si el precio es 0, intentar obtenerlo del catálogo directamente
+            if precio_unitario == 0:
+                try:
+                    precio_vigente = self.catalogo_client.obtener_precio_opcion(opcion_id)
+                    if precio_vigente and isinstance(precio_vigente, dict):
+                        precio_unitario = float(precio_vigente.get("monto", precio_vigente.get("precio", 0)))
+                except Exception:
+                    # Si falla, se mantiene en 0 pero no bloquea el flujo
+                    pass
+
+            subtotal = cantidad * precio_unitario
             
             item_creado = self.item_repo.crear(
                 session,
@@ -158,10 +169,25 @@ class CrearPedidoDesdePaqueteUseCase:
                 # Consultar precio vigente
                 try:
                     precio_vigente = self.catalogo_client.obtener_precio_opcion(opcion_id)
-                    precio_unitario_adicional = float(precio_vigente)
+                    
+                    # Si no encuentra por opción, intentar buscar por servicio (fallback para frontend legacy)
+                    if not precio_vigente:
+                        precio_vigente = self.catalogo_client.get_first_option_for_service(opcion_id)
+                        if precio_vigente:
+                            # Actualizar el ID de opción al correcto encontrado
+                            opcion_id = precio_vigente.get("opcion_servicio_id")
+
+                    if precio_vigente and isinstance(precio_vigente, dict):
+                        precio_unitario_adicional = float(precio_vigente.get("monto", precio_vigente.get("precio", 0)))
+                        # Usar el nombre real del servicio/opción si está disponible
+                        nombre_servicio_real = precio_vigente.get("servicio_nombre", precio_vigente.get("nombre"))
+                    else:
+                        nombre_servicio_real = "Servicio Adicional"
+                        precio_unitario_adicional = 0.0
                 except Exception:
                     # Si no se puede obtener precio, usar 0 (debería manejarse mejor)
                     precio_unitario_adicional = 0.0
+                    nombre_servicio_real = "Servicio Adicional"
                 
                 subtotal_adicional = cantidad_adicional * precio_unitario_adicional
                 
@@ -170,7 +196,7 @@ class CrearPedidoDesdePaqueteUseCase:
                     session,
                     pedido_id=pedido.id,
                     opcion_servicio_id=opcion_id,
-                    nombre_servicio="Servicio Adicional",  # Podría obtenerse del catálogo
+                    nombre_servicio=nombre_servicio_real,  # Usar nombre real
                     cantidad=cantidad_adicional,
                     precio_unitario=precio_unitario_adicional,
                     subtotal=subtotal_adicional,

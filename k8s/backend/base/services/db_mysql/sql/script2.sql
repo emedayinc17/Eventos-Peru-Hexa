@@ -28,11 +28,7 @@ INSERT IGNORE INTO ev_iam.rol (id, codigo, nombre, descripcion, status) VALUES
 
 -- Unico administrador con contraseña: Evoluti0n
 INSERT IGNORE INTO ev_iam.usuario (id, email, password_hash, nombre, telefono, status) VALUES
- ('ee111111-1111-4111-8111-aaaaaaaaaaa1','admin@eventos.pe','$bcrypt-sha256$v=2,t=2b,r=12$0mZ35JSikYcRUxPds2IKK.$G/4eI2JPqTURMzE34fgCa2qNRYdlnSC','Administrador Principal','+51 900 111 000',1);
-
--- Usuario demo (del bootstrap.sql) con contraseña: Evoluti0n
-INSERT IGNORE INTO ev_iam.usuario (id, email, password_hash, nombre, telefono, status) VALUES
- ('aaaa2222-2222-2222-2222-aaaaaaaaaaa2','demo@eventos.pe','$bcrypt-sha256$v=2,t=2b,r=12$0mZ35JSikYcRUxPds2IKK.$G/4eI2JPqTURMzE34fgCa2qNRYdlnSC','Usuario Demo','+51 900 000 000',1);
+ ('ee111111-1111-4111-8111-aaaaaaaaaaa1','admin@eventos.pe','$2b$12$T9QvT2JrJQmA2y7cKk1oMOOYqUj8K0e4R2rRj3Wm3mX8xWl3.1m5C','Administrador Principal','+51 900 111 000',1);
 
 -- Generar 150 clientes automáticamente
 INSERT IGNORE INTO ev_iam.usuario (id, email, password_hash, nombre, telefono, status)
@@ -45,7 +41,7 @@ SELECT
         FLOOR(RAND() * 1000),
         '@eventos.pe'
     ),
-    '$bcrypt-sha256$v=2,t=2b,r=12$0mZ35JSikYcRUxPds2IKK.$G/4eI2JPqTURMzE34fgCa2qNRYdlnSC',
+    '$2b$12$T9QvT2JrJQmA2y7cKk1oMOOYqUj8K0e4R2rRj3Wm3mX8xWl3.1m5C',
     CONCAT(
         ELT(1 + FLOOR(RAND() * 20), 'Juan', 'María', 'Carlos', 'Ana', 'Luis', 'Rosa', 'José', 'Carmen', 'Miguel', 'Elena', 'Fernando', 'Patricia', 'Roberto', 'Lucía', 'Jorge', 'Sofía', 'Ricardo', 'Claudia', 'Pedro', 'Daniela'),
         ' ',
@@ -71,10 +67,6 @@ WHERE u.id != 'ee111111-1111-4111-8111-aaaaaaaaaaa1';
 -- Asignar rol ADMIN (solo uno)
 INSERT IGNORE INTO ev_iam.usuario_rol (id, usuario_id, rol_id) 
 VALUES ('ur-admin-0001', 'ee111111-1111-4111-8111-aaaaaaaaaaa1', 'aaaa1111-1111-1111-1111-aaaaaaaaaaa1');
-
--- Asignar rol CLIENTE a demo@eventos.pe explícitamente
-INSERT IGNORE INTO ev_iam.usuario_rol (id, usuario_id, rol_id) 
-VALUES ('ur-demo-0001', 'aaaa2222-2222-2222-2222-aaaaaaaaaaa2', 'aaaa1111-1111-1111-1111-aaaaaaaaaaa2');
 
 /* ============================================================
    2) CATÁLOGO - Servicios y Opciones Masivas
@@ -268,7 +260,7 @@ LIMIT 200;
    ============================================================ */
 
 -- Pedidos
-INSERT IGNORE INTO ev_contratacion.pedido_evento (id, cliente_id, tipo_evento_id, fecha_evento, hora_inicio, hora_fin, num_personas, ubicacion, moneda, status, correlation_id, request_id, created_by)
+INSERT IGNORE INTO ev_contratacion.pedido_evento (id, cliente_id, tipo_evento_id, fecha_evento, hora_inicio, hora_fin, ubicacion, moneda, status, correlation_id, request_id, created_by)
 SELECT 
     UUID(),
     (SELECT id FROM ev_iam.usuario WHERE id != 'ee111111-1111-4111-8111-aaaaaaaaaaa1' ORDER BY RAND() LIMIT 1),
@@ -276,7 +268,6 @@ SELECT
     DATE_ADD(@today, INTERVAL FLOOR(5 + RAND() * 60) DAY),
     CONCAT(LPAD(FLOOR(10 + RAND() * 10), 2, '0'), ':00:00'),
     CONCAT(LPAD(FLOOR(18 + RAND() * 6), 2, '0'), ':00:00'),
-    FLOOR(50 + RAND() * 200),
     ELT(1 + FLOOR(RAND() * 8), 'Lima Centro', 'Miraflores', 'San Isidro', 'La Molina', 'Surco', 'Barranco', 'Callao', 'Provincias'),
     'PEN',
     FLOOR(RAND() * 3),
@@ -366,7 +357,7 @@ SELECT
     DATE_SUB(@now, INTERVAL FLOOR(RAND() * 30) DAY),
     (SELECT id FROM ev_iam.usuario ORDER BY RAND() LIMIT 1),
     ELT(1 + FLOOR(RAND() * 5), 'pedido_evento', 'usuario', 'servicio', 'proveedor', 'reserva'),
-    CONCAT('ent-', SUBSTRING(MD5(RAND()), 1, 32)),
+    UUID(),
     ELT(1 + FLOOR(RAND() * 6), 'CREAR', 'ACTUALIZAR', 'CONSULTAR', 'ELIMINAR', 'CONFIRMAR', 'CANCELAR'),
     JSON_OBJECT(
         'ip', CONCAT('192.168.', FLOOR(RAND() * 255), '.', FLOOR(RAND() * 255)),
@@ -503,30 +494,3 @@ VALUES (
 -- Nota: Usa los siguientes valores en tu script de verificación o pruebas:
 -- SAMPLE_SERVICIO_ID = aaaaaaaa-1111-2222-3333-aaaaaaaaaaaa
 -- SAMPLE_PROVEEDOR_ID = cccccccc-3333-4444-5555-cccccccccccc
-
-/* ============================================================
-    BLOQUE ADICIONAL: Paquetes determinísticos para pruebas E2E
-    - Añade 3 paquetes (Matrimonio, Cumpleaños, Corporativo)
-    - Ítems referencian opciones determinísticas ya seedadas en bootstrap.sql
-    - Precios con `vigente_desde = CURRENT_DATE()` y `vigente_hasta = NULL`
-    INSERT IGNORE se usa para evitar duplicados si se ejecuta varias veces.
-    ============================================================ */
-
-INSERT IGNORE INTO ev_paquetes.paquete (id, codigo, nombre, descripcion, status, created_by) VALUES
-('pkg11111-1111-1111-1111-111111111111','PKG-TEST-MATRIMONIO','Test Paquete Matrimonio','Paquete de prueba para tipo Matrimonio (test)',1,'ee111111-1111-4111-8111-aaaaaaaaaaa1'),
-('pkg22222-2222-2222-2222-222222222222','PKG-TEST-CUMPLE','Test Paquete Cumpleaños','Paquete de prueba para tipo Cumpleaños (test)',1,'ee111111-1111-4111-8111-aaaaaaaaaaa1'),
-('pkg33333-3333-3333-3333-333333333333','PKG-TEST-CORP','Test Paquete Corporativo','Paquete de prueba para tipo Corporativo (test)',1,'ee111111-1111-4111-8111-aaaaaaaaaaa1');
-
-INSERT IGNORE INTO ev_paquetes.item_paquete (id, paquete_id, opcion_servicio_id, cantidad) VALUES
-('itmpkg11-1111-1111-1111-111111111111','pkg11111-1111-1111-1111-111111111111','77777777-7777-7777-7777-777777777777',1),
-('itmpkg12-1111-1111-1111-111111111112','pkg11111-1111-1111-1111-111111111111','88888888-8888-8888-8888-888888888888',1),
-('itmpkg21-2222-2222-2222-222222222221','pkg22222-2222-2222-2222-222222222222','88888888-8888-8888-8888-888888888888',1),
-('itmpkg22-2222-2222-2222-222222222222','pkg22222-2222-2222-2222-222222222222','77777777-7777-7777-7777-777777777777',1),
-('itmpkg31-3333-3333-3333-333333333331','pkg33333-3333-3333-3333-333333333333','99999999-9999-9999-9999-999999999999',1),
-('itmpkg32-3333-3333-3333-333333333332','pkg33333-3333-3333-3333-333333333333','77777777-7777-7777-7777-777777777777',1);
-
-INSERT IGNORE INTO ev_paquetes.precio_paquete (id, paquete_id, moneda, monto, vigente_desde, vigente_hasta, created_by) VALUES
-('prpkg11-1111-1111-1111-111111111111','pkg11111-1111-1111-1111-111111111111','PEN',9500.00,CURRENT_DATE(),NULL,'ee111111-1111-4111-8111-aaaaaaaaaaa1'),
-('prpkg22-2222-2222-2222-222222222222','pkg22222-2222-2222-2222-222222222222','PEN',7200.00,CURRENT_DATE(),NULL,'ee111111-1111-4111-8111-aaaaaaaaaaa1'),
-('prpkg33-3333-3333-3333-333333333333','pkg33333-3333-3333-3333-333333333333','PEN',4800.00,CURRENT_DATE(),NULL,'ee111111-1111-4111-8111-aaaaaaaaaaa1');
-

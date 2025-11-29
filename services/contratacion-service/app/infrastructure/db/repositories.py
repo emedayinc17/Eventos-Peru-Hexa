@@ -398,8 +398,24 @@ class MySQLItemPedidoRepository:
             {"pedido_id": pedido_id},
         ).mappings().all()
         
-        return [
-            ItemPedido(
+        # Enriquecer items con proveedor si existe reserva
+        # Nota: Esto debería hacerse idealmente en una vista o servicio de dominio,
+        # pero para mantenerlo simple en el repo por ahora:
+        items = []
+        for row in rows:
+            # Buscar proveedor asociado en reservas (query N+1 simple, optimizable luego)
+            prov_row = session.execute(
+                text("""
+                    SELECT p.id, p.nombre, p.email, p.telefono
+                    FROM ev_contratacion.reserva r
+                    JOIN ev_proveedores.proveedor p ON p.id = r.proveedor_id
+                    WHERE r.item_pedido_id = :item_id AND r.status != 2 -- No cancelado
+                    LIMIT 1
+                """),
+                {"item_id": row["id"]}
+            ).mappings().first()
+
+            item = ItemPedido(
                 id=row["id"],
                 pedido_id=row["pedido_id"],
                 opcion_servicio_id=row["opcion_servicio_id"],
@@ -408,8 +424,15 @@ class MySQLItemPedidoRepository:
                 precio_unitario=Decimal(str(row["precio_unitario"])),
                 subtotal=Decimal(str(row["subtotal"])),
             )
-            for row in rows
-        ]
+            
+            if prov_row:
+                # Inyectamos proveedor como atributo dinámico para que el frontend lo reciba
+                # (El modelo Pydantic/Dataclass debe soportarlo o ser flexible)
+                setattr(item, 'proveedor', dict(prov_row))
+            
+            items.append(item)
+            
+        return items
     
     def obtener_por_id(
         self,

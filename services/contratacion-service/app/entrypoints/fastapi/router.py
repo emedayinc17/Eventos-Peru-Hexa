@@ -5,6 +5,7 @@ Capa de orquestación HTTP - SIN lógica de negocio, SIN SQL
 from typing import Dict, Any
 from dataclasses import asdict
 from datetime import datetime
+import os
 from fastapi import APIRouter, HTTPException, status, Depends
 
 from ev_shared.config import Settings
@@ -344,16 +345,46 @@ def admin_listar_pedidos(
                 limit=limit,
                 offset=offset
             )
-            
-            # Serializar lista
-            pedidos_list = [_serialize_decimal(asdict(p)) for p in pedidos]
-            return {
+
+            # Serializar lista con tolerancia a filas problemáticas
+            pedidos_list = []
+            errors = []
+
+            # Controlar comportamiento mediante variables de entorno (solo para debugging local)
+            debug_mode = os.environ.get('CONTRATACION_DEBUG', '0') == '1'
+            skip_bad_rows = os.environ.get('CONTRATACION_DEBUG_SKIP_BAD_ROWS', '1') == '1'
+
+            for p in pedidos:
+                try:
+                    pedidos_list.append(_serialize_decimal(asdict(p)))
+                except Exception as item_exc:
+                    # Capturamos información mínima para debugging
+                    import traceback
+                    tb = traceback.format_exc()
+                    err = {
+                        "pedido_id": getattr(p, 'id', None),
+                        "error": str(item_exc)
+                    }
+                    if debug_mode:
+                        # En modo debug incluimos traza completa (only local use!)
+                        err["trace"] = tb
+                    errors.append(err)
+                    if not skip_bad_rows:
+                        # Mantener comportamiento original: propagar la excepción
+                        raise
+
+            response = {
                 "items": pedidos_list,
                 "total": len(pedidos_list),
                 "limit": limit,
                 "offset": offset,
             }
-            
+            if errors:
+                # Añadimos una sección debug con información limitada
+                response["_debug_errors_skipped"] = errors
+
+            return response
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -1,0 +1,10 @@
+resources:
+  - ../../base
+images:
+  - name: emeday17/eventos-frontend
+    newTag: 1.0.0-prod
+patches:
+  - path: replicas-patch.yaml
+    target:
+      kind: Deployment
+      name: eventos-frontend

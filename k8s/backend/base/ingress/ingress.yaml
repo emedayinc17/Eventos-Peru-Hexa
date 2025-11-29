@@ -1,0 +1,49 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: eventos-api
+  namespace: eventos-peru
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, PUT, POST, DELETE, PATCH, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Authorization, Content-Type, Accept, Origin, X-Requested-With"
+    nginx.ingress.kubernetes.io/limit-rps: "20"
+    # 👇 OJO: eliminamos use-regex y rewrite-target
+spec:
+  ingressClassName: public
+  rules:
+    - host: eventos.emeday.inc
+      http:
+        paths:
+          - path: /api/iam
+            pathType: Prefix
+            backend:
+              service:
+                name: iam-service
+                port:
+                  number: 8010
+
+          - path: /api/catalogo
+            pathType: Prefix
+            backend:
+              service:
+                name: catalogo-service
+                port:
+                  number: 8020
+
+          - path: /api/proveedores
+            pathType: Prefix
+            backend:
+              service:
+                name: proveedores-service
+                port:
+                  number: 8030
+
+          - path: /api/contratacion
+            pathType: Prefix
+            backend:
+              service:
+                name: contratacion-service
+                port:
+                  number: 8040

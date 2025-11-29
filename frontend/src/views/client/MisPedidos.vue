@@ -134,7 +134,7 @@
               class="inline-block px-3 py-1 rounded-full text-sm font-medium"
               :class="getEstadoBadgeClass(getPedidoEstadoNombre(selectedPedido))"
             >
-              {{ getPedidoEstadoNombre(selectedPedido) }}
+              {{ selectedPedido.estado_nombre || getPedidoEstadoNombre(selectedPedido) }}
             </span>
           </div>
           <div>
@@ -396,7 +396,7 @@ const viewDetails = async (pedido: any) => {
     }
 
     // Estado y total con múltiples posibles nombres
-    const estadoVal = pedidoObj.estado_nombre || pedidoObj.estado || pedidoObj.status || pedidoObj.estado_value || 'DESCONOCIDO';
+    const estadoVal = pedidoObj.estado_nombre || detalle.estado_nombre || pedidoObj.estado || pedidoObj.status || pedidoObj.estado_value || 'DESCONOCIDO';
     const totalVal = pedidoObj.monto_total ?? pedidoObj.total ?? pedidoObj.monto ?? 0;
 
     // Si tipo_evento_nombre no viene, intentar resolverlo desde el catálogo usando tipo_evento_id

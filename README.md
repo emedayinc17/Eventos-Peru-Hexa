@@ -1,3 +1,64 @@
+## 📦 Ejemplo de Estructura Kustomize (Frontend y Backend)
+
+Se recomienda tener una carpeta `k8s/` en la raíz de cada repo (o en el monorepo), con la siguiente estructura para aprovechar Kustomize y facilitar despliegues multi-entorno:
+
+```plaintext
+k8s/
+	frontend/
+		base/
+			deployment.yaml
+			service.yaml
+			ingress.yaml
+			kustomization.yaml
+		overlays/
+			dev/
+				kustomization.yaml
+			prod/
+				kustomization.yaml
+	backend/
+		base/
+			(todos los microservicios: deployment.yaml, service.yaml, ingress.yaml, kustomization.yaml)
+		overlays/
+			dev/
+				kustomization.yaml
+			prod/
+				kustomization.yaml
+```
+
+**Ventajas:**
+- Puedes personalizar imágenes, dominios, réplicas, variables por entorno sin duplicar YAML.
+- ArgoCD puede apuntar a `k8s/frontend/overlays/prod` o `k8s/backend/overlays/prod` según el entorno.
+- Mantienes independencia y flexibilidad para frontend y backend.
+
+**Ejemplo de kustomization.yaml para un overlay:**
+
+```yaml
+# k8s/frontend/overlays/prod/kustomization.yaml
+resources:
+	- ../../base
+images:
+	- name: emeday17/eventos-frontend
+		newTag: 1.0.0-prod
+patches:
+	- path: replicas-patch.yaml
+		target:
+			kind: Deployment
+			name: eventos-frontend
+```
+
+```yaml
+# k8s/frontend/overlays/prod/replicas-patch.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+	name: eventos-frontend
+spec:
+	replicas: 3
+```
+
+**Repite la misma lógica para backend y sus microservicios.**
+
+---
 
 
 # Eventos Perú Hexagonal
