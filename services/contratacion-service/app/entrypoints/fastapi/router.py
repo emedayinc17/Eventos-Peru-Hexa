@@ -641,6 +641,7 @@ def admin_detalle_pedido(
     pedido_id: str,
     settings: Settings = Depends(get_settings),
     admin=Depends(require_role("admin")),
+    authorization: str | None = Header(None),
 ):
     """
     Detalle del pedido para ADMIN - Hexagonal pattern
@@ -648,9 +649,14 @@ def admin_detalle_pedido(
     """
     use_case = get_obtener_pedido_detalle_use_case()
     
+    # Extract token
+    token = None
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization.split(" ", 1)[1]
+    
     try:
         for session in get_db_session(settings):
-            detalle = use_case.execute(session, pedido_id=pedido_id)
+            detalle = use_case.execute(session, pedido_id=pedido_id, auth_token=token)
             return _serialize_decimal(detalle)
             
     except PedidoNoEncontrado:

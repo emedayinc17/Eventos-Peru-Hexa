@@ -107,11 +107,26 @@ class CatalogoClient:
         return self.get_opcion_servicio_precio(opcion_servicio_id)
     
     
+    _tipos_cache = None
+    _tipos_cache_time = 0
+    CACHE_TTL = 300  # 5 minutes
+
     def get_tipo_evento(self, tipo_evento_id: str) -> Optional[Dict[str, Any]]:
         """
         Obtiene información de un tipo de evento.
         GET /catalogo/v1/tipos (or /v1/tipos if base already contains /catalogo)
+        Uses in-memory cache.
         """
+        import time
+        now = time.time()
+        
+        if self._tipos_cache and (now - self._tipos_cache_time < self.CACHE_TTL):
+            # Use cache
+            for tipo in self._tipos_cache:
+                if str(tipo.get("id")) == str(tipo_evento_id):
+                    return tipo
+            return None
+
         base = self.base_url.rstrip('/')
         if base.endswith('/catalogo'):
             url = f"{base}/v1/tipos"
@@ -124,9 +139,13 @@ class CatalogoClient:
                 resp.raise_for_status()
                 tipos = resp.json()
                 
+                # Update cache
+                self._tipos_cache = tipos
+                self._tipos_cache_time = now
+                
                 # Buscar el tipo específico
                 for tipo in tipos:
-                    if tipo.get("id") == tipo_evento_id:
+                    if str(tipo.get("id")) == str(tipo_evento_id):
                         return tipo
                 
                 return None

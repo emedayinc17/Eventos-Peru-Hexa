@@ -338,7 +338,7 @@ class MySQLItemPedidoRepository:
         row = session.execute(
             text("""
                 SELECT id, pedido_id, opcion_servicio_id, nombre_servicio,
-                       cantidad, precio_unitario, subtotal, created_at
+                       cantidad, precio_unitario, subtotal, tipo_item, referencia_id, created_at
                 FROM ev_contratacion.item_pedido_evento
                 WHERE id = :item_id
                 LIMIT 1
@@ -354,6 +354,9 @@ class MySQLItemPedidoRepository:
             cantidad=row["cantidad"],
             precio_unitario=Decimal(str(row["precio_unitario"])),
             subtotal=Decimal(str(row["subtotal"])),
+            tipo_item=row["tipo_item"],
+            referencia_id=row["referencia_id"],
+            proveedor=None
         )
     
     def listar_por_pedido(
@@ -377,19 +380,8 @@ class MySQLItemPedidoRepository:
         # Nota: Esto debería hacerse idealmente en una vista o servicio de dominio,
         # pero para mantenerlo simple en el repo por ahora:
         items = []
+        items = []
         for row in rows:
-            # Buscar proveedor asociado en reservas (query N+1 simple, optimizable luego)
-            prov_row = session.execute(
-                text("""
-                    SELECT p.id, p.nombre, p.email, p.telefono
-                    FROM ev_contratacion.reserva r
-                    JOIN ev_proveedores.proveedor p ON p.id = r.proveedor_id
-                    WHERE r.item_pedido_id = :item_id AND r.status != 2 -- No cancelado
-                    LIMIT 1
-                """),
-                {"item_id": row["id"]}
-            ).mappings().first()
-
             item = ItemPedido(
                 id=row["id"],
                 pedido_id=row["pedido_id"],
@@ -398,17 +390,10 @@ class MySQLItemPedidoRepository:
                 cantidad=row["cantidad"],
                 precio_unitario=Decimal(str(row["precio_unitario"])),
                 subtotal=Decimal(str(row["subtotal"])),
+                tipo_item=row['tipo_item'],
+                referencia_id=row['referencia_id'],
+                proveedor=None
             )
-            
-            # Inyectar atributos dinámicos
-            setattr(item, 'referencia_id', row['referencia_id'])
-            setattr(item, 'tipo_item', row['tipo_item'])
-            
-            if prov_row:
-                # Inyectamos proveedor como atributo dinámico para que el frontend lo reciba
-                # (El modelo Pydantic/Dataclass debe soportarlo o ser flexible)
-                setattr(item, 'proveedor', dict(prov_row))
-            
             items.append(item)
             
         return items
@@ -422,7 +407,7 @@ class MySQLItemPedidoRepository:
         row = session.execute(
             text("""
                 SELECT id, pedido_id, opcion_servicio_id, nombre_servicio,
-                       cantidad, precio_unitario, subtotal, created_at
+                       cantidad, precio_unitario, subtotal, tipo_item, referencia_id, created_at
                 FROM ev_contratacion.item_pedido_evento
                 WHERE id = :item_id
                 LIMIT 1
@@ -441,6 +426,9 @@ class MySQLItemPedidoRepository:
             cantidad=row["cantidad"],
             precio_unitario=Decimal(str(row["precio_unitario"])),
             subtotal=Decimal(str(row["subtotal"])),
+            tipo_item=row["tipo_item"],
+            referencia_id=row["referencia_id"],
+            proveedor=None
         )
     
     def eliminar(

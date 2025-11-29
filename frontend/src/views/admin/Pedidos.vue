@@ -134,7 +134,7 @@
       :open="showDetailsModal" 
       @close="showDetailsModal = false"
       title="Gestión de Pedido" 
-      maxWidth="6xl"
+      maxWidth="7xl"
     >
       <div v-if="selectedPedido" class="space-y-6">
         <!-- Header Info -->
@@ -322,19 +322,11 @@
         <!-- Tabs for Service vs Package -->
         <div class="flex border-b border-gray-200">
           <button 
-            class="px-4 py-2 text-sm font-medium border-b-2 transition-colors"
-            :class="addItemTab === 'services' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
-            @click="addItemTab = 'services'"
+            class="px-4 py-2 text-sm font-medium border-b-2 transition-colors border-primary-500 text-primary-600"
           >
             Servicios
           </button>
-          <button 
-            class="px-4 py-2 text-sm font-medium border-b-2 transition-colors"
-            :class="addItemTab === 'packages' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
-            @click="addItemTab = 'packages'"
-          >
-            Paquetes
-          </button>
+          <!-- Packages tab hidden until backend support is implemented -->
         </div>
 
         <!-- Search -->

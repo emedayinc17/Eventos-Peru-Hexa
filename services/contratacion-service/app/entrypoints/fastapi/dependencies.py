@@ -159,7 +159,9 @@ def get_listar_pedidos_admin_use_case(
 def get_obtener_pedido_detalle_use_case(
     pedido_repo: MySQLPedidoRepository = None,
     item_repo: MySQLItemPedidoRepository = None,
-    reserva_repo: MySQLReservaRepository = None
+    reserva_repo: MySQLReservaRepository = None,
+    iam_client: IamClient = None,
+    catalogo_client: CatalogoClient = None
 ) -> ObtenerPedidoDetalleUseCase:
     """Factory para ObtenerPedidoDetalleUseCase"""
     if pedido_repo is None:
@@ -168,8 +170,12 @@ def get_obtener_pedido_detalle_use_case(
         item_repo = get_item_pedido_repository()
     if reserva_repo is None:
         reserva_repo = get_reserva_repository()
+    if iam_client is None:
+        iam_client = get_iam_client()
+    if catalogo_client is None:
+        catalogo_client = get_catalogo_client()
     
-    return ObtenerPedidoDetalleUseCase(pedido_repo, item_repo, reserva_repo)
+    return ObtenerPedidoDetalleUseCase(pedido_repo, item_repo, reserva_repo, iam_client, catalogo_client)
 
 
 def get_admin_cambiar_estado_use_case(

@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Optional, List
 
 
-@dataclass(frozen=True)
+@dataclass
 class ItemPedido:
     """
     Item individual de un pedido (línea del pedido).
@@ -21,6 +21,9 @@ class ItemPedido:
     cantidad: int
     precio_unitario: Decimal
     subtotal: Decimal
+    tipo_item: str = "SERVICIO"
+    referencia_id: Optional[str] = None
+    proveedor: Optional[dict] = None
     
     def __post_init__(self):
         """Validaciones de negocio"""

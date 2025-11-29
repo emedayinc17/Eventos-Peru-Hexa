@@ -51,12 +51,28 @@ export const useOrdersStore = defineStore('orders', () => {
     }
   }
 
-  async function fetchPedido(id: number | string, admin = false): Promise<void> {
+  // Cache for pedido details
+  const pedidoDetailsCache = ref<Record<string, { data: PedidoDetalle, timestamp: number }>>({});
+  const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+  async function fetchPedido(id: number | string, admin = false, forceRefresh = false): Promise<void> {
+    const pedidoId = String(id);
+    const now = Date.now();
+
+    // Check cache
+    if (!forceRefresh && pedidoDetailsCache.value[pedidoId] && (now - pedidoDetailsCache.value[pedidoId].timestamp < CACHE_TTL)) {
+      currentPedido.value = pedidoDetailsCache.value[pedidoId].data;
+      return;
+    }
+
     loading.value = true;
     error.value = null;
 
     try {
-      currentPedido.value = await ordersApi.getPedido(id, admin);
+      const data = await ordersApi.getPedido(id, admin);
+      currentPedido.value = data;
+      // Update cache
+      pedidoDetailsCache.value[pedidoId] = { data, timestamp: now };
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Error al cargar pedido';
       throw err;
@@ -98,6 +114,12 @@ export const useOrdersStore = defineStore('orders', () => {
         // Merge update into existing to preserve enriched fields (like cliente_nombre)
         pedidos.value[index] = { ...pedidos.value[index], ...updated };
       }
+
+      // Invalidate cache for this pedido
+      if (pedidoDetailsCache.value[String(id)]) {
+        delete pedidoDetailsCache.value[String(id)];
+      }
+
       return updated;
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Error al actualizar pedido';
@@ -118,6 +140,11 @@ export const useOrdersStore = defineStore('orders', () => {
       if (index !== -1) {
         pedidos.value[index].estado = 5; // CANCELADO
       }
+
+      // Invalidate cache
+      if (pedidoDetailsCache.value[String(id)]) {
+        delete pedidoDetailsCache.value[String(id)];
+      }
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Error al eliminar pedido';
       throw err;
@@ -131,10 +158,16 @@ export const useOrdersStore = defineStore('orders', () => {
     error.value = null;
     try {
       await ordersApi.addItems(id, items);
+
+      // Invalidate cache so next fetch gets fresh data
+      if (pedidoDetailsCache.value[String(id)]) {
+        delete pedidoDetailsCache.value[String(id)];
+      }
+
       // Result contains updated pedido info, we might want to refresh the current pedido
       if (currentPedido.value && String((currentPedido.value as any).pedido?.id || (currentPedido.value as any).id) === String(id)) {
-        // Refresh details
-        await fetchPedido(id);
+        // Refresh details (force refresh)
+        await fetchPedido(id, true, true);
       }
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Error al agregar items';
@@ -149,9 +182,15 @@ export const useOrdersStore = defineStore('orders', () => {
     error.value = null;
     try {
       await ordersApi.deleteItems(id, itemIds);
+
+      // Invalidate cache
+      if (pedidoDetailsCache.value[String(id)]) {
+        delete pedidoDetailsCache.value[String(id)];
+      }
+
       // Refresh details
       if (currentPedido.value && String((currentPedido.value as any).pedido?.id || (currentPedido.value as any).id) === String(id)) {
-        await fetchPedido(id);
+        await fetchPedido(id, true, true);
       }
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Error al eliminar items';
