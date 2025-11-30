@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { ordersApi } from '@/api';
+// FIX: Use auth store to infer whether current user is admin or cliente
+import { useAuthStore } from '@/stores';
 import type { Pedido, CreatePedidoRequest, UpdatePedidoRequest, PedidoDetalle } from '@/types';
 
 export const useOrdersStore = defineStore('orders', () => {
@@ -27,14 +29,19 @@ export const useOrdersStore = defineStore('orders', () => {
   const draftOrder = ref<Partial<CreatePedidoRequest>>({ ...defaultDraft });
 
   // Actions
-  async function fetchPedidos(usuarioId?: number | string, estado?: string, admin = false): Promise<void> {
+  async function fetchPedidos(usuarioId?: number | string, estado?: string, admin?: boolean): Promise<void> {
     loading.value = true;
     error.value = null;
 
     try {
+      // Infer admin flag from auth store if not explicitly provided
+      // FIX: This ensures client dashboards don't accidentally call admin endpoints
+      const auth = useAuthStore();
+      const isAdmin = typeof admin === 'boolean' ? admin : !!auth.isAdmin;
+
       // Clear current list to force UI refresh and show loading state effectively
       pedidos.value = [];
-      const response = await ordersApi.getPedidos(usuarioId, estado, admin);
+      const response = await ordersApi.getPedidos(usuarioId, estado, isAdmin);
       // response may be { items: [...] } or array or ApiResponse
       if (Array.isArray(response)) {
         pedidos.value = response;
@@ -57,7 +64,7 @@ export const useOrdersStore = defineStore('orders', () => {
   const pedidoDetailsCache = ref<Record<string, { data: PedidoDetalle, timestamp: number }>>({});
   const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-  async function fetchPedido(id: number | string, admin = false, forceRefresh = false): Promise<void> {
+  async function fetchPedido(id: number | string, admin?: boolean, forceRefresh = false): Promise<void> {
     const pedidoId = String(id);
     const now = Date.now();
 
@@ -71,7 +78,11 @@ export const useOrdersStore = defineStore('orders', () => {
     error.value = null;
 
     try {
-      const data = await ordersApi.getPedido(id, admin);
+      // FIX: Infer isAdmin from auth store when not provided
+      const auth = useAuthStore();
+      const isAdmin = typeof admin === 'boolean' ? admin : !!auth.isAdmin;
+
+      const data = await ordersApi.getPedido(id, isAdmin);
       currentPedido.value = data;
       // Update cache
       pedidoDetailsCache.value[pedidoId] = { data, timestamp: now };

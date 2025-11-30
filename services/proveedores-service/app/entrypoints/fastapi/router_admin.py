@@ -14,17 +14,26 @@ from .dependencies_admin import (
 )
 from .security import require_user
 from typing import Dict, Any
+import logging
 import traceback
 from ev_shared.db import session_scope
 from sqlalchemy import text
 
+# FIX: use structured logging instead of writing to a fixed host path
+logger = logging.getLogger(__name__)
+
 def require_admin(user: Dict[str, Any] = Depends(require_user)):
-    with open("e:\\eventos-peru-hexagonal\\debug_proveedores.txt", "a") as f:
-        f.write(f"DEBUG: require_admin user payload: {user}\n")
-        role = user.get("role", "").upper()
-        f.write(f"DEBUG: require_admin extracted role: {role}\n")
-    
-    role = user.get("role", "").upper()
+    # FIX: Avoid writing to filesystem paths that exist only in dev environments
+    # (e:\eventos-peru-hexagonal\...) which cause PermissionError in containers.
+    try:
+        logger.debug("require_admin user payload: %s", user)
+        role = (user.get("role") or "").upper()
+        logger.debug("require_admin extracted role: %s", role)
+    except Exception:
+        # Ensure no exception in logging blocks auth flow
+        logger.exception("Failed while logging require_admin info")
+
+    role = (user.get("role") or "").upper()
     if role != "ADMIN":
         raise HTTPException(status_code=403, detail="Requiere rol ADMIN")
     return user

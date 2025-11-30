@@ -4,8 +4,11 @@ import uuid
 from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
 
-# Load env vars
-load_dotenv('e:\\eventos-peru-hexagonal\\services\\catalogo-service\\.env')
+# Load env vars (FIX: avoid hardcoded absolute paths)
+from pathlib import Path
+REPO_ROOT = Path(__file__).resolve().parents[1]
+env_path = REPO_ROOT / 'services' / 'catalogo-service' / '.env'
+load_dotenv(str(env_path))
 
 def debug_delete():
     paquete_id = "7802e8e9-52c5-4156-824d-b2c6f2905c80" # ID from the user's error log

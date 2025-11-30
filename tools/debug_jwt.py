@@ -4,8 +4,11 @@ from jose import jwt, JWTError
 import re
 
 IAM_LOGIN_URL = "http://127.0.0.1:8010/iam/auth/login"
-IAM_ENV = r"e:\\eventos-peru-hexagonal\\services\\iam-service\\.env"
-CONTR_ENV = r"e:\\eventos-peru-hexagonal\\services\\contratacion-service\\.env"
+# FIX: avoid hardcoded absolute Windows paths; resolve .env relative to repository root
+from pathlib import Path
+REPO_ROOT = Path(__file__).resolve().parents[1]
+IAM_ENV = str((REPO_ROOT / 'services' / 'iam-service' / '.env').resolve())
+CONTR_ENV = str((REPO_ROOT / 'services' / 'contratacion-service' / '.env').resolve())
 
 EMAIL = "demo@eventos.pe"
 PASSWORD = "Admin_2025!"

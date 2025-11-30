@@ -677,6 +677,13 @@ class MySQLCatalogoCommandRepository:
             
             engine.dispose()
         except Exception as e:
-            with open("e:\\eventos-peru-hexagonal\\last_error_delete.txt", "w") as f:
-                f.write(str(e))
+            # FIX: Avoid writing errors to host-absolute paths inside containers.
+            # Use logging so errors appear in pod logs and are collected by cluster logging.
+            try:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.exception("delete_paquete failed: %s", e)
+            except Exception:
+                # Fallback: if logging fails, raise the exception so caller can handle it
+                pass
             raise e

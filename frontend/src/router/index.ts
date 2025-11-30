@@ -168,12 +168,15 @@ router.beforeEach(async (to, _from, next) => {
   const guestOnly = to.matched.some(record => record.meta.guestOnly);
   const requiredRole = to.meta.role as string | undefined;
 
-  // Ruta solo para invitados (login cuando ya está autenticado)
+  // FIX: Ruta solo para invitados (login cuando ya está autenticado)
+  // Redirección basada en el role de forma case-insensitive usando helpers del store
   if (guestOnly && authStore.isAuthenticated) {
     if (authStore.isAdmin) {
       next('/admin/dashboard');
-    } else {
+    } else if (authStore.isClient) {
       next('/cliente/dashboard');
+    } else {
+      next('/');
     }
     return;
   }
@@ -184,15 +187,20 @@ router.beforeEach(async (to, _from, next) => {
     return;
   }
 
-  // Verificar rol si es necesario
-  if (requiredRole && authStore.user?.role !== requiredRole) {
-    // Si el usuario tiene rol diferente, redirigir a su dashboard
-    if (authStore.isAdmin) {
-      next('/admin/dashboard');
-    } else {
-      next('/cliente/dashboard');
+  // FIX: Verificar rol si es necesario (case-insensitive)
+  if (requiredRole) {
+    const hasRequired = authStore.hasRole ? authStore.hasRole(requiredRole) : ((authStore.user?.role || '').toString().toLowerCase() === String(requiredRole).toLowerCase());
+    if (!hasRequired) {
+      // Si el usuario tiene rol diferente, redirigir a su dashboard sin hacer logout
+      if (authStore.isAdmin) {
+        next('/admin/dashboard');
+      } else if (authStore.isClient) {
+        next('/cliente/dashboard');
+      } else {
+        next({ name: 'login', query: { redirect: to.fullPath } });
+      }
+      return;
     }
-    return;
   }
 
   next();

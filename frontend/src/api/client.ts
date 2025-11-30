@@ -57,6 +57,11 @@ apiClient.interceptors.response.use(
       if (suppress) {
         return Promise.reject(error);
       }
+        // FIX: Distinguish token problems vs permission checks and avoid logging out
+        // for 401s coming from non-auth routes (e.g. admin endpoints). Force
+        // logout only when the backend detail indicates an invalid/expired token
+        // AND the request appears to be an IAM/auth related call (path contains '/iam').
+        // This prevents legitimate 401/403 permission rejections from kicking users out.
         if (status === 401) {
           // Diferenciar 401 por token inválido/expirado vs 401 por otros motivos.
           // Algunas rutas pueden devolver 401/403 por permisos; no queremos cerrar
@@ -65,23 +70,26 @@ apiClient.interceptors.response.use(
           const detail = (error.response.data && error.response.data.detail) || null;
           const detailStr = typeof detail === 'string' ? detail : JSON.stringify(detail || '');
           const isTokenProblem = /token inv[aá]lido|expirad|falta authorization|claims?/i.test(detailStr);
+          // Determine request URL (may be relative e.g. '/api/iam/me')
+          const reqUrl = (error.config && (error.config.url || error.config.baseURL)) || '';
+          const isIamPath = typeof reqUrl === 'string' && reqUrl.toLowerCase().includes('/iam');
 
-          if (isTokenProblem) {
-            // Token inválido/expirado => cerrar sesión
+          if (isTokenProblem && isIamPath) {
+            // Token inválido/expirado en endpoints IAM => cerrar sesión
             localStorage.removeItem('access_token');
             localStorage.removeItem('user');
             window.location.href = '/login';
-          } else {
-            // 401 por otro motivo (ej. endpoint admin con token válido pero no autorizado)
-            // Emitimos un evento para que la UI pueda mostrar un mensaje amigable
-            console.warn('401 recibido pero no parece ser problema de token:', detailStr);
-            try {
-              window.dispatchEvent(new CustomEvent('auth:insufficient', { detail: { status: 401, detail: detailStr } }));
-            } catch (e) {
-              // ignore if CustomEvent unsupported in environment
-            }
             return Promise.reject(error);
           }
+
+          // Otherwise do NOT logout: emit event so UI can show permission message
+          console.warn('401 recibido pero no parece ser problema de token:', detailStr);
+          try {
+            window.dispatchEvent(new CustomEvent('auth:insufficient', { detail: { status: 401, detail: detailStr, url: reqUrl } }));
+          } catch (e) {
+            // ignore if CustomEvent unsupported in environment
+          }
+          return Promise.reject(error);
         } else if (status === 403) {
           // Forbidden - sin permisos. No forzamos logout, permitimos que la UI muestre un 403.
           console.warn('Acceso denegado (403): No tienes permisos para esta acción');

@@ -2,8 +2,10 @@
 import sys
 import os
 
-# Add the service directory to sys.path
-sys.path.append("e:\\eventos-peru-hexagonal\\services\\catalogo-service")
+# Add the service directory to sys.path (FIX: repo-relative path)
+from pathlib import Path
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.append(str(REPO_ROOT / 'services' / 'catalogo-service'))
 
 try:
     from app.infrastructure.db.repositories import MySQLCatalogoCommandRepository
