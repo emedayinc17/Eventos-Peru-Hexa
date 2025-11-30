@@ -43,6 +43,24 @@ SERVICES = {
 # Optional service token to call internal admin endpoints that require auth.
 # Set ADMIN_SERVICE_TOKEN as an environment variable (a JWT or service token) in the deployment.
 ADMIN_SERVICE_TOKEN = os.getenv("ADMIN_SERVICE_TOKEN")
+# If an admin service token is provided at runtime, attempt a sanity check
+#: if JWT_SECRET is available in the environment, verify the token signature
+# so deployments with a mismatched admin token fail-fast and log useful info.
+try:
+    JWT_SECRET = os.getenv("JWT_SECRET")
+    JWT_ALG = os.getenv("JWT_ALG", os.getenv("JWT_ALGORITHM", "HS256"))
+    if ADMIN_SERVICE_TOKEN and JWT_SECRET:
+        from jose import jwt as _j, JWTError as _JWTError
+        try:
+            _j.decode(ADMIN_SERVICE_TOKEN, JWT_SECRET, algorithms=[JWT_ALG])
+            logger.info("ADMIN_SERVICE_TOKEN signature validated with JWT_SECRET")
+        except Exception:
+            logger.warning("ADMIN_SERVICE_TOKEN present but failed signature validation with JWT_SECRET.\n" \
+                           "If you intend to use ADMIN_SERVICE_TOKEN it must be a JWT signed with the cluster JWT_SECRET (HS256).\n" \
+                           "Consider removing the secret so the Gateway forwards the incoming Authorization header instead.")
+except Exception:
+    # never crash the gateway startup because of the check
+    logger.exception("Error while validating ADMIN_SERVICE_TOKEN (non-fatal)")
 
 # Simple in-memory cache for admin summary to avoid repeated slow calls in rapid succession.
 # TTL is short to keep data fresh while improving responsiveness for the UI during rapid reloads.

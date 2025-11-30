@@ -31,9 +31,29 @@ CLIENT_PASSWORD = 'Admin_2025!'
 ADMIN_EMAIL = 'admin@eventos.pe'
 ADMIN_PASSWORD = 'Admin_2025!'
 
-# JWT Secret real (debe coincidir con .env)
-JWT_SECRET = 'a040a67e53c324bb01e72d86e732e5db25cdc99a8c6bc29e20355e5c44bfcbfc'
-JWT_ALGORITHM = 'HS256'
+# JWT Secret: prefer env or ev_shared settings. For local dev the script
+# previously had a hardcoded secret; we keep a fallback for local testing
+# but print a clear warning so CI/CD or production deployments use Vault.
+JWT_SECRET = os.getenv('JWT_SECRET')
+JWT_ALGORITHM = os.getenv('JWT_ALGORITHM', 'HS256')
+
+if not JWT_SECRET:
+    try:
+        # Try loading shared settings (if this script is run with project path available)
+        from ev_shared.config import load_settings
+        s = load_settings()
+        JWT_SECRET = getattr(s, 'JWT_SECRET', None) or JWT_SECRET
+        JWT_ALGORITHM = getattr(s, 'JWT_ALG', getattr(s, 'JWT_ALGORITHM', JWT_ALGORITHM))
+    except Exception:
+        # ignore if ev_shared not importable
+        pass
+
+if not JWT_SECRET:
+    # Fallback to the old hardcoded secret for local convenience, but warn loudly.
+    JWT_SECRET = 'a040a67e53c324bb01e72d86e732e5db25cdc99a8c6bc29e20355e5c44bfcbfc'
+    print('\n⚠️  WARNING: No JWT_SECRET configured via env or ev_shared settings.\n' \
+          'This script will use an insecure hardcoded secret for local testing only.\n' \
+          'In production, set the `JWT_SECRET` via Vault and do NOT use hardcoded secrets.\n')
 
 # === HELPERS ===
 
