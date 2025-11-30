@@ -15,6 +15,13 @@ spec:
     - host: eventos.emeday.inc
       http:
         paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: eventos-frontend
+                port:
+                  number: 80
           # 🔹 TODO el tráfico normal pasa por el gateway
           - path: /api
             pathType: Prefix
