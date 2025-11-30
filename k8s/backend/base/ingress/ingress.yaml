@@ -9,6 +9,11 @@ metadata:
     nginx.ingress.kubernetes.io/cors-allow-methods: "GET, PUT, POST, DELETE, PATCH, OPTIONS"
     nginx.ingress.kubernetes.io/cors-allow-headers: "Authorization, Content-Type, Accept, Origin, X-Requested-With"
     nginx.ingress.kubernetes.io/limit-rps: "20"
+    # For MVP we serve over plain HTTP only. Disable automatic SSL redirect
+    # and hide any Strict-Transport-Security header coming from upstream so
+    # browsers don't enforce HTTPS for this host.
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-hide-headers: "Strict-Transport-Security"
 spec:
   ingressClassName: public
   rules:
