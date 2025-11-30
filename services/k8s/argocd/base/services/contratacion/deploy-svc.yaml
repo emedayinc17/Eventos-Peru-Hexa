@@ -62,11 +62,11 @@ spec:
             requests: { cpu: "50m",  memory: "128Mi" }
             limits:   { cpu: "250m", memory: "256Mi" }
           readinessProbe:
-            httpGet: { path: /contratacion/health, port: http }
+            httpGet: { path: /health, port: http }
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
-            httpGet: { path: /contratacion/health, port: http }
+            httpGet: { path: /health, port: http }
             initialDelaySeconds: 15
             periodSeconds: 20
 ---
