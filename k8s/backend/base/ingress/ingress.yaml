@@ -9,13 +9,13 @@ metadata:
     nginx.ingress.kubernetes.io/cors-allow-methods: "GET, PUT, POST, DELETE, PATCH, OPTIONS"
     nginx.ingress.kubernetes.io/cors-allow-headers: "Authorization, Content-Type, Accept, Origin, X-Requested-With"
     nginx.ingress.kubernetes.io/limit-rps: "20"
-    # 👇 OJO: eliminamos use-regex y rewrite-target
 spec:
   ingressClassName: public
   rules:
     - host: eventos.emeday.inc
       http:
         paths:
+          # 🔹 TODO el tráfico normal pasa por el gateway
           - path: /api
             pathType: Prefix
             backend:
@@ -23,3 +23,36 @@ spec:
                 name: gateway-service
                 port:
                   number: 8000
+
+          # 🔹 Acceso directo a cada servicio SOLO para docs/openapi
+          - path: /catalogo
+            pathType: Prefix
+            backend:
+              service:
+                name: catalogo-service
+                port:
+                  number: 8020
+
+          - path: /iam
+            pathType: Prefix
+            backend:
+              service:
+                name: iam-service
+                port:
+                  number: 8010
+
+          - path: /proveedores
+            pathType: Prefix
+            backend:
+              service:
+                name: proveedores-service
+                port:
+                  number: 8030
+
+          - path: /contratacion
+            pathType: Prefix
+            backend:
+              service:
+                name: contratacion-service
+                port:
+                  number: 8040
