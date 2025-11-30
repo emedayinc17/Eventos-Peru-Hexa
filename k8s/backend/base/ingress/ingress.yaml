@@ -10,7 +10,6 @@ metadata:
     nginx.ingress.kubernetes.io/cors-allow-methods: "GET, PUT, POST, DELETE, PATCH, OPTIONS"
     nginx.ingress.kubernetes.io/cors-allow-headers: "Authorization, Content-Type, Accept, Origin, X-Requested-With"
     nginx.ingress.kubernetes.io/limit-rps: "20"
-    # Solo HTTP por ahora: sin redirección a HTTPS
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
     nginx.ingress.kubernetes.io/proxy-hide-headers: "Strict-Transport-Security"
 spec:
@@ -19,45 +18,21 @@ spec:
     - host: eventos.emeday.inc
       http:
         paths:
-          # 🔹 Rutas que usará el FRONTEND
-          #    /api/iam/**  → iam-service:8010
-          #    /api/catalogo/** → catalogo-service:8020
-          #    /api/proveedores/** → proveedores-service:8030
-          #    /api/contratacion/** → contratacion-service:8040
-
-          - path: /api/iam
+          # ============================================================
+          # 🔵 TODO LO QUE SEA /api/** → GATEWAY
+          # ============================================================
+          - path: /api
             pathType: Prefix
             backend:
               service:
-                name: iam-service
+                name: gateway-service
                 port:
-                  number: 8010
+                  number: 8000
 
-          - path: /api/catalogo
-            pathType: Prefix
-            backend:
-              service:
-                name: catalogo-service
-                port:
-                  number: 8020
-
-          - path: /api/proveedores
-            pathType: Prefix
-            backend:
-              service:
-                name: proveedores-service
-                port:
-                  number: 8030
-
-          - path: /api/contratacion
-            pathType: Prefix
-            backend:
-              service:
-                name: contratacion-service
-                port:
-                  number: 8040
-
-          # 🔹 Acceso directo a cada servicio (útil para docs / Swagger en laboratorio)
+          # ============================================================
+          # 🔵 ACCESO DIRECTO A MICROSERVICIOS (Swagger/docs)
+          #    Esto NO lo usa el frontend, solo tú como dev.
+          # ============================================================
           - path: /iam
             pathType: Prefix
             backend:

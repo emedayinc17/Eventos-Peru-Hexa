@@ -7,7 +7,6 @@ metadata:
     argocd.argoproj.io/instance: eventos-peru-frontend
   annotations:
     kubernetes.io/ingress.class: public
-    # Para el SPA no hace falta rewrite aquí
 spec:
   ingressClassName: public
   rules:
