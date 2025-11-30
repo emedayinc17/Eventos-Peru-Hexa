@@ -5,9 +5,6 @@
         <h1 class="text-3xl font-bold text-gray-900">Mis Pedidos</h1>
         <p class="text-gray-600 mt-1">Historial y estado de tus pedidos</p>
       </div>
-      <Button variant="primary" @click="router.push('/cliente/pedido/nuevo')">
-        + Crear Nuevo Pedido
-      </Button>
     </div>
 
     <!-- Filters -->
@@ -51,9 +48,7 @@
       </div>
       <h3 class="text-lg font-medium text-gray-900 mb-2">No tienes pedidos</h3>
       <p class="text-gray-500 mb-6">Comienza creando tu primer pedido</p>
-      <Button variant="primary" @click="router.push('/cliente/pedido/nuevo')">
-        Crear Pedido
-      </Button>
+      <!-- Crear Pedido ahora accesible desde el navbar superior -->
     </div>
 
     <!-- Pedidos List -->

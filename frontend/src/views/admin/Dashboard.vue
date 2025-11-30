@@ -1,18 +1,42 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import useAdminSummary from '@/composables/useAdminSummary'
+import { useOrdersStore } from '@/stores/orders'
 
 const { data, loading, error } = useAdminSummary()
+const ordersStore = useOrdersStore()
 
+// Load admin orders (small list used to compute counts). This replaces an extra metrics call
+onMounted(() => {
+  // Fire-and-forget; UI will update when the store populates
+  void ordersStore.fetchPedidos(undefined, undefined, true).catch(() => {})
+})
+
+// Prefer live orders from the orders store when available; otherwise fallback to summary data
 const totalOrders = computed(() => {
+  if (ordersStore.pedidos && ordersStore.pedidos.length > 0) return ordersStore.pedidos.length
   const orders = data.value?.orders
   if (orders != null) return orders
   const contratacionOk = data.value?.services?.contratacion?.ok
   if (contratacionOk === 200) return 0
   return '—'
 })
-// orders_by_status: object like { '0': 4, '1': 13, ... }
-const ordersByStatus = computed(() => data.value?.orders_by_status ?? {})
+
+const ordersByStatus = computed(() => {
+  // If we have pedidos in the store, compute by reducing them; be tolerant with different status field names
+  if (ordersStore.pedidos && ordersStore.pedidos.length > 0) {
+    const map: Record<string, number> = {}
+    for (const p of ordersStore.pedidos) {
+      const s = (p as any).status ?? (p as any).estado ?? (p as any).estado_id ?? (p as any).estadoId ?? (p as any).state
+      if (s == null) continue
+      const key = String(s)
+      map[key] = (map[key] || 0) + 1
+    }
+    return map
+  }
+  return data.value?.orders_by_status ?? {}
+})
+
 const ordersStatusCount = (code: string | number) => {
   const s = ordersByStatus.value
   if (!s) return 0
@@ -21,6 +45,7 @@ const ordersStatusCount = (code: string | number) => {
   if (v == null) return 0
   return Number(v)
 }
+
 const ordersDraft = computed(() => ordersStatusCount(0))
 const ordersQuoted = computed(() => ordersStatusCount(1))
 const ordersApproved = computed(() => ordersStatusCount(2))
@@ -29,6 +54,141 @@ const totalUsers = computed(() => data.value?.users ?? '—')
 const totalProviders = computed(() => data.value?.providers ?? '—')
 const generatedAt = computed(() => data.value?.generatedAt ?? null)
 const connectedFrom = computed(() => data.value?.connectedFrom ?? null)
+
+// Chart helpers: compute labels and series for last 6 months using ordersStore.pedidos (fallback to summary if empty)
+function getLastMonths(n = 6) {
+  const months: Date[] = []
+  const now = new Date()
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    months.push(d)
+  }
+  return months
+}
+
+const months = getLastMonths(6)
+const labels = computed(() => {
+  return months.map(m => m.toLocaleString('es-PE', { month: 'short' })).map(s => s.charAt(0).toUpperCase() + s.slice(1))
+})
+
+function monthRange(monthDate: Date) {
+  const start = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1)
+  const end = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1)
+  return { start, end }
+}
+
+const ordersSeries = computed(() => {
+  const arr: number[] = []
+  for (const m of months) {
+    const { start, end } = monthRange(m)
+    let count = 0
+    if (ordersStore.pedidos && ordersStore.pedidos.length > 0) {
+      count = ordersStore.pedidos.filter((p: any) => {
+        const created = (p as any).created_at ?? (p as any).fecha_creacion ?? (p as any).fecha_evento ?? null
+        if (!created) return false
+        const d = new Date(created)
+        return d >= start && d < end
+      }).length
+    } else if (data.value && Array.isArray(data.value.orders_by_month)) {
+      // optional fallback if summary provides a series
+      const key = `${start.getFullYear()}-${start.getMonth() + 1}`
+      const found = (data.value.orders_by_month || []).find((x: any) => x.month === key)
+      count = found ? Number(found.count) : 0
+    }
+    arr.push(count)
+  }
+  return arr
+})
+
+// removed unused ordersMax to avoid lint warning
+
+const revenueSeries = computed(() => {
+  const arr: number[] = []
+  for (const m of months) {
+    const { start, end } = monthRange(m)
+    let sum = 0
+    if (ordersStore.pedidos && ordersStore.pedidos.length > 0) {
+      for (const p of ordersStore.pedidos) {
+        const created = (p as any).created_at ?? (p as any).fecha_creacion ?? (p as any).fecha_evento ?? null
+        if (!created) continue
+        const d = new Date(created)
+        if (d >= start && d < end) {
+          sum += Number((p as any).monto_total ?? (p as any).total ?? 0) || 0
+        }
+      }
+    }
+    arr.push(sum)
+  }
+  return arr
+})
+
+const revenueMax = computed(() => Math.max(1, ...revenueSeries.value))
+
+const revenuePoints = computed(() => {
+  // Build "x,y x,y ..." for polyline (svg viewbox 600x160)
+  const pts: string[] = []
+  revenueSeries.value.forEach((v, i) => {
+    const x = 30 + i * 95
+    const y = 140 - (v / revenueMax.value) * 120
+    pts.push(`${x},${y.toFixed(2)}`)
+  })
+  return pts.join(' ')
+})
+
+const revenueTotal = computed(() => revenueSeries.value.reduce((s, v) => s + v, 0))
+
+// Period range for "últimos 6 meses" (non-null assertions because months is built with 6 entries)
+const periodStart = months[0]!
+const periodEnd = months[months.length - 1]!
+
+const periodOrdersTotal = computed(() => {
+  if (ordersStore.pedidos && ordersStore.pedidos.length > 0) {
+    const start = new Date(periodStart.getFullYear(), periodStart.getMonth(), 1)
+    const end = new Date(periodEnd.getFullYear(), periodEnd.getMonth() + 1, 1)
+    return ordersStore.pedidos.filter((p: any) => {
+      const created = (p as any).created_at ?? (p as any).fecha_creacion ?? (p as any).fecha_evento ?? null
+      if (!created) return false
+      const d = new Date(created)
+      return d >= start && d < end
+    }).length
+  }
+  // Fallback: sum of ordersSeries months
+  return ordersSeries.value.reduce((s, v) => s + v, 0)
+})
+
+// Top event types in the period
+const topEventData = computed(() => {
+  const map: Record<string, number> = {}
+  const names: Record<string, string> = {}
+  const start = new Date(periodStart.getFullYear(), periodStart.getMonth(), 1)
+  const end = new Date(periodEnd.getFullYear(), periodEnd.getMonth() + 1, 1)
+
+  if (ordersStore.pedidos && ordersStore.pedidos.length > 0) {
+    for (const p of ordersStore.pedidos) {
+      const created = (p as any).created_at ?? (p as any).fecha_creacion ?? (p as any).fecha_evento ?? null
+      if (!created) continue
+      const d = new Date(created)
+      if (d < start || d >= end) continue
+      const tipoId = String((p as any).tipo_evento_id ?? (p as any).tipo_evento?.id ?? (p as any).tipo_evento_id)
+      const tipoName = (p as any).tipo_evento?.nombre ?? (p as any).tipo_evento_nombre ?? `Tipo ${tipoId}`
+      map[tipoId] = (map[tipoId] || 0) + 1
+      names[tipoId] = tipoName
+    }
+  }
+
+  // Turn into sorted array
+  const arr = Object.keys(map).map(k => ({ id: k, name: names[k] || k, count: Number(map[k] || 0) }))
+  arr.sort((a, b) => (Number(b.count) || 0) - (Number(a.count) || 0))
+  const top = arr.slice(0, 6)
+  return top
+})
+
+const topEventLabels = computed(() => topEventData.value.map(x => x.name ?? '—'))
+const topEventCounts = computed(() => topEventData.value.map(x => Number(x.count || 0)))
+const eventMax = computed(() => {
+  const arr = topEventCounts.value.map(v => v || 0)
+  return Math.max(1, ...arr)
+})
 </script>
 
 <template>
@@ -196,32 +356,59 @@ const connectedFrom = computed(() => data.value?.connectedFrom ?? null)
       </div>
     </div>
 
-    <!-- Debug panel: mostrar raw JSON para ayudar a diagnosticar -->
-    <div class="mt-6 p-4 bg-white rounded shadow-sm">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="text-sm font-medium text-gray-700">Debug: admin summary (raw)</h2>
-        <button class="text-xs text-blue-600" @click.prevent="copyRaw">Copiar JSON</button>
+    <!-- Charts: top event types (left) and revenue (right) -->
+    <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div class="p-4 bg-white rounded shadow-sm">
+        <h2 class="text-sm font-medium text-gray-700 mb-2">Tipos de evento más solicitados (últimos 6 meses)</h2>
+        <div class="text-xs text-gray-500 mb-3">Total pedidos en periodo: <strong>{{ periodOrdersTotal }}</strong></div>
+        <div class="w-full h-40">
+          <svg viewBox="0 0 600 160" class="w-full h-full">
+            <!-- grid lines -->
+            <g stroke="#e5e7eb" stroke-width="1">
+              <line x1="0" y1="20" x2="600" y2="20" />
+              <line x1="0" y1="60" x2="600" y2="60" />
+              <line x1="0" y1="100" x2="600" y2="100" />
+              <line x1="0" y1="140" x2="600" y2="140" />
+            </g>
+            <!-- bars for top event types -->
+            <g fill="#6366f1">
+              <g v-for="(v, i) in topEventCounts" :key="i">
+                <rect :x="20 + i * 90" :y="140 - (v / eventMax) * 120" :width="50" :height="(v / eventMax) * 120" rx="6" />
+              </g>
+            </g>
+            <!-- labels -->
+            <g fill="#374151" font-size="11" text-anchor="middle">
+              <text v-for="(lab, i) in topEventLabels" :key="i" :x="45 + i * 90" y="155">{{ lab }}</text>
+            </g>
+          </svg>
+        </div>
       </div>
-      <pre class="text-xs text-gray-700 overflow-auto max-h-48">{{ JSON.stringify(data, null, 2) }}</pre>
+
+      <div class="p-4 bg-white rounded shadow-sm">
+        <h2 class="text-sm font-medium text-gray-700 mb-2">Ingresos últimos 6 meses</h2>
+        <div class="text-xs text-gray-500 mb-3">Ingresos totales: <strong>S/ {{ revenueTotal.toFixed(2) }}</strong></div>
+        <div class="w-full h-40">
+          <svg viewBox="0 0 600 160" class="w-full h-full">
+            <!-- grid lines -->
+            <g stroke="#e5e7eb" stroke-width="1">
+              <line x1="0" y1="20" x2="600" y2="20" />
+              <line x1="0" y1="60" x2="600" y2="60" />
+              <line x1="0" y1="100" x2="600" y2="100" />
+              <line x1="0" y1="140" x2="600" y2="140" />
+            </g>
+            <!-- revenue polyline -->
+            <polyline :points="revenuePoints" fill="none" stroke="#10b981" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" />
+            <!-- area under curve -->
+            <polyline :points="revenuePoints + ' 600,140 0,140'" fill="#d1fae5" opacity="0.6" stroke="none" />
+            <!-- labels -->
+            <g fill="#6b7280" font-size="12" text-anchor="middle">
+              <text v-for="(lab, i) in labels" :key="i" :x="30 + i * 95" y="155">{{ lab }}</text>
+            </g>
+          </svg>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
-<script lang="ts">
-import { defineComponent } from 'vue'
-export default defineComponent({
-  methods: {
-    copyRaw() {
-      try {
-        const payload = JSON.stringify((this as any).data, null, 2)
-        navigator.clipboard.writeText(payload)
-        // eslint-disable-next-line no-alert
-        alert('JSON copiado al portapapeles')
-      } catch (e) {
-        // eslint-disable-next-line no-alert
-        alert('No se pudo copiar')
-      }
-    }
-  }
-})
-</script>
+

@@ -15,6 +15,7 @@ export const ordersApi = {
     const params: Record<string, string | number> = {};
     if (usuarioId) params.usuario_id = usuarioId;
     if (estado) params.estado = estado;
+    params._t = Date.now(); // Prevent caching
 
     const path = admin ? `${ORDERS_BASE}/admin/pedidos` : `${ORDERS_BASE}/pedidos/mios`;
     const response = await apiClient.get(path, { params });

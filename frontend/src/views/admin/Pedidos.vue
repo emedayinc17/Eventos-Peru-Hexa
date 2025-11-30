@@ -9,8 +9,8 @@
 
     <!-- Filters -->
     <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
-      <div class="flex flex-wrap gap-4 items-center">
-        <div class="flex-1 min-w-[200px] md:max-w-md">
+      <div class="flex flex-wrap gap-4">
+        <div class="flex-1 min-w-[300px]">
           <SearchBar 
             v-model="searchQuery"
             placeholder="Buscar por ID, cliente o email..."
@@ -18,14 +18,16 @@
         </div>
         <select
           v-model="filterEstado"
-          class="rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+          class="rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm"
         >
           <option value="">Todos los estados</option>
-          <option value="PENDIENTE">Pendiente</option>
-          <option value="CONFIRMADO">Confirmado</option>
-          <option value="EN_PROGRESO">En Progreso</option>
-          <option value="COMPLETADO">Completado</option>
-          <option value="CANCELADO">Cancelado</option>
+          <option :value="0">Borrador</option>
+          <option :value="1">Cotizado</option>
+          <option :value="2">Aprobado</option>
+          <option :value="3">Asignado</option>
+          <option :value="4">Confirmado</option>
+          <option :value="5">Cancelado</option>
+          <option :value="6">Completado</option>
         </select>
         <Button variant="secondary" @click="loadPedidos" class="flex items-center gap-2">
           <ArrowPathIcon class="w-4 h-4" />
@@ -73,7 +75,7 @@
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                 {{ pedido.tipo_evento_nombre }}
-                <span class="text-xs text-gray-400 block">{{ pedido.num_personas }} invitados</span>
+                <span v-if="pedido.num_personas" class="text-xs text-gray-400 block">{{ pedido.num_personas }} invitados</span>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                 {{ formatDate(pedido.fecha_evento) }}
@@ -206,9 +208,14 @@
                   Paquete Base: {{ selectedPedido.paquete_nombre }}
                 </h3>
               </div>
-              <span class="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded border border-indigo-200">
-                No modificable
-              </span>
+              <div class="flex items-center gap-2">
+                <span v-if="selectedPedido.paquete_precio" class="text-sm font-bold text-indigo-700 bg-white px-2 py-1 rounded border border-indigo-200">
+                  S/ {{ selectedPedido.paquete_precio.toFixed(2) }}
+                </span>
+                <span class="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded border border-indigo-200">
+                  No modificable
+                </span>
+              </div>
             </div>
             
             <p class="text-xs text-indigo-700 mb-3">
@@ -359,9 +366,13 @@
           <!-- Packages tab hidden until backend support is implemented -->
         </div>
 
-        <!-- Search -->
-        <div>
-           <SearchBar v-model="catalogSearch" placeholder="Buscar en el catálogo..." />
+        <!-- Search and Filter -->
+        <div class="flex flex-col sm:flex-row gap-4 justify-between items-center">
+           <SearchBar v-model="catalogSearch" placeholder="Buscar en el catálogo..." class="w-full sm:w-auto flex-1" />
+           <div class="flex items-center gap-2">
+             <input type="checkbox" id="showAllServices" v-model="showAllServices" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500">
+             <label for="showAllServices" class="text-sm text-gray-700 select-none">Mostrar todos los servicios</label>
+           </div>
         </div>
 
         <!-- Catalog Table -->
@@ -497,6 +508,8 @@ const filteredPedidos = computed(() => {
   return result;
 });
 
+const showAllServices = ref(false);
+
 // Catalog Filtering
 const filteredServices = computed(() => {
   // Map services to include options from cache
@@ -505,8 +518,8 @@ const filteredServices = computed(() => {
     opciones: catalogStore.opcionesCache[String(s.id)] || []
   }));
 
-  // Filter by event type (same category as the order)
-  if (selectedPedido.value && selectedPedido.value.tipo_evento_id) {
+  // Filter by event type (same category as the order) unless "Show All" is checked
+  if (!showAllServices.value && selectedPedido.value && selectedPedido.value.tipo_evento_id) {
     const typeId = String(selectedPedido.value.tipo_evento_id);
     items = items.filter(s => !s.tipo_evento_id || String(s.tipo_evento_id) === typeId);
   }
@@ -662,18 +675,13 @@ const saveOrderChanges = async () => {
     // Only update status if changed
     if (tempStatus.value !== selectedPedido.value.status) {
       await ordersStore.updatePedido(selectedPedido.value.id, { estado: Number(tempStatus.value) });
-      
-      // Update local state
       selectedPedido.value.status = tempStatus.value;
-      
-      // Refresh list to keep it in sync
-      await loadPedidos();
-      
-      ui.showToast('Pedido actualizado correctamente', 'success');
-    } else if (itemsToDelete.value.length === 0 && itemsToAdd.value.length === 0) {
+    }
+
+    if (itemsToDelete.value.length === 0 && itemsToAdd.value.length === 0 && tempStatus.value === selectedPedido.value.status) {
       ui.showToast('No hubo cambios para guardar', 'info');
     } else {
-       // Just refreshed due to deletions/additions
+       // Refresh list to keep it in sync and get updated totals
        await loadPedidos();
        ui.showToast('Cambios guardados correctamente', 'success');
     }
@@ -751,6 +759,11 @@ const openAddItemModal = async () => {
   }
   if (catalogStore.paquetes.length === 0) {
     await catalogStore.fetchPaquetes();
+  }
+
+  // Ensure services are loaded if empty
+  if (catalogStore.servicios.length === 0) {
+    await catalogStore.fetchServicios({ forceRefresh: true });
   }
 
   // Prefetch options for all services to ensure they appear in the table

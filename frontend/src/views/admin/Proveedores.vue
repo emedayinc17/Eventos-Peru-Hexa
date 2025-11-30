@@ -11,13 +11,23 @@
       </Button>
     </div>
 
-    <!-- Search Bar -->
+    <!-- Filters -->
     <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
-      <div class="w-full md:w-1/3">
-        <SearchBar 
-          v-model="searchQuery"
-          placeholder="Buscar proveedores por nombre, email o categoría..."
-        />
+      <div class="flex flex-wrap gap-4">
+        <div class="flex-1 min-w-[300px]">
+          <SearchBar 
+            v-model="searchQuery"
+            placeholder="Buscar proveedores por nombre, email o categoría..."
+          />
+        </div>
+        <select
+          v-model="filterActivo"
+          class="rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm"
+        >
+          <option value="">Todos los estados</option>
+          <option value="true">Activos</option>
+          <option value="false">Inactivos</option>
+        </select>
       </div>
     </div>
 
@@ -270,6 +280,7 @@ const providersStore = useProvidersStore();
 const ui = useUiStore();
 
 const searchQuery = ref('');
+const filterActivo = ref('');
 // Pagination state
 const currentPage = ref(1);
 const pageSize = ref(10);
@@ -291,16 +302,24 @@ const form = reactive({
 
 // Filtered proveedores
 const filteredProveedores = computed(() => {
-  if (!searchQuery.value) {
-    return providersStore.proveedores;
+  let result = providersStore.proveedores;
+  
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase();
+    result = result.filter(p => 
+      p.nombre.toLowerCase().includes(query) ||
+      p.email?.toLowerCase().includes(query) ||
+      p.categoria?.toLowerCase().includes(query) ||
+      p.ruc?.includes(query)
+    );
   }
-  const query = searchQuery.value.toLowerCase();
-  return providersStore.proveedores.filter(p => 
-    p.nombre.toLowerCase().includes(query) ||
-    p.email?.toLowerCase().includes(query) ||
-    p.categoria?.toLowerCase().includes(query) ||
-    p.ruc?.includes(query)
-  );
+
+  if (filterActivo.value !== '') {
+    const isActive = filterActivo.value === 'true';
+    result = result.filter(p => p.activo === isActive);
+  }
+  
+  return result;
 });
 
 // Client-side paginated view
@@ -313,7 +332,7 @@ const paginatedProveedores = computed(() => {
 const totalPages = computed(() => Math.ceil(filteredProveedores.value.length / pageSize.value));
 
 // Reset to first page when search changes
-watch(searchQuery, () => { currentPage.value = 1; });
+watch([searchQuery, filterActivo], () => { currentPage.value = 1; });
 
 const openCreateModal = () => {
   isEdit.value = false;

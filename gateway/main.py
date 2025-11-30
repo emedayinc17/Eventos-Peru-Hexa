@@ -52,6 +52,11 @@ _ADMIN_SUMMARY_CACHE = {
 }
 _ADMIN_SUMMARY_TTL_SECONDS = float(os.getenv("ADMIN_SUMMARY_TTL", "3"))
 
+# Per-service winner cache to avoid repeatedly probing many candidate paths
+_SERVICE_WINNER_CACHE = {}
+# seconds to remember a working candidate URL for a service
+_SERVICE_WINNER_TTL = float(os.getenv("SERVICE_WINNER_TTL", "60"))
+
 
 async def proxy_request(
     service_url: str,
@@ -129,6 +134,11 @@ async def _race_first_success(client: httpx.AsyncClient, urls, params=None, head
                     if not t.done():
                         t.cancel()
                 logger.info(f"race winner: {u} elapsed_ms={elapsed:.1f} status={r.status_code}")
+                # attach the winning url to the response object for callers
+                try:
+                    setattr(r, '_winner_url', u)
+                except Exception:
+                    pass
                 return r
     except asyncio.TimeoutError:
         logger.info("race timeout waiting for candidates")
@@ -238,7 +248,13 @@ async def admin_summary(request: Request, from_date: Optional[str] = None, to_da
         if to_date:
             params_cont['to'] = to_date
 
-        contratacion_candidates = [
+        # If we have a cached winner for contratacion, prefer it to avoid probing many legacy paths
+        cached = _SERVICE_WINNER_CACHE.get('contratacion')
+        contratacion_candidates = []
+        if cached and (time.time() - cached.get('ts', 0) < _SERVICE_WINNER_TTL):
+            contratacion_candidates = [cached['url']]
+        else:
+            contratacion_candidates = [
             f"{SERVICES['contratacion']}/admin/metrics",
             f"{SERVICES['contratacion']}/metrics",
             f"{SERVICES['contratacion']}/v1/contratacion/admin/metrics",
@@ -248,21 +264,29 @@ async def admin_summary(request: Request, from_date: Optional[str] = None, to_da
             f"{SERVICES['contratacion']}/contratacion/admin/pedidos",
             f"{SERVICES['contratacion']}/v1/contratacion/admin/pedidos",
             f"{SERVICES['contratacion']}/admin/pedidos",
-        ]
+            ]
 
-        proveedores_candidates = [
+        cached = _SERVICE_WINNER_CACHE.get('proveedores')
+        if cached and (time.time() - cached.get('ts', 0) < _SERVICE_WINNER_TTL):
+            proveedores_candidates = [cached['url']]
+        else:
+            proveedores_candidates = [
             f"{SERVICES['proveedores']}/proveedores/v1/admin/proveedores/metrics",
             f"{SERVICES['proveedores']}/proveedores/admin/metrics",
             f"{SERVICES['proveedores']}/proveedores/v1/admin/proveedores",
             f"{SERVICES['proveedores']}/proveedores/v1/admin/proveedores",
-        ]
+            ]
 
-        iam_candidates = [
+        cached = _SERVICE_WINNER_CACHE.get('iam')
+        if cached and (time.time() - cached.get('ts', 0) < _SERVICE_WINNER_TTL):
+            iam_candidates = [cached['url']]
+        else:
+            iam_candidates = [
             f"{SERVICES['iam']}/iam/admin/metrics",
             f"{SERVICES['iam']}/admin/metrics",
             f"{SERVICES['iam']}/iam/admin/users",
             f"{SERVICES['iam']}/iam/admin/users",
-        ]
+            ]
 
         # Fire the three races concurrently
         race_tasks = [
@@ -272,6 +296,32 @@ async def admin_summary(request: Request, from_date: Optional[str] = None, to_da
         ]
 
         contratacion_future, proveedores_future, iam_future = await asyncio.gather(*race_tasks, return_exceptions=True)
+
+        # If we used a cached candidate and it returned a non-OK response, evict the cache so next call will probe again
+        def _maybe_evict_cache(service_key, resp):
+            try:
+                if resp is None:
+                    return
+                status = getattr(resp, 'status_code', None)
+                winner_url = getattr(resp, '_winner_url', None) or getattr(resp, 'url', None)
+                # if status >=400 and we used a cached single candidate, evict
+                cached = _SERVICE_WINNER_CACHE.get(service_key)
+                if cached and cached.get('url') and status is not None and status >= 400:
+                    logger.info(f"evicting cached candidate for {service_key} because status={status}")
+                    try:
+                        del _SERVICE_WINNER_CACHE[service_key]
+                    except KeyError:
+                        pass
+                # if success, store the winning url in cache
+                if status is not None and status < 400 and winner_url:
+                    _SERVICE_WINNER_CACHE[service_key] = {'url': str(winner_url), 'ts': time.time()}
+            except Exception:
+                pass
+
+        # update per-service caches based on responses
+        _maybe_evict_cache('contratacion', contratacion_future if not isinstance(contratacion_future, Exception) else None)
+        _maybe_evict_cache('proveedores', proveedores_future if not isinstance(proveedores_future, Exception) else None)
+        _maybe_evict_cache('iam', iam_future if not isinstance(iam_future, Exception) else None)
 
         contratacion_resp = contratacion_future if not isinstance(contratacion_future, Exception) else None
         proveedores_resp = proveedores_future if not isinstance(proveedores_future, Exception) else proveedores_future
@@ -283,43 +333,78 @@ async def admin_summary(request: Request, from_date: Optional[str] = None, to_da
             return resp.json()
         except Exception:
             return None
-
     def extract_count(data):
-        """Try multiple common shapes to extract a numeric count from a service response."""
+        """Robust extractor: search recursively for common count shapes anywhere in the JSON.
+
+        It looks for (in order):
+        - an `orders_by_status` dict (sums its values)
+        - an `orders` numeric or dict (sums dict values)
+        - numeric keys `total`, `count`, `size`
+        - arrays under keys `items`, `data`, `results` (returns len)
+        - if the entire payload is a list, return its length
+        Returns None if nothing found.
+        """
         if data is None:
             return None
-        # If it's already a number
+
+        # If it's a number
         if isinstance(data, int):
             return data
-        # If dict try common keys
-        if isinstance(data, dict):
-            # New: some services return {'orders': N} or {'orders_by_status': {...}}
-            if 'orders' in data:
-                v = data['orders']
-                if isinstance(v, int):
-                    return v
-                if isinstance(v, dict):
-                    # sum counts by status
+
+        # Recursive search for a key matching any of the target names
+        def recurse(obj):
+            # primitives
+            if obj is None:
+                return None
+            if isinstance(obj, int):
+                return obj
+            if isinstance(obj, list):
+                # If list of items look like orders, return length
+                if len(obj) > 0:
+                    return len(obj)
+                return 0
+
+            if isinstance(obj, dict):
+                # 1) orders_by_status
+                if 'orders_by_status' in obj and isinstance(obj['orders_by_status'], dict):
                     try:
-                        return sum(int(x) for x in v.values())
+                        return sum(int(v) for v in obj['orders_by_status'].values())
                     except Exception:
                         pass
-            if 'orders_by_status' in data and isinstance(data['orders_by_status'], dict):
-                try:
-                    return sum(int(x) for x in data['orders_by_status'].values())
-                except Exception:
-                    pass
-            for k in ('total', 'count', 'results', 'size'):
-                if k in data and isinstance(data[k], int):
-                    return data[k]
-            # items / data / results might be arrays
-            for arr_key in ('items', 'data', 'results'):
-                if arr_key in data and isinstance(data[arr_key], list):
-                    return len(data[arr_key])
-        # If a list, return length
-        if isinstance(data, list):
-            return len(data)
-        return None
+
+                # 2) orders (could be int or dict)
+                if 'orders' in obj:
+                    v = obj['orders']
+                    if isinstance(v, int):
+                        return v
+                    if isinstance(v, dict):
+                        try:
+                            return sum(int(x) for x in v.values())
+                        except Exception:
+                            pass
+
+                # 3) common numeric keys
+                for k in ('total', 'count', 'size'):
+                    if k in obj and isinstance(obj[k], int):
+                        return obj[k]
+
+                # 4) common array keys
+                for arr_key in ('items', 'data', 'results'):
+                    if arr_key in obj and isinstance(obj[arr_key], list):
+                        return len(obj[arr_key])
+
+                # Otherwise recurse into children (depth-first)
+                for key, val in obj.items():
+                    try:
+                        res = recurse(val)
+                        if res is not None:
+                            return res
+                    except Exception:
+                        continue
+
+            return None
+
+        return recurse(data)
 
     summary = {
         "generatedAt": None,

@@ -88,18 +88,24 @@ class ObtenerPedidoDetalleUseCase:
 
         # Paquete
         paquete_items = []
+        paquete_precio = None
         if pedido.paquete_id:
             try:
                 paquete_data = self.catalogo_client.get_paquete_detalle(pedido.paquete_id)
                 if paquete_data:
                     pedido.paquete_nombre = paquete_data.get("nombre")
                     paquete_items = paquete_data.get("items", [])
+                    paquete_precio = paquete_data.get("monto_total")
             except Exception:
                 pass
 
         # 5. Retornar estructura completa
+        pedido_dict = asdict(pedido)
+        if paquete_precio is not None:
+            pedido_dict["paquete_precio"] = float(paquete_precio)
+
         return {
-            "pedido": asdict(pedido),
+            "pedido": pedido_dict,
             "items": [
                 {**asdict(item), "proveedor": getattr(item, "proveedor", None)} 
                 for item in items

@@ -10,6 +10,7 @@ import {
   ClipboardDocumentListIcon,
   UserCircleIcon,
   ArrowRightOnRectangleIcon,
+  PlusIcon,
 } from '@heroicons/vue/24/outline';
 
 const authStore = useAuthStore();
@@ -53,6 +54,11 @@ const handleLogout = () => {
           <span class="text-sm text-gray-700 mr-4 hidden lg:inline">
             Hola, <strong>{{ authStore.userFullName }}</strong>
           </span>
+              <!-- Quick create order button visible on desktop -->
+              <RouterLink to="/cliente/pedido/nuevo" class="inline-flex items-center mr-3 rounded-md bg-primary-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700">
+                <PlusIcon class="mr-2 h-5 w-5" />
+                Crear Pedido
+              </RouterLink>
           <button
             type="button"
             class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
@@ -88,6 +94,10 @@ const handleLogout = () => {
         >
           {{ item.name }}
         </RouterLink>
+          <!-- Quick create visible in mobile menu -->
+          <RouterLink to="/cliente/pedido/nuevo" class="block border-l-4 border-transparent py-2 pl-3 pr-4 text-base font-medium text-gray-600 hover:border-primary-500 hover:bg-gray-50 hover:text-primary-600" @click="mobileMenuOpen = false">
+            Crear Pedido
+          </RouterLink>
       </div>
       <div class="border-t border-gray-200 pb-3 pt-4">
         <div class="px-4">

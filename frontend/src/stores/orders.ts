@@ -32,6 +32,8 @@ export const useOrdersStore = defineStore('orders', () => {
     error.value = null;
 
     try {
+      // Clear current list to force UI refresh and show loading state effectively
+      pedidos.value = [];
       const response = await ordersApi.getPedidos(usuarioId, estado, admin);
       // response may be { items: [...] } or array or ApiResponse
       if (Array.isArray(response)) {
@@ -157,7 +159,7 @@ export const useOrdersStore = defineStore('orders', () => {
     loading.value = true;
     error.value = null;
     try {
-      await ordersApi.addItems(id, items);
+      const result = await ordersApi.addItems(id, items);
 
       // Invalidate cache so next fetch gets fresh data
       if (pedidoDetailsCache.value[String(id)]) {
@@ -168,6 +170,14 @@ export const useOrdersStore = defineStore('orders', () => {
       if (currentPedido.value && String((currentPedido.value as any).pedido?.id || (currentPedido.value as any).id) === String(id)) {
         // Refresh details (force refresh)
         await fetchPedido(id, true, true);
+      }
+
+      // Update main list if exists
+      if (result && result.monto_total !== undefined) {
+        const index = pedidos.value.findIndex(p => String(p.id) === String(id));
+        if (index !== -1) {
+          pedidos.value[index].monto_total = result.monto_total;
+        }
       }
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Error al agregar items';
@@ -181,7 +191,7 @@ export const useOrdersStore = defineStore('orders', () => {
     loading.value = true;
     error.value = null;
     try {
-      await ordersApi.deleteItems(id, itemIds);
+      const result = await ordersApi.deleteItems(id, itemIds);
 
       // Invalidate cache
       if (pedidoDetailsCache.value[String(id)]) {
@@ -191,6 +201,14 @@ export const useOrdersStore = defineStore('orders', () => {
       // Refresh details
       if (currentPedido.value && String((currentPedido.value as any).pedido?.id || (currentPedido.value as any).id) === String(id)) {
         await fetchPedido(id, true, true);
+      }
+
+      // Update main list if exists
+      if (result && result.monto_total !== undefined) {
+        const index = pedidos.value.findIndex(p => String(p.id) === String(id));
+        if (index !== -1) {
+          pedidos.value[index].monto_total = result.monto_total;
+        }
       }
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Error al eliminar items';
