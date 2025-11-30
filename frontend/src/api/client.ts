@@ -1,8 +1,19 @@
 import axios, { AxiosError } from 'axios';
 import type { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios';
 
-// Base URL para la API - usar API Gateway en producción
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+// Base URL para la API - preferir runtime config (`window.__APP_CONFIG__`) if está disponible,
+// otherwise usar la variable de build `VITE_API_BASE_URL` o fallback a '/api'.
+function getRuntimeApiBase() {
+  try {
+    const cfg = (window as any).__APP_CONFIG__;
+    if (cfg && cfg.VITE_API_BASE_URL) return cfg.VITE_API_BASE_URL;
+  } catch (e) {
+    // ignore
+  }
+  return (import.meta.env.VITE_API_BASE_URL as string) || '/api';
+}
+
+const API_BASE_URL = getRuntimeApiBase();
 
 // Crear instancia de Axios
 const apiClient: AxiosInstance = axios.create({

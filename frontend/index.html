@@ -8,6 +8,8 @@
   </head>
   <body>
     <div id="app"></div>
+    <!-- Runtime config (injected via k8s ConfigMap -> mounted as /config.js) -->
+    <script src="/config.js"></script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

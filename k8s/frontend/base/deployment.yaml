@@ -41,3 +41,11 @@ spec:
             port: 80
           initialDelaySeconds: 5
           periodSeconds: 10
+        volumeMounts:
+        - name: frontend-config
+          mountPath: /usr/share/nginx/html/config.js
+          subPath: config.js
+      volumes:
+      - name: frontend-config
+        configMap:
+          name: frontend-config

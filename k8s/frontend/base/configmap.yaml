@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+  namespace: eventos-peru
+data:
+  # This file will be mounted as /config.js in the nginx webroot.
+  # It should assign a global `window.__APP_CONFIG__` object used by the SPA at runtime.
+  config.js: |
+    // Default runtime configuration for frontend (can be overridden in overlays)
+    window.__APP_CONFIG__ = {
+      VITE_API_BASE_URL: "/api"
+    };
