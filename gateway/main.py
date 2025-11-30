@@ -160,9 +160,21 @@ async def iam_gateway(path: str, request: Request):
     return await proxy_request(SERVICES["iam"], f"/iam/{path}", request)
 
 
+@app.api_route("/iam/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
+async def iam_root_gateway(path: str, request: Request):
+    """Proxy para soportar requests que llegan a /iam/* (útil para Swagger desde browser)."""
+    return await proxy_request(SERVICES["iam"], f"/iam/{path}", request)
+
+
 @app.api_route("/api/catalogo/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
 async def catalogo_gateway(path: str, request: Request):
     """Ruta requests a Catálogo Service"""
+    return await proxy_request(SERVICES["catalogo"], f"/catalogo/{path}", request)
+
+
+@app.api_route("/catalogo/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
+async def catalogo_root_gateway(path: str, request: Request):
+    """Proxy para soportar requests que llegan a /catalogo/* (útil para Swagger desde browser)."""
     return await proxy_request(SERVICES["catalogo"], f"/catalogo/{path}", request)
 
 
@@ -172,11 +184,27 @@ async def proveedores_gateway(path: str, request: Request):
     return await proxy_request(SERVICES["proveedores"], f"/proveedores/{path}", request)
 
 
+@app.api_route("/proveedores/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
+async def proveedores_root_gateway(path: str, request: Request):
+    """Proxy para soportar requests que llegan a /proveedores/* (útil para Swagger desde browser)."""
+    return await proxy_request(SERVICES["proveedores"], f"/proveedores/{path}", request)
+
+
 @app.api_route("/api/contratacion/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
 async def contratacion_gateway(path: str, request: Request):
     """Ruta requests a Contratación Service"""
     # Contratacion service router defines its own paths (e.g. '/health', '/pedidos').
     # Forward the incoming subpath directly so the service receives the expected route.
+    return await proxy_request(SERVICES["contratacion"], f"/{path}", request)
+
+
+@app.api_route("/contratacion/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
+async def contratacion_root_gateway(path: str, request: Request):
+    """Proxy para soportar requests que llegan a /contratacion/* (útil para Swagger desde browser).
+
+    Note: Contratacion service expects paths without the '/contratacion' prefix internally,
+    but router defines endpoints with full paths; forward the subpath as-is.
+    """
     return await proxy_request(SERVICES["contratacion"], f"/{path}", request)
 
 
