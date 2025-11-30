@@ -57,16 +57,40 @@ apiClient.interceptors.response.use(
       if (suppress) {
         return Promise.reject(error);
       }
+        if (status === 401) {
+          // Diferenciar 401 por token inválido/expirado vs 401 por otros motivos.
+          // Algunas rutas pueden devolver 401/403 por permisos; no queremos cerrar
+          // la sesión por un 401 que signifique simplemente "no tiene acceso a
+          // este recurso". Revisamos el body.detail para detectar errores de token.
+          const detail = (error.response.data && error.response.data.detail) || null;
+          const detailStr = typeof detail === 'string' ? detail : JSON.stringify(detail || '');
+          const isTokenProblem = /token inv[aá]lido|expirad|falta authorization|claims?/i.test(detailStr);
 
-      if (status === 401) {
-        // Token inválido o expirado - limpiar y redirigir a login
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
-      } else if (status === 403) {
-        // Forbidden - sin permisos
-        console.error('Acceso denegado: No tienes permisos para esta acción');
-      } else if (status === 404) {
+          if (isTokenProblem) {
+            // Token inválido/expirado => cerrar sesión
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('user');
+            window.location.href = '/login';
+          } else {
+            // 401 por otro motivo (ej. endpoint admin con token válido pero no autorizado)
+            // Emitimos un evento para que la UI pueda mostrar un mensaje amigable
+            console.warn('401 recibido pero no parece ser problema de token:', detailStr);
+            try {
+              window.dispatchEvent(new CustomEvent('auth:insufficient', { detail: { status: 401, detail: detailStr } }));
+            } catch (e) {
+              // ignore if CustomEvent unsupported in environment
+            }
+            return Promise.reject(error);
+          }
+        } else if (status === 403) {
+          // Forbidden - sin permisos. No forzamos logout, permitimos que la UI muestre un 403.
+          console.warn('Acceso denegado (403): No tienes permisos para esta acción');
+          try {
+            window.dispatchEvent(new CustomEvent('auth:insufficient', { detail: { status: 403, detail: error.response.data?.detail || null } }));
+          } catch (e) {
+            // ignore
+          }
+        } else if (status === 404) {
         console.error('Recurso no encontrado');
       } else if (status >= 500) {
         console.error('Error del servidor. Por favor intenta más tarde.');

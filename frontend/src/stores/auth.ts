@@ -39,8 +39,10 @@ export const useAuthStore = defineStore('auth', () => {
     return true;
   });
 
-  const isAdmin = computed(() => user.value?.role === 'ADMIN');
-  const isCliente = computed(() => user.value?.role === 'CLIENTE');
+  const isAdmin = computed(() => (user.value?.role || '').toString().toLowerCase() === 'admin');
+  const isCliente = computed(() => (user.value?.role || '').toString().toLowerCase() === 'cliente');
+  // English alias
+  const isClient = computed(() => isCliente.value);
   const userFullName = computed(() => user.value?.nombre || '');
   const tokenRemainingTime = computed(() => {
     if (!token.value) return 0;
@@ -252,6 +254,12 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // Role helper
+  function hasRole(roleName: string): boolean {
+    if (!user.value || !user.value.role) return false;
+    return (user.value.role || '').toString().toLowerCase() === (roleName || '').toString().toLowerCase();
+  }
+
   return {
     // State
     user,
@@ -262,6 +270,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     isAdmin,
     isCliente,
+    isClient,
     userFullName,
     tokenRemainingTime,
     // Actions
@@ -272,5 +281,6 @@ export const useAuthStore = defineStore('auth', () => {
     changePassword,
     logout,
     initializeAuth,
+    hasRole,
   };
 });

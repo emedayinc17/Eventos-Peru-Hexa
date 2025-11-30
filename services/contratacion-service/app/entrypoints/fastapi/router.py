@@ -291,6 +291,24 @@ def mis_pedidos(
         )
 
 
+# Alias endpoints using the /cliente/ prefix for clearer separation (compatible with gateway frontend paths)
+@router.get(
+    "/cliente/mis-pedidos",
+    response_model=Dict[str, Any],
+    operation_id="contratacion_listar_mis_pedidos_cliente",
+    openapi_extra={"security": [{"HTTPBearer": []}]},
+)
+def cliente_mis_pedidos(
+    limit: int = 50,
+    offset: int = 0,
+    current_user: dict = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+    use_case: ListarPedidosClienteUseCase = Depends(get_listar_pedidos_cliente_use_case),
+):
+    """Alias para listar pedidos del cliente actual bajo el prefijo /cliente"""
+    return mis_pedidos(limit=limit, offset=offset, current_user=current_user, settings=settings, use_case=use_case)
+
+
 @router.get(
     "/pedidos/{pedido_id}",
     response_model=Dict[str, Any],
@@ -332,6 +350,23 @@ def detalle_pedido(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"code": "ERROR_INTERNO", "message": str(e)}
         )
+
+
+# Alias detalle para /cliente/mis-pedidos/{id}
+@router.get(
+    "/cliente/mis-pedidos/{pedido_id}",
+    response_model=Dict[str, Any],
+    operation_id="contratacion_cliente_detalle_pedido",
+    openapi_extra={"security": [{"HTTPBearer": []}]},
+)
+def cliente_detalle_pedido(
+    pedido_id: str,
+    current_user: dict = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+    use_case: ObtenerPedidoDetalleUseCase = Depends(get_obtener_pedido_detalle_use_case),
+):
+    """Alias para detalle de pedido bajo prefijo /cliente; reutiliza la validación de ownership."""
+    return detalle_pedido(pedido_id=pedido_id, current_user=current_user, settings=settings, use_case=use_case)
 
 
 @router.post(

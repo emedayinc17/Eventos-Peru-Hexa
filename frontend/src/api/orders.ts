@@ -17,14 +17,14 @@ export const ordersApi = {
     if (estado) params.estado = estado;
     params._t = Date.now(); // Prevent caching
 
-    const path = admin ? `${ORDERS_BASE}/admin/pedidos` : `${ORDERS_BASE}/pedidos/mios`;
+    const path = admin ? `${ORDERS_BASE}/admin/pedidos` : `${ORDERS_BASE}/cliente/mis-pedidos`;
     const response = await apiClient.get(path, { params });
     // Some endpoints return { items: [...] } others return array
     return response.data || response;
   },
 
   async getPedido(id: number | string, admin = false): Promise<PedidoDetalle> {
-    const path = admin ? `${ORDERS_BASE}/admin/pedidos/${id}` : `${ORDERS_BASE}/pedidos/${id}`;
+    const path = admin ? `${ORDERS_BASE}/admin/pedidos/${id}` : `${ORDERS_BASE}/cliente/mis-pedidos/${id}`;
     const response = await apiClient.get<PedidoDetalle>(path);
     return response.data;
   },
