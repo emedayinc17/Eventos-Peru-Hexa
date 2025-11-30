@@ -7,6 +7,7 @@ resources:
   - serviceaccount.yaml
   - ingress/ingress.yaml
   - services/db_mysql
+  - gateway
   - services/iam/deploy-svc.yaml
   - services/catalogo/deploy-svc.yaml
   - services/proveedores/deploy-svc.yaml

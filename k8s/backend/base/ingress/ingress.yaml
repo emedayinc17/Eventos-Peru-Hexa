@@ -16,34 +16,10 @@ spec:
     - host: eventos.emeday.inc
       http:
         paths:
-          - path: /api/iam
+          - path: /api
             pathType: Prefix
             backend:
               service:
-                name: iam-service
+                name: gateway-service
                 port:
-                  number: 8010
-
-          - path: /api/catalogo
-            pathType: Prefix
-            backend:
-              service:
-                name: catalogo-service
-                port:
-                  number: 8020
-
-          - path: /api/proveedores
-            pathType: Prefix
-            backend:
-              service:
-                name: proveedores-service
-                port:
-                  number: 8030
-
-          - path: /api/contratacion
-            pathType: Prefix
-            backend:
-              service:
-                name: contratacion-service
-                port:
-                  number: 8040
+                  number: 8000

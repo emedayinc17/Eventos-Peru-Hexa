@@ -13,6 +13,7 @@ def reset_passwords():
         with conn.cursor() as cursor:
             for email, plain in USERS:
                 hashed = bcrypt_sha256.hash(plain)
+                print (f"Resetting password for {email} to {hashed}")
                 cursor.execute("SELECT id FROM usuario WHERE email = %s", (email,))
                 row = cursor.fetchone()
                 if row:

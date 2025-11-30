@@ -62,6 +62,7 @@ function Get-ImageName($svcName) {
         'catalogo-service' { return 'emeday17/eventos-catalogo' }
         'proveedores-service' { return 'emeday17/eventos-proveedores' }
         'contratacion-service' { return 'emeday17/eventos-contratacion' }
+      'gateway-service' { return 'emeday17/eventos-gateway' }
         default { return "emeday17/$svcName" }
     }
 }

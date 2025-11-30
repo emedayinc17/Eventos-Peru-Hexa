@@ -18,4 +18,7 @@ images:
   - name: eventos-contratacion
     newName: emeday17/eventos-contratacion
     newTag: "1.0.0"
+  - name: eventos-gateway
+    newName: emeday17/eventos-gateway
+    newTag: "1.0.0"
 
