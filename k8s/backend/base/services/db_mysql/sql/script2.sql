@@ -232,6 +232,7 @@ INSERT IGNORE INTO ev_proveedores.calendario_proveedor (id, proveedor_id, inicio
 
 -- Add 8 more usuarios de prueba (10+ total)
 INSERT IGNORE INTO ev_iam.usuario (id, email, password_hash, nombre, telefono, status) VALUES
+('user-test-01','test.cliente@eventos.pe','$bcrypt-sha256$v=2,t=2b,r=12$Ibo7q6FT4tG46LkwDeWkm.$du.tKQmNjCnJUHXn7Ifqge5Wti3l1p6','Cliente test','+51 900001003',1),
 ('user-client-03','cliente3@eventos.test','$bcrypt-sha256$v=2,t=2b,r=12$0mZ35JSikYcRUxPds2IKK.$G/4eI2JPqTURMzE34fgCa2qNRYdlnSC','Cliente Tres','+51 900001003',1),
 ('user-client-04','cliente4@eventos.test','$bcrypt-sha256$v=2,t=2b,r=12$0mZ35JSikYcRUxPds2IKK.$G/4eI2JPqTURMzE34fgCa2qNRYdlnSC','Cliente Cuatro','+51 900001004',1),
 ('user-client-05','cliente5@eventos.test','$bcrypt-sha256$v=2,t=2b,r=12$0mZ35JSikYcRUxPds2IKK.$G/4eI2JPqTURMzE34fgCa2qNRYdlnSC','Cliente Cinco','+51 900001005',1),
@@ -243,6 +244,7 @@ INSERT IGNORE INTO ev_iam.usuario (id, email, password_hash, nombre, telefono, s
 
 -- Roles para nuevos usuarios
 INSERT IGNORE INTO ev_iam.usuario_rol (id, usuario_id, rol_id) VALUES
+(UUID(),'teuser-test-01','aaaa1111-1111-1111-1111-aaaaaaaaaaa2'),
 (UUID(),'user-client-03','aaaa1111-1111-1111-1111-aaaaaaaaaaa2'),
 (UUID(),'user-client-04','aaaa1111-1111-1111-1111-aaaaaaaaaaa2'),
 (UUID(),'user-client-05','aaaa1111-1111-1111-1111-aaaaaaaaaaa2'),
