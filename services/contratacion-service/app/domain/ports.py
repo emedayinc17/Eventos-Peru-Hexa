@@ -152,6 +152,14 @@ class ItemPedidoRepository(Protocol):
     ) -> Optional[ItemPedido]:
         """Obtiene un item por su ID"""
         ...
+    
+    def eliminar(
+        self,
+        session: Any,
+        item_id: str
+    ) -> None:
+        """Elimina un item de pedido"""
+        ...
 
 
 class ReservaRepository(Protocol):
@@ -197,4 +205,12 @@ class ReservaRepository(Protocol):
         nuevo_estado: int
     ) -> Reserva:
         """Actualiza el estado de una reserva"""
+        ...
+
+    def eliminar(
+        self,
+        session: Any,
+        reserva_id: str
+    ) -> None:
+        """Elimina una reserva"""
         ...

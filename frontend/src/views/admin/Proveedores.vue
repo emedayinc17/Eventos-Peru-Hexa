@@ -48,7 +48,7 @@
                 </div>
               </td>
             </tr>
-            <tr v-else v-for="proveedor in filteredProveedores" :key="proveedor.id" class="hover:bg-gray-50 transition-colors">
+            <tr v-else v-for="proveedor in paginatedProveedores" :key="proveedor.id" class="hover:bg-gray-50 transition-colors">
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm font-medium text-gray-900">{{ proveedor.nombre }}</div>
                 <div class="text-xs text-gray-500" v-if="proveedor.ruc">RUC: {{ proveedor.ruc }}</div>
@@ -97,6 +97,31 @@
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <div class="bg-gray-50 px-6 py-3 border-t border-gray-200 flex items-center justify-between mt-3">
+      <div class="text-sm text-gray-500">
+        Mostrando {{ (currentPage - 1) * pageSize + 1 }} a {{ Math.min(currentPage * pageSize, filteredProveedores.length) }} de {{ filteredProveedores.length }} proveedores
+      </div>
+      <div class="flex gap-2">
+        <Button 
+          variant="secondary" 
+          size="sm" 
+          :disabled="currentPage === 1"
+          @click="currentPage--"
+        >
+          Anterior
+        </Button>
+        <Button 
+          variant="secondary" 
+          size="sm" 
+          :disabled="currentPage >= totalPages"
+          @click="currentPage++"
+        >
+          Siguiente
+        </Button>
       </div>
     </div>
 
@@ -232,7 +257,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, reactive } from 'vue';
+import { ref, computed, onMounted, reactive, watch } from 'vue';
 import { useProvidersStore } from '@/stores/providers';
 import { useUiStore } from '@/stores/ui';
 import Button from '@/components/common/Button.vue';
@@ -245,6 +270,9 @@ const providersStore = useProvidersStore();
 const ui = useUiStore();
 
 const searchQuery = ref('');
+// Pagination state
+const currentPage = ref(1);
+const pageSize = ref(10);
 const showModal = ref(false);
 const isEdit = ref(false);
 const submitting = ref(false);
@@ -274,6 +302,18 @@ const filteredProveedores = computed(() => {
     p.ruc?.includes(query)
   );
 });
+
+// Client-side paginated view
+const paginatedProveedores = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value;
+  const end = start + pageSize.value;
+  return filteredProveedores.value.slice(start, end);
+});
+
+const totalPages = computed(() => Math.ceil(filteredProveedores.value.length / pageSize.value));
+
+// Reset to first page when search changes
+watch(searchQuery, () => { currentPage.value = 1; });
 
 const openCreateModal = () => {
   isEdit.value = false;

@@ -38,6 +38,8 @@ from .dependencies import (
     get_obtener_pedido_detalle_use_case,
     get_admin_cambiar_estado_use_case,
     get_admin_asignar_proveedor_use_case,
+    get_admin_metrics_use_case,
+    get_client_metrics_use_case,
 )
 
 # Domain Exceptions
@@ -333,6 +335,51 @@ def admin_listar_pedidos(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"code": "ERROR_INTERNO", "message": str(e)}
         )
+
+
+@router.get(
+    "/v1/contratacion/admin/metrics",
+    response_model=Dict[str, Any],
+    operation_id="contratacion_admin_metrics",
+    openapi_extra={"security": [{"HTTPBearer": []}]},
+)
+def admin_metrics(
+    from_date: str | None = None,
+    to_date: str | None = None,
+    settings: Settings = Depends(get_settings),
+    admin=Depends(require_role("admin")),
+    use_case: object = Depends(get_admin_metrics_use_case),
+):
+    """Return simple aggregated metrics for admin dashboards."""
+    try:
+        for session in get_db_session(settings):
+            result = use_case.execute(session, from_date=from_date, to_date=to_date)
+            return result
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"code": "ERROR_INTERNO", "message": str(e)})
+
+
+@router.get(
+    "/v1/contratacion/metrics",
+    response_model=Dict[str, Any],
+    operation_id="contratacion_client_metrics",
+    openapi_extra={"security": [{"HTTPBearer": []}]},
+)
+def client_metrics(
+    from_date: str | None = None,
+    to_date: str | None = None,
+    current_user: dict = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+    use_case: object = Depends(get_client_metrics_use_case),
+):
+    """Return client-scoped metrics (counts of own orders)."""
+    cliente_id = current_user["sub"]
+    try:
+        for session in get_db_session(settings):
+            result = use_case.execute(session, cliente_id, from_date=from_date, to_date=to_date)
+            return result
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"code": "ERROR_INTERNO", "message": str(e)})
 
 
 @router.patch(

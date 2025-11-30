@@ -15,6 +15,8 @@ from .dependencies_admin import (
 from .security import require_user
 from typing import Dict, Any
 import traceback
+from ev_shared.db import session_scope
+from sqlalchemy import text
 
 def require_admin(user: Dict[str, Any] = Depends(require_user)):
     with open("e:\\eventos-peru-hexagonal\\debug_proveedores.txt", "a") as f:
@@ -153,6 +155,20 @@ def list_proveedores():
             # Simple query to list all providers
             rows = session.execute(text("SELECT * FROM proveedor WHERE is_deleted = 0 ORDER BY created_at DESC")).mappings().all()
             return [dict(row) for row in rows]
+    except Exception as exc:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/metrics")
+def admin_metrics():
+    """Simple admin metrics for Proveedores: return total providers count."""
+    settings = Settings()
+    try:
+        with session_scope(settings) as session:
+            row = session.execute(text("SELECT COUNT(1) AS total FROM proveedor WHERE is_deleted = 0")).mappings().first()
+            total = int(row["total"]) if row and row.get("total") is not None else 0
+            return {"total": total}
     except Exception as exc:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(exc))

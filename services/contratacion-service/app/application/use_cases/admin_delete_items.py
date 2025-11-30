@@ -70,7 +70,7 @@ class AdminDeleteItemsUseCase:
                 f"Solo se pueden eliminar items en estado DRAFT(0) o COTIZADO(1), estado actual: {pedido.status}"
             )
         
-        # 2. Validar items existen y no tienen reserva
+        # 2. Validar items existen y no tienen reserva confirmada
         items_eliminados = []
         monto_reducido = Decimal("0")
         
@@ -80,28 +80,42 @@ class AdminDeleteItemsUseCase:
             if not item:
                 raise ItemPedidoNoEncontrado(item_id)
             
-            # Verificar que no tenga reserva confirmada
+            # Validar que el item pertenezca al pedido
+            if str(item.pedido_id) != str(pedido_id):
+                # Si el item no es del pedido, lo ignoramos o lanzamos error.
+                # Lanzar error es más seguro.
+                raise ItemPedidoNoEncontrado(f"Item {item_id} no pertenece al pedido {pedido_id}")
+            
+            # Verificar reservas
             reserva = self.reserva_repo.obtener_por_item(session, item_id)
-            if reserva and reserva.status == 1:  # Confirmada
-                raise ErrorAsignacionProveedor(
-                    item_id,
-                    None,
-                    "No se puede eliminar item con reserva confirmada"
-                )
+            if reserva:
+                if reserva.status == 1:  # Confirmada
+                    raise ErrorAsignacionProveedor(
+                        item_id,
+                        None,
+                        "No se puede eliminar item con reserva confirmada"
+                    )
+                else:
+                    # Si tiene reserva pendiente (0) o cancelada (2), la eliminamos primero
+                    # para evitar error de FK
+                    self.reserva_repo.eliminar(session, reserva.id)
             
             # Acumular monto a descontar
-            monto_reducido += Decimal(str(item.precio_total))
+            monto_reducido += Decimal(str(item.subtotal))
             
             # 3. Eliminar item
             self.item_repo.eliminar(session, item_id)
             
             items_eliminados.append({
                 "id": item_id,
-                "precio_total": float(item.precio_total)
+                "precio_total": float(item.subtotal)
             })
         
         # 4. Actualizar monto_total del pedido
-        nuevo_monto = max(Decimal("0"), Decimal(str(pedido.monto_total)) - monto_reducido)
+        # Asegurar que no sea negativo
+        monto_actual = Decimal(str(pedido.monto_total)) if pedido.monto_total is not None else Decimal("0")
+        nuevo_monto = max(Decimal("0"), monto_actual - monto_reducido)
+        
         self.pedido_repo.actualizar_monto(session, pedido_id, float(nuevo_monto))
         
         return {

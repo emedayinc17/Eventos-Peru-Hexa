@@ -47,7 +47,7 @@ CrearPedidoBody = Union[CrearPedidoDesdePaquete, CrearPedidoCustom]
 class ItemPedidoOut(BaseModel):
     id: str
     pedido_id: str
-    tipo_item: int                 # 1=OPCION_SERVICIO, 2=PAQUETE
+    tipo_item: Union[str, int]     # 'SERVICIO'/'PAQUETE' or 1/2
     referencia_id: str
     cantidad: int
     precio_unit: float

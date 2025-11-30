@@ -77,7 +77,10 @@ class MySQLPedidoRepository:
                   pe.cliente_id,
                   pe.tipo_evento_id,
                   (SELECT i.referencia_id FROM ev_contratacion.item_pedido_evento i
-                     WHERE i.pedido_id = pe.id AND i.tipo_item = 'PAQUETE' LIMIT 1) AS paquete_id,
+                     WHERE i.pedido_id = pe.id 
+                     AND (i.tipo_item = 'PAQUETE' OR i.tipo_item = '2' 
+                          OR EXISTS (SELECT 1 FROM ev_paquetes.paquete pkg WHERE pkg.id = i.referencia_id))
+                     LIMIT 1) AS paquete_id,
                   pe.fecha_evento,
                   pe.hora_inicio,
                   pe.hora_fin,
@@ -134,7 +137,10 @@ class MySQLPedidoRepository:
                   pe.cliente_id,
                   pe.tipo_evento_id,
                   (SELECT i.referencia_id FROM ev_contratacion.item_pedido_evento i
-                     WHERE i.pedido_id = pe.id AND i.tipo_item = 'PAQUETE' LIMIT 1) AS paquete_id,
+                     WHERE i.pedido_id = pe.id 
+                     AND (i.tipo_item = 'PAQUETE' OR i.tipo_item = '2' 
+                          OR EXISTS (SELECT 1 FROM ev_paquetes.paquete pkg WHERE pkg.id = i.referencia_id))
+                     LIMIT 1) AS paquete_id,
                   pe.fecha_evento,
                   pe.hora_inicio,
                   pe.hora_fin,
@@ -195,7 +201,10 @@ class MySQLPedidoRepository:
               pe.cliente_id,
               pe.tipo_evento_id,
               (SELECT i.referencia_id FROM ev_contratacion.item_pedido_evento i
-                 WHERE i.pedido_id = pe.id AND i.tipo_item = 'PAQUETE' LIMIT 1) AS paquete_id,
+                 WHERE i.pedido_id = pe.id 
+                 AND (i.tipo_item = 'PAQUETE' OR i.tipo_item = '2' 
+                      OR EXISTS (SELECT 1 FROM ev_paquetes.paquete pkg WHERE pkg.id = i.referencia_id))
+                 LIMIT 1) AS paquete_id,
               pe.fecha_evento,
               pe.hora_inicio,
               pe.hora_fin,
@@ -241,6 +250,85 @@ class MySQLPedidoRepository:
             )
             for row in rows
         ]
+
+    # --------------------
+    # Metrics / Counts
+    # --------------------
+    def count_total_orders(
+        self,
+        session: Any,
+        *,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        status: Optional[int] = None,
+    ) -> int:
+        """Retorna el conteo total de pedidos aplicando filtros simples."""
+        where_clauses = []
+        params = {}
+        if from_date:
+            where_clauses.append("pe.created_at >= :from_date")
+            params["from_date"] = from_date
+        if to_date:
+            where_clauses.append("pe.created_at <= :to_date")
+            params["to_date"] = to_date
+        if status is not None:
+            where_clauses.append("pe.status = :status")
+            params["status"] = status
+
+        where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+        sql = text(f"SELECT COUNT(*) as total FROM ev_contratacion.pedido_evento pe {where_sql}")
+        row = session.execute(sql, params).mappings().first()
+        return int(row["total"]) if row and row.get("total") is not None else 0
+
+    def count_orders_by_status(
+        self,
+        session: Any,
+        *,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+    ) -> dict:
+        """Retorna conteos agrupados por status: { status: count }"""
+        where_clauses = []
+        params = {}
+        if from_date:
+            where_clauses.append("pe.created_at >= :from_date")
+            params["from_date"] = from_date
+        if to_date:
+            where_clauses.append("pe.created_at <= :to_date")
+            params["to_date"] = to_date
+
+        where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+        sql = text(f"SELECT pe.status as status, COUNT(*) as cnt FROM ev_contratacion.pedido_evento pe {where_sql} GROUP BY pe.status")
+        rows = session.execute(sql, params).mappings().all()
+        result = {str(r["status"]): int(r["cnt"]) for r in rows} if rows else {}
+        return result
+
+    def count_orders_for_client(
+        self,
+        session: Any,
+        cliente_id: str,
+        *,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        status: Optional[int] = None,
+    ) -> int:
+        """Conteo de pedidos para un cliente específico."""
+        where_clauses = ["pe.cliente_id = :cliente_id"]
+        params = {"cliente_id": cliente_id}
+        if from_date:
+            where_clauses.append("pe.created_at >= :from_date")
+            params["from_date"] = from_date
+        if to_date:
+            where_clauses.append("pe.created_at <= :to_date")
+            params["to_date"] = to_date
+        if status is not None:
+            where_clauses.append("pe.status = :status")
+            params["status"] = status
+
+        where_sql = "WHERE " + " AND ".join(where_clauses)
+        sql = text(f"SELECT COUNT(*) as total FROM ev_contratacion.pedido_evento pe {where_sql}")
+        row = session.execute(sql, params).mappings().first()
+        return int(row["total"]) if row and row.get("total") is not None else 0
     
     def actualizar_estado(
         self,
@@ -379,7 +467,6 @@ class MySQLItemPedidoRepository:
         # Enriquecer items con proveedor si existe reserva
         # Nota: Esto debería hacerse idealmente en una vista o servicio de dominio,
         # pero para mantenerlo simple en el repo por ahora:
-        items = []
         items = []
         for row in rows:
             item = ItemPedido(
@@ -577,3 +664,18 @@ class MySQLReservaRepository:
             hold_id=row["hold_id"],
             created_at=row["created_at"],
         )
+
+    def eliminar(
+        self,
+        session: Any,
+        reserva_id: str
+    ) -> None:
+        """Elimina una reserva"""
+        session.execute(
+            text("""
+                DELETE FROM ev_contratacion.reserva
+                WHERE id = :reserva_id
+            """),
+            {"reserva_id": reserva_id},
+        )
+        session.commit()

@@ -135,7 +135,9 @@ class CrearPedidoDesdePaqueteUseCase:
                 nombre_servicio=item.get("servicio_nombre", item.get("opcion_nombre", "Servicio")),
                 cantidad=cantidad,
                 precio_unitario=precio_unitario,
-                subtotal=subtotal
+                subtotal=subtotal,
+                tipo_item='PAQUETE',
+                referencia_id=paquete_id
             )
 
             # Crear reserva si hay proveedor seleccionado para esta opción

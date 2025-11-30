@@ -32,6 +32,10 @@ from .security import get_current_user, require_role
 from .dependencies import (
     get_settings,
     get_db_session,
+    get_pedido_repository,
+    get_item_pedido_repository,
+    get_reserva_repository,
+    get_catalogo_client,
     get_crear_pedido_desde_paquete_use_case,
     get_crear_pedido_custom_use_case,
     get_listar_pedidos_cliente_use_case,
@@ -41,7 +45,33 @@ from .dependencies import (
     get_admin_asignar_proveedor_use_case,
     get_admin_add_items_use_case,
     get_admin_delete_items_use_case,
+    get_admin_metrics_use_case,
+
+    get_client_metrics_use_case,
 )
+
+# Use Cases (for Type Hinting)
+from ...application.use_cases import (
+    CrearPedidoDesdePaqueteUseCase,
+    CrearPedidoCustomUseCase,
+    ListarPedidosClienteUseCase,
+    ListarPedidosAdminUseCase,
+    ObtenerPedidoDetalleUseCase,
+    AdminCambiarEstadoPedidoUseCase,
+    AdminAsignarProveedorUseCase,
+)
+from ...application.use_cases.admin_metrics import AdminMetricsUseCase
+from ...application.use_cases.client_metrics import ClientMetricsUseCase
+from ...application.use_cases.admin_add_items import AdminAddItemsUseCase
+from ...application.use_cases.admin_delete_items import AdminDeleteItemsUseCase
+
+# Infrastructure Types for Injection
+from ...infrastructure.db.repositories import (
+    MySQLPedidoRepository,
+    MySQLItemPedidoRepository,
+    MySQLReservaRepository,
+)
+from ...infrastructure.http.catalogo_client import CatalogoClient
 
 # Domain Exceptions
 from ...domain.exceptions import (
@@ -107,6 +137,11 @@ def crear_pedido(
     body: Dict[str, Any],
     current_user: dict = Depends(get_current_user),
     settings: Settings = Depends(get_settings),
+    # Inject dependencies for manual factory call
+    pedido_repo: MySQLPedidoRepository = Depends(get_pedido_repository),
+    item_repo: MySQLItemPedidoRepository = Depends(get_item_pedido_repository),
+    reserva_repo: MySQLReservaRepository = Depends(get_reserva_repository),
+    catalogo_client: CatalogoClient = Depends(get_catalogo_client),
 ):
     """
     Crear pedido - Hexagonal pattern
@@ -127,7 +162,12 @@ def crear_pedido(
                 detail={"code": "VALIDACION_ERROR", "message": str(e)}
             )
         
-        use_case = get_crear_pedido_desde_paquete_use_case()
+        use_case = get_crear_pedido_desde_paquete_use_case(
+            pedido_repo=pedido_repo,
+            item_repo=item_repo,
+            reserva_repo=reserva_repo,
+            catalogo_client=catalogo_client
+        )
         
         # Convertir date + time strings a datetime y strings
         from datetime import datetime
@@ -167,7 +207,11 @@ def crear_pedido(
                 detail={"code": "VALIDACION_ERROR", "message": str(e)}
             )
         
-        use_case = get_crear_pedido_custom_use_case()
+        use_case = get_crear_pedido_custom_use_case(
+            pedido_repo=pedido_repo,
+            item_repo=item_repo,
+            catalogo_client=catalogo_client
+        )
         params = {
             "cliente_id": cliente_id,
             "items": [item.dict() for item in payload.items],
@@ -222,10 +266,10 @@ def mis_pedidos(
     offset: int = 0,
     current_user: dict = Depends(get_current_user),
     settings: Settings = Depends(get_settings),
+    use_case: ListarPedidosClienteUseCase = Depends(get_listar_pedidos_cliente_use_case),
 ):
     """Listar pedidos del cliente actual - Hexagonal pattern"""
     cliente_id = current_user["id"]
-    use_case = get_listar_pedidos_cliente_use_case()
     
     try:
         for session in get_db_session(settings):
@@ -257,13 +301,13 @@ def detalle_pedido(
     pedido_id: str,
     current_user: dict = Depends(get_current_user),
     settings: Settings = Depends(get_settings),
+    use_case: ObtenerPedidoDetalleUseCase = Depends(get_obtener_pedido_detalle_use_case),
 ):
     """
     Detalle del pedido con items y reservas - Hexagonal pattern
     Retorna: {pedido, items[], reservas[], estado_nombre, total_items, total_reservas}
     """
     cliente_id = current_user["id"]
-    use_case = get_obtener_pedido_detalle_use_case()
     
     try:
         for session in get_db_session(settings):
@@ -331,12 +375,12 @@ def admin_listar_pedidos(
     settings: Settings = Depends(get_settings),
     admin=Depends(require_role("admin")),
     authorization: str | None = Header(None),
+    use_case: ListarPedidosAdminUseCase = Depends(get_listar_pedidos_admin_use_case),
 ):
     """
     Lista TODOS los pedidos del sistema - SOLO ADMIN
     Hexagonal pattern con filtro opcional por estado
     """
-    use_case = get_listar_pedidos_admin_use_case()
     
     # Extract token for enrichment
     token = None
@@ -399,6 +443,51 @@ def admin_listar_pedidos(
         )
 
 
+@router.get(
+    "/admin/metrics",
+    response_model=Dict[str, Any],
+    operation_id="contratacion_admin_metrics",
+    openapi_extra={"security": [{"HTTPBearer": []}]},
+)
+def admin_metrics(
+    from_date: str | None = None,
+    to_date: str | None = None,
+    settings: Settings = Depends(get_settings),
+    admin=Depends(require_role("admin")),
+    use_case: object = Depends(get_admin_metrics_use_case),
+):
+    """Return simple aggregated metrics for admin dashboards."""
+    try:
+        for session in get_db_session(settings):
+            result = use_case.execute(session, from_date=from_date, to_date=to_date)
+            return result
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"code": "ERROR_INTERNO", "message": str(e)})
+
+
+@router.get(
+    "/metrics",
+    response_model=Dict[str, Any],
+    operation_id="contratacion_client_metrics",
+    openapi_extra={"security": [{"HTTPBearer": []}]},
+)
+def client_metrics(
+    from_date: str | None = None,
+    to_date: str | None = None,
+    current_user: dict = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+    use_case: object = Depends(get_client_metrics_use_case),
+):
+    """Return client-scoped metrics (counts of own orders)."""
+    cliente_id = current_user.get("id") or current_user.get("sub")
+    try:
+        for session in get_db_session(settings):
+            result = use_case.execute(session, cliente_id, from_date=from_date, to_date=to_date)
+            return result
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"code": "ERROR_INTERNO", "message": str(e)})
+
+
 @router.patch(
     "/admin/pedidos/{pedido_id}",
     response_model=Dict[str, Any],
@@ -410,13 +499,13 @@ def admin_patch_estado(
     body: AdminPatchEstadoRequest,
     settings: Settings = Depends(get_settings),
     admin=Depends(require_role("admin")),
+    use_case: AdminCambiarEstadoPedidoUseCase = Depends(get_admin_cambiar_estado_use_case),
 ):
     """
     Cambiar estado del pedido - SOLO ADMIN
     Hexagonal pattern con validación de transiciones
     Estado 5 (CANCELADO) libera todos los holds automáticamente
     """
-    use_case = get_admin_cambiar_estado_use_case()
     
     try:
         for session in get_db_session(settings):
@@ -455,13 +544,13 @@ def admin_add_items(
     body: AdminAddItemsRequest,
     settings: Settings = Depends(get_settings),
     admin=Depends(require_role("admin")),
+    use_case: AdminAddItemsUseCase = Depends(get_admin_add_items_use_case),
 ):
     """
     Agregar items a pedido - SOLO ADMIN
     Solo permitido en estados DRAFT (0) o COTIZADO (1)
     Recalcula monto_total del pedido
     """
-    use_case = get_admin_add_items_use_case()
     
     try:
         for session in get_db_session(settings):
@@ -505,6 +594,7 @@ def admin_delete_items(
     body: AdminDeleteItemsRequest,
     settings: Settings = Depends(get_settings),
     admin=Depends(require_role("admin")),
+    use_case: AdminDeleteItemsUseCase = Depends(get_admin_delete_items_use_case),
 ):
     """
     Eliminar items de pedido - SOLO ADMIN
@@ -512,7 +602,6 @@ def admin_delete_items(
     No se puede eliminar items con reserva confirmada
     Recalcula monto_total del pedido
     """
-    use_case = get_admin_delete_items_use_case()
     
     try:
         for session in get_db_session(settings):
@@ -557,6 +646,7 @@ def admin_asignar_proveedor(
     body: AdminAsignarProveedorRequest,
     settings: Settings = Depends(get_settings),
     admin=Depends(require_role("admin")),
+    use_case: AdminAsignarProveedorUseCase = Depends(get_admin_asignar_proveedor_use_case),
 ):
     """
     Asignar proveedor a item de pedido - SOLO ADMIN
@@ -572,7 +662,6 @@ def admin_asignar_proveedor(
     
     Integra con Proveedores Service vía HTTP internal
     """
-    use_case = get_admin_asignar_proveedor_use_case()
     
     try:
         for session in get_db_session(settings):
@@ -642,12 +731,12 @@ def admin_detalle_pedido(
     settings: Settings = Depends(get_settings),
     admin=Depends(require_role("admin")),
     authorization: str | None = Header(None),
+    use_case: ObtenerPedidoDetalleUseCase = Depends(get_obtener_pedido_detalle_use_case),
 ):
     """
     Detalle del pedido para ADMIN - Hexagonal pattern
     Mismo use case que detalle_pedido pero sin validación de ownership
     """
-    use_case = get_obtener_pedido_detalle_use_case()
     
     # Extract token
     token = None

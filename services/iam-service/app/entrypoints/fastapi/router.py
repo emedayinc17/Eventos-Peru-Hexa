@@ -3,6 +3,8 @@ from fastapi import APIRouter, HTTPException, status, Depends, Body
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional, Dict, Any, List
 from ev_shared.config import Settings
+from ev_shared.db import session_scope
+from sqlalchemy import text
 
 from app.infrastructure.security.jwt_adapter import decode_token, JwtError
 from app.infrastructure.persistence.repo_users_port import UserRepositoryAdapter
@@ -192,5 +194,17 @@ def build_api_router(settings: Settings) -> APIRouter:
         uc = make_admin_delete_uc(settings)
         uc.execute(user_id=id, actor_id=admin["id"])
         return
+
+
+    @r.get("/admin/metrics")
+    def admin_metrics(admin=Depends(require_role("ADMIN")), settings: Settings = Depends(get_settings)):
+        """Simple admin metrics for IAM: return total users count."""
+        try:
+            with session_scope(settings) as s:
+                row = s.execute(text("SELECT COUNT(1) AS total FROM ev_iam.usuario WHERE is_deleted = 0")).mappings().first()
+                total = int(row["total"]) if row and row.get("total") is not None else 0
+                return {"total": total}
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc))
 
     return r

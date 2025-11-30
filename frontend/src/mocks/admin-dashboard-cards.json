@@ -1,0 +1,275 @@
+{
+  "meta": {
+    "generatedAt": "2025-11-29T00:00:00Z",
+    "version": "1.0",
+    "description": "Configuración de tarjetas, charts y listas para Admin Dashboard (mock data + metadata)."
+  },
+  "globalFilters": {
+    "default": {
+      "dateFrom": "2025-11-01",
+      "dateTo": "2025-11-29",
+      "channel": "all",
+      "eventType": "all",
+      "provider": "all"
+    },
+    "available": [
+      "dateRange",
+      "channel",
+      "eventType",
+      "provider",
+      "region"
+    ]
+  },
+  "kpiCards": [
+    {
+      "id": "kpi-revenue",
+      "title": "Ingresos (7d)",
+      "type": "kpi",
+      "size": "small",
+      "priority": 1,
+      "value": "S/ 45,320",
+      "unit": "PEN",
+      "delta": "-4.2%",
+      "deltaPeriod": "vs prev 7d",
+      "sparkline": [5600, 6200, 7000, 6800, 6400, 5900, 6120],
+      "chartType": "sparkline",
+      "linkToDetail": "/admin/reports/revenue",
+      "alertLevel": "ok",
+      "thresholds": { "warnPercent": -10, "criticalPercent": -20 },
+      "tooltip": "Ingresos brutos sumados en los últimos 7 días."
+    },
+    {
+      "id": "kpi-orders",
+      "title": "Pedidos Totales (7d)",
+      "type": "kpi",
+      "size": "small",
+      "priority": 1,
+      "value": 1245,
+      "unit": "orders",
+      "delta": "+2.1%",
+      "deltaPeriod": "vs prev 7d",
+      "sparkline": [150, 170, 165, 180, 160, 210, 210],
+      "chartType": "sparkline",
+      "linkToDetail": "/admin/orders",
+      "alertLevel": "ok",
+      "tooltip": "Total de pedidos creados en el periodo seleccionado."
+    },
+    {
+      "id": "kpi-aov",
+      "title": "Average Order Value (AOV)",
+      "type": "kpi",
+      "size": "small",
+      "priority": 2,
+      "value": "S/ 36.38",
+      "unit": "PEN",
+      "delta": "-1.6%",
+      "deltaPeriod": "vs prev 7d",
+      "sparkline": [36.5, 37.0, 36.2, 36.7, 36.0, 35.8, 36.4],
+      "chartType": "sparkline",
+      "linkToDetail": "/admin/reports/aov",
+      "alertLevel": "ok",
+      "tooltip": "Valor promedio por pedido."
+    },
+    {
+      "id": "kpi-conversion",
+      "title": "Conversion Rate",
+      "type": "kpi",
+      "size": "small",
+      "priority": 2,
+      "value": "3.2%",
+      "unit": "percent",
+      "delta": "+0.3pp",
+      "deltaPeriod": "vs prev 7d",
+      "chartType": "sparkline",
+      "sparkline": [2.8, 3.0, 3.1, 3.3, 3.2, 3.4, 3.2],
+      "linkToDetail": "/admin/reports/conversion",
+      "alertLevel": "ok",
+      "tooltip": "Porcentaje de visitas que se convierten en pedido."
+    },
+    {
+      "id": "kpi-active-users",
+      "title": "Usuarios Activos (24h)",
+      "type": "kpi",
+      "size": "small",
+      "priority": 3,
+      "value": 842,
+      "unit": "users",
+      "delta": "+5.4%",
+      "deltaPeriod": "vs prev 24h",
+      "chartType": "sparkline",
+      "sparkline": [700, 720, 730, 760, 790, 820, 842],
+      "linkToDetail": "/admin/users",
+      "alertLevel": "ok",
+      "tooltip": "Usuarios únicos activos en las últimas 24 horas."
+    },
+    {
+      "id": "kpi-errors-5xx",
+      "title": "Errores 5xx (1h)",
+      "type": "kpi",
+      "size": "small",
+      "priority": 1,
+      "value": 12,
+      "unit": "errors",
+      "delta": "+300%",
+      "deltaPeriod": "vs prev 1h",
+      "chartType": "sparkline",
+      "sparkline": [0, 1, 0, 0, 0, 2, 12],
+      "linkToDetail": "/admin/logs/errors",
+      "alertLevel": "warning",
+      "thresholds": { "warn": 10, "critical": 30 },
+      "tooltip": "Cantidad de errores 5xx detectados en la última hora."
+    }
+  ],
+  "chartCards": [
+    {
+      "id": "chart-revenue-30d",
+      "title": "Ingresos últimos 30 días",
+      "type": "chart",
+      "size": "large",
+      "priority": 1,
+      "chartType": "line",
+      "series": [
+        { "name": "2025", "data": [1200, 1300, 1100, 1400, 1500, 1600, 1700, 1800, 1650, 1720, 1740, 1800, 1900, 1850, 1750, 1820, 1900, 2000, 2050, 1980, 2100, 2200, 2300, 2250, 2400, 2500, 2600, 2700, 2800, 2900] },
+        { "name": "2024", "data": [1100, 1200, 1000, 1250, 1400, 1500, 1550, 1600, 1500, 1580, 1600, 1650, 1700, 1680, 1600, 1650, 1720, 1780, 1800, 1750, 1820, 1900, 1950, 1920, 2000, 2100, 2150, 2200, 2250, 2300] }
+      ],
+      "yAxisLabel": "PEN",
+      "linkToDetail": "/admin/reports/revenue",
+      "tooltip": "Comparativa de ingresos diario, con año anterior."
+    },
+    {
+      "id": "chart-orders-status",
+      "title": "Pedidos por estado (últimos 30d)",
+      "type": "chart",
+      "size": "medium",
+      "priority": 2,
+      "chartType": "stacked-bar",
+      "series": [
+        { "name": "pendientes", "data": [20,30,25,35,24,40,22] },
+        { "name": "confirmados", "data": [80,70,90,60,75,68,88] },
+        { "name": "cancelados", "data": [5,3,7,2,6,4,3] }
+      ],
+      "xCategories": ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],
+      "linkToDetail": "/admin/orders",
+      "tooltip": "Distribución diaria de estados de pedido."
+    },
+    {
+      "id": "chart-sales-by-category",
+      "title": "Ventas por categoría",
+      "type": "chart",
+      "size": "medium",
+      "priority": 3,
+      "chartType": "donut",
+      "series": [
+        { "name": "Weddings", "value": 31200 },
+        { "name": "Corporate", "value": 21800 },
+        { "name": "Birthday", "value": 12900 },
+        { "name": "Concerts", "value": 7200 }
+      ],
+      "linkToDetail": "/admin/reports/categories",
+      "tooltip": "Proporción de ingresos por tipo de evento."
+    }
+  ],
+  "tableCards": [
+    {
+      "id": "table-latest-orders",
+      "title": "Últimos 10 pedidos",
+      "type": "table",
+      "size": "large",
+      "priority": 1,
+      "columns": [
+        { "key": "orderId", "label": "ID" },
+        { "key": "createdAt", "label": "Fecha" },
+        { "key": "customer", "label": "Cliente" },
+        { "key": "total", "label": "Total" },
+        { "key": "status", "label": "Estado" },
+        { "key": "provider", "label": "Proveedor" },
+        { "key": "actions", "label": "Acciones" }
+      ],
+      "rows": [
+        { "orderId": "ORD-20251129-001", "createdAt": "2025-11-29T09:12:00", "customer": "Juan P.", "total": "S/ 240.00", "status": "pendiente", "provider": "Proveedor A" },
+        { "orderId": "ORD-20251129-002", "createdAt": "2025-11-29T08:55:00", "customer": "María L.", "total": "S/ 120.00", "status": "confirmado", "provider": "Proveedor B" }
+      ],
+      "actions": [
+        { "name": "Ver", "type": "link", "urlTemplate": "/admin/orders/{orderId}" },
+        { "name": "Reintentar pago", "type": "action", "actionName": "retryPayment" },
+        { "name": "Reasignar", "type": "action", "actionName": "reassignProvider" }
+      ],
+      "linkToDetail": "/admin/orders"
+    },
+    {
+      "id": "table-providers-alerts",
+      "title": "Proveedores con incidencias",
+      "type": "table",
+      "size": "medium",
+      "priority": 2,
+      "columns": [
+        { "key": "providerId", "label": "ID" },
+        { "key": "name", "label": "Proveedor" },
+        { "key": "incidents", "label": "Incidencias" },
+        { "key": "lastContact", "label": "Último contacto" },
+        { "key": "status", "label": "Estado" }
+      ],
+      "rows": [
+        { "providerId": "PRV-001", "name": "Proveedor A", "incidents": 5, "lastContact": "2025-11-28T14:00:00", "status": "sin respuesta" },
+        { "providerId": "PRV-023", "name": "Proveedor Z", "incidents": 2, "lastContact": "2025-11-29T07:30:00", "status": "baja disponibilidad" }
+      ],
+      "actions": [
+        { "name": "Contactar", "type": "action", "actionName": "contactProvider" },
+        { "name": "Forzar disponibilidad", "type": "action", "actionName": "forceAvailability" }
+      ]
+    }
+  ],
+  "alerts": [
+    {
+      "id": "alert-high-errors",
+      "title": "Errores 5xx elevados",
+      "level": "critical",
+      "summary": "12 errores 5xx en la última hora",
+      "since": "2025-11-29T09:00:00",
+      "cta": { "label": "Ver logs", "url": "/admin/logs/errors" }
+    },
+    {
+      "id": "alert-jobs-failed",
+      "title": "Jobs fallidos",
+      "level": "warning",
+      "summary": "3 jobs fallidos en las últimas 2 horas",
+      "cta": { "label": "Reintentar jobs", "actionName": "retryFailedJobs" }
+    }
+  ],
+  "quickActions": [
+    { "id": "qa-pause-sales", "label": "Pausar ventas", "type": "action", "actionName": "pauseSales" },
+    { "id": "qa-maintenance", "label": "Modo mantenimiento", "type": "action", "actionName": "toggleMaintenance" },
+    { "id": "qa-export", "label": "Exportar reporte", "type": "link", "url": "/admin/reports/export" }
+  ],
+  "layout": {
+    "topRow": ["kpi-revenue", "kpi-orders", "kpi-aov", "kpi-conversion", "kpi-active-users", "kpi-errors-5xx"],
+    "row2": ["chart-revenue-30d", "chart-orders-status"],
+    "row3": ["table-latest-orders", "chart-sales-by-category"],
+    "sidebarRight": ["table-providers-alerts", "alerts", "quickActions"]
+  },
+  "endpointsSuggested": [
+    {
+      "path": "/admin/metrics/revenue",
+      "params": ["from", "to", "groupBy"],
+      "responseShape": { "total": "number", "series": [{ "date": "YYYY-MM-DD", "value": "number" }], "compare": { "prevTotal": "number" } }
+    },
+    {
+      "path": "/admin/metrics/orders",
+      "params": ["from", "to", "groupBy"],
+      "responseShape": { "counts": { "pending": "number", "confirmed": "number", "cancelled": "number" }, "series": [] }
+    },
+    {
+      "path": "/admin/metrics/errors",
+      "params": ["since"],
+      "responseShape": { "5xx": "number", "list": [{ "timestamp": "string", "message": "string", "service": "string" }] }
+    },
+    {
+      "path": "/admin/metrics/providers/availability",
+      "params": ["date", "region"],
+      "responseShape": { "available": "number", "total": "number", "details": [{ "providerId": "string", "availableSlots": "number" }] }
+    }
+  ],
+  "mockHints": {
+    "howToUse": "Guarda este JSON como `frontend/src/mocks/admin-dashboard-cards.json`. En el frontend importa y mapea por `id` para renderizar componentes `KpiCard`, `ChartCard`, `TableCard`. Implementa endpoints sugeridos y sustituye mock por datos reales."
+  }
+}

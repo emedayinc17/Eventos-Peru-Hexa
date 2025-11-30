@@ -72,6 +72,7 @@ class Pedido:
     cliente_nombre: Optional[str] = None
     cliente_email: Optional[str] = None
     tipo_evento_nombre: Optional[str] = None
+    paquete_nombre: Optional[str] = None
     
     # Transiciones de estado válidas
     VALID_TRANSITIONS = {

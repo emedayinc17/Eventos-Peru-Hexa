@@ -86,6 +86,17 @@ class ObtenerPedidoDetalleUseCase:
             except Exception:
                 pass
 
+        # Paquete
+        paquete_items = []
+        if pedido.paquete_id:
+            try:
+                paquete_data = self.catalogo_client.get_paquete_detalle(pedido.paquete_id)
+                if paquete_data:
+                    pedido.paquete_nombre = paquete_data.get("nombre")
+                    paquete_items = paquete_data.get("items", [])
+            except Exception:
+                pass
+
         # 5. Retornar estructura completa
         return {
             "pedido": asdict(pedido),
@@ -94,6 +105,7 @@ class ObtenerPedidoDetalleUseCase:
                 for item in items
             ],
             "reservas": [asdict(reserva) for reserva in reservas],
+            "paquete_items": paquete_items,
             "estado_nombre": pedido.estado_nombre,
             "total_items": len(items),
             "total_reservas": len(reservas)

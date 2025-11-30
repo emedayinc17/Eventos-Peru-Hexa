@@ -94,7 +94,9 @@ class AdminAddItemsUseCase:
                 nombre_servicio=nombre_servicio,
                 cantidad=cantidad,
                 precio_unitario=float(precio_unit),
-                subtotal=float(subtotal)
+                subtotal=float(subtotal),
+                tipo_item="SERVICIO",
+                referencia_id=opcion_id
             )
             
             items_creados.append({
@@ -102,7 +104,9 @@ class AdminAddItemsUseCase:
                 "opcion_servicio_id": opcion_id,
                 "cantidad": cantidad,
                 "precio_unit": float(precio_unit),
-                "precio_total": float(subtotal)
+                "precio_total": float(subtotal),
+                "tipo_item": "SERVICIO",
+                "referencia_id": opcion_id
             })
             
             monto_adicional += subtotal

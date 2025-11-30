@@ -112,7 +112,9 @@ def crear_pedido_desde_paquete(settings: Settings, cliente_id: str, payload: Dic
         
         # Si hay proveedores seleccionados, cambiar a COTIZADO; si no, DRAFT
         proveedores_seleccionados = payload.get("proveedores_seleccionados", [])
-        status_inicial = 1 if proveedores_seleccionados else 0  # COTIZADO si hay proveedores, DRAFT si no
+        # Default to COTIZADO (1) because a newly created pedido represents a cotización
+        # even if no proveedores were pre-selected. Keep variable for backward-compatibility.
+        status_inicial = 1
 
         # 2. Obtener items del paquete y tipo de evento
         sql_items_paquete = text("""
@@ -350,7 +352,8 @@ def crear_pedido_custom(settings: Settings, cliente_id: str, payload: Dict[str, 
     
     try:
         calc = _calcular_items_custom(settings, [dict(x) for x in payload["items"]])
-        status_inicial = 1 if calc["total"] > 0 else 0  # COTIZADO si hay total; DRAFT si no
+        # Default to COTIZADO (1) since a custom pedido with items represents a cotización
+        status_inicial = 1
 
         # 1. CREAR HOLDS para cada item custom (OPCIONAL - solo si viene proveedor_id)
         proveedor_id = payload.get("proveedor_id")
