@@ -18,9 +18,7 @@ class Servicio(BaseModel):
     # Convenience fields provided by the list endpoint to avoid extra requests from the UI
     categoria: Optional[str] = None
     precio_unitario: Optional[float] = None
-    # Optional fields populated for convenience in list endpoints
-    categoria: Optional[str] = None
-    precio_unitario: Optional[float] = None
+    opcion_id: Optional[str] = None
 
 
 class OpcionServicio(BaseModel):

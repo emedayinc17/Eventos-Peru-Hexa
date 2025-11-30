@@ -636,7 +636,7 @@ const confirmOrder = async () => {
     
     let orderData: any;
     
-      if (draft.value.paquete_id) {
+    if (draft.value.paquete_id) {
       // CASO 1 y 3: Con paquete (con o sin servicios adicionales)
       orderData = {
         tipo_evento_id: draft.value.tipo_evento_id!,
@@ -651,18 +651,24 @@ const confirmOrder = async () => {
       
       // Si hay servicios adicionales, agregarlos
       if (draft.value.servicios_adicionales && draft.value.servicios_adicionales.length > 0) {
-        orderData.servicios_adicionales = draft.value.servicios_adicionales.map((servicioId: number) => ({
-          opcion_servicio_id: String(servicioId),
-          cantidad: 1,
-          precio_unitario: getServicioPrice(servicioId) || 0
-        }));
+        orderData.servicios_adicionales = draft.value.servicios_adicionales.map((servicioId: number) => {
+            const servicio = catalogStore.servicios.find(s => s.id === servicioId);
+            const opcionId = (servicio as any)?.opcion_id || servicioId;
+            return {
+              opcion_servicio_id: String(opcionId),
+              cantidad: 1,
+              precio_unitario: getServicioPrice(servicioId) || 0
+            };
+        });
       }
-      } else {
+    } else {
       // CASO 2: Sin paquete (pedido custom)
       const items = (draft.value.servicios_adicionales || []).map((servicioId: number) => {
         const servicio = catalogStore.servicios.find(s => s.id === servicioId);
+        // Use the specific option ID if available (from backend), otherwise fallback to service ID
+        const opcionId = (servicio as any)?.opcion_id || servicioId;
         return {
-          opcion_servicio_id: String(servicioId),
+          opcion_servicio_id: String(opcionId),
           cantidad: 1,
           precio_unitario: servicio?.precio_unitario || getServicioPrice(servicioId) || 0
         };
@@ -706,6 +712,6 @@ onMounted(async () => {
   // Load catalog data
   await catalogStore.fetchTiposEvento();
   await catalogStore.fetchPaquetes();
-  await catalogStore.fetchServicios();
+  await catalogStore.fetchServicios({ forceRefresh: true });
 });
 </script>

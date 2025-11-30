@@ -11,6 +11,10 @@ class ProveedorSeleccionado(BaseModel):
     opcion_servicio_id: Union[str, int]
     proveedor_id: Union[str, int]
 
+class ItemCustom(BaseModel):
+    opcion_servicio_id: Union[str, int]
+    cantidad: int = Field(ge=1, default=1)
+
 class CrearPedidoDesdePaquete(BaseModel):
     paquete_id: Union[str, int]
     tipo_evento_id: Union[str, int]
@@ -20,22 +24,18 @@ class CrearPedidoDesdePaquete(BaseModel):
     num_personas: int = Field(ge=1)
     ubicacion: str
     notas: Optional[str] = None
-    servicios_adicionales: Optional[List['ItemCustom']] = None  # Servicios extras además del paquete
+    servicios_adicionales: Optional[List[ItemCustom]] = None  # Servicios extras además del paquete
     proveedores_seleccionados: Optional[List[ProveedorSeleccionado]] = None
     request_id: Optional[str] = None
     correlation_id: Optional[str] = None
-
-class ItemCustom(BaseModel):
-    opcion_servicio_id: Union[str, int]
-    cantidad: int = Field(ge=1, default=1)
 
 class CrearPedidoCustom(BaseModel):
     tipo_evento_id: Union[str, int]
     items: List[ItemCustom]
     fecha_evento: date
-    hora_inicio: time
-    hora_fin: Optional[time] = None
-    num_personas: int = Field(ge=1, default=1)  # AGREGADO: requerido por la BD
+    hora_inicio: str  # HH:MM format
+    hora_fin: Optional[str] = None  # HH:MM format
+    num_personas: int = Field(ge=1, default=1)
     ubicacion: str
     request_id: Optional[str] = None
     correlation_id: Optional[str] = None

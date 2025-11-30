@@ -101,7 +101,14 @@ class MySQLCatalogoQueryService:
                   WHERE o.servicio_id = s.id AND o.is_deleted = 0
                   ORDER BY ps.vigente_desde DESC, ps.created_at DESC
                   LIMIT 1
-                ) AS opcion_monto
+                ) AS opcion_monto,
+                (
+                  SELECT o.id
+                  FROM ev_catalogo.opcion_servicio o
+                  WHERE o.servicio_id = s.id AND o.is_deleted = 0
+                  ORDER BY o.created_at DESC
+                  LIMIT 1
+                ) AS opcion_id
             FROM ev_catalogo.servicio s
             WHERE s.is_deleted = 0
         """
@@ -155,6 +162,7 @@ class MySQLCatalogoQueryService:
                 "categoria": categoria,
                 "precio_unitario": precio_unitario,
                 "opcion_detalles": detalles_parsed,
+                "opcion_id": row.get("opcion_id"),
             })
 
         return result

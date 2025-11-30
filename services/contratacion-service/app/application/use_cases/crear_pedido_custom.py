@@ -85,7 +85,7 @@ class CrearPedidoCustomUseCase:
                 
                 items_with_prices.append({
                     "opcion_servicio_id": opcion_id,
-                    "nombre_servicio": opcion["nombre_servicio"],
+                    "nombre_servicio": opcion["servicio_nombre"],
                     "cantidad": cantidad,
                     "precio_unitario": precio_unitario,
                     "subtotal": subtotal
