@@ -3,18 +3,21 @@ kind: Ingress
 metadata:
   name: eventos-frontend
   namespace: eventos-peru
+  labels:
+    argocd.argoproj.io/instance: eventos-peru-frontend
   annotations:
-    kubernetes.io/ingress.class: nginx
-    nginx.ingress.kubernetes.io/rewrite-target: /
+    kubernetes.io/ingress.class: public
+    # Para el SPA no hace falta rewrite aquí
 spec:
+  ingressClassName: public
   rules:
-  - host: eventos.emeday.inc
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: eventos-frontend
-            port:
-              number: 80
+    - host: eventos.emeday.inc
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: eventos-frontend
+                port:
+                  number: 80

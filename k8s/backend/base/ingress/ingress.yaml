@@ -4,14 +4,13 @@ metadata:
   name: eventos-api
   namespace: eventos-peru
   annotations:
+    kubernetes.io/ingress.class: public
     nginx.ingress.kubernetes.io/enable-cors: "true"
     nginx.ingress.kubernetes.io/cors-allow-origin: "*"
     nginx.ingress.kubernetes.io/cors-allow-methods: "GET, PUT, POST, DELETE, PATCH, OPTIONS"
     nginx.ingress.kubernetes.io/cors-allow-headers: "Authorization, Content-Type, Accept, Origin, X-Requested-With"
     nginx.ingress.kubernetes.io/limit-rps: "20"
-    # For MVP we serve over plain HTTP only. Disable automatic SSL redirect
-    # and hide any Strict-Transport-Security header coming from upstream so
-    # browsers don't enforce HTTPS for this host.
+    # Solo HTTP por ahora: sin redirección a HTTPS
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
     nginx.ingress.kubernetes.io/proxy-hide-headers: "Strict-Transport-Security"
 spec:
@@ -20,24 +19,21 @@ spec:
     - host: eventos.emeday.inc
       http:
         paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: eventos-frontend
-                port:
-                  number: 80
-          # 🔹 TODO el tráfico normal pasa por el gateway
-          - path: /api
-            pathType: Prefix
-            backend:
-              service:
-                name: gateway-service
-                port:
-                  number: 8000
+          # 🔹 Rutas que usará el FRONTEND
+          #    /api/iam/**  → iam-service:8010
+          #    /api/catalogo/** → catalogo-service:8020
+          #    /api/proveedores/** → proveedores-service:8030
+          #    /api/contratacion/** → contratacion-service:8040
 
-          # 🔹 Acceso directo a cada servicio SOLO para docs/openapi
-          - path: /catalogo
+          - path: /api/iam
+            pathType: Prefix
+            backend:
+              service:
+                name: iam-service
+                port:
+                  number: 8010
+
+          - path: /api/catalogo
             pathType: Prefix
             backend:
               service:
@@ -45,6 +41,23 @@ spec:
                 port:
                   number: 8020
 
+          - path: /api/proveedores
+            pathType: Prefix
+            backend:
+              service:
+                name: proveedores-service
+                port:
+                  number: 8030
+
+          - path: /api/contratacion
+            pathType: Prefix
+            backend:
+              service:
+                name: contratacion-service
+                port:
+                  number: 8040
+
+          # 🔹 Acceso directo a cada servicio (útil para docs / Swagger en laboratorio)
           - path: /iam
             pathType: Prefix
             backend:
@@ -52,6 +65,14 @@ spec:
                 name: iam-service
                 port:
                   number: 8010
+
+          - path: /catalogo
+            pathType: Prefix
+            backend:
+              service:
+                name: catalogo-service
+                port:
+                  number: 8020
 
           - path: /proveedores
             pathType: Prefix
