@@ -155,12 +155,13 @@ const router = createRouter({
 });
 
 // Navigation guards
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore();
 
-  // Inicializar autenticación desde localStorage
-  if (!authStore.isAuthenticated) {
-    authStore.initializeAuth();
+  // Inicializar autenticación desde localStorage solo si hay token pero no user
+  if (!authStore.user && localStorage.getItem('access_token')) {
+    // initializeAuth is synchronous but awaiting is safe if it becomes async later
+    await authStore.initializeAuth();
   }
 
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth);

@@ -206,26 +206,49 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  function initializeAuth(): void {
+  async function initializeAuth(): Promise<void> {
     const storedToken = localStorage.getItem('access_token');
     const storedUser = localStorage.getItem('user');
 
-    if (storedToken && storedUser) {
-      // Check if token is expired
-      if (isTokenExpired(storedToken)) {
-        console.log('Stored token is expired, logging out');
-        logout();
-        return;
-      }
+    if (!storedToken) return;
 
-      token.value = storedToken;
+    // If token exists but is expired, clear everything
+    if (isTokenExpired(storedToken)) {
+      console.log('Stored token is expired, logging out');
+      logout();
+      return;
+    }
+
+    // Restore token in memory (client interceptor reads from localStorage too)
+    token.value = storedToken;
+
+    if (storedUser) {
       try {
         user.value = JSON.parse(storedUser);
-        // Start monitoring for this session
         startTokenMonitoring();
-      } catch {
-        logout();
+        return;
+      } catch (e) {
+        // If parsing fails, fall through to re-fetch profile
+        console.warn('Failed to parse stored user, refetching profile');
       }
+    }
+
+    // If we reached here we have a valid token but no usable user object.
+    // Try to fetch profile from the API using the token.
+    try {
+      loading.value = true;
+      const profile = await iamApi.getProfile();
+      user.value = profile;
+      localStorage.setItem('user', JSON.stringify(profile));
+      startTokenMonitoring();
+    } catch (err: any) {
+      console.warn('Failed to initialize auth from token:', err?.response?.data || err?.message);
+      // If profile cannot be fetched, clear local storage to avoid loops
+      token.value = null;
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('user');
+    } finally {
+      loading.value = false;
     }
   }
 

@@ -35,29 +35,35 @@ const validate = (): boolean => {
 };
 
 const handleSubmit = async () => {
+  if (loading.value) return; // prevent double submit / race
   if (!validate()) return;
-  
+
   loading.value = true;
-  
+
   try {
     const success = await authStore.login(form.value);
-    
+
     if (success) {
+      // Debug info to help confirm session established
+      // eslint-disable-next-line no-console
+      console.log('LOGIN OK:', { user: authStore.user, token: authStore.token });
+
       // Redirigir según rol o a la página de redirección
       const redirect = route.query.redirect as string;
-      
+
       if (redirect) {
-        router.push(redirect);
+        await router.push(redirect);
       } else if (authStore.isAdmin) {
-        router.push('/admin/dashboard');
+        await router.push('/admin/dashboard');
       } else {
-        router.push('/cliente/dashboard');
+        await router.push('/cliente/dashboard');
       }
     } else {
       errors.value.general = authStore.error || 'Credenciales inválidas';
     }
-  } catch (error) {
-    errors.value.general = 'Error al iniciar sesión. Por favor intenta de nuevo.';
+  } catch (err: any) {
+    // Prefer backend message if present
+    errors.value.general = authStore.error || err?.response?.data?.detail || 'Error al iniciar sesión. Por favor intenta de nuevo.';
   } finally {
     loading.value = false;
   }
