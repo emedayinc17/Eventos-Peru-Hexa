@@ -16,7 +16,7 @@
   Optional build-arg value for `VITE_API_BASE_URL` that will be embedded at build time (default: "/api").
 
 .EXAMPLE
-  .\build-and-push-frontend.ps1 -Tag 1.0.0 -Push -ApiBase "https://eventos.emeday.inc/api"
+  .\build-and-push-frontend.ps1 -Tag 1.0.0 -Push -ApiBase "/api"
 #>
 
 param(
