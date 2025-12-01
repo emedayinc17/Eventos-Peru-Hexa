@@ -41,8 +41,8 @@ spec:
           # Provide both names for token expiry so services reading either
           # `JWT_EXPIRES_MIN` (used in code) or `ACCESS_TOKEN_EXPIRE_MINUTES`
           # (used in some env examples) will work.
-          JWT_EXPIRES_MIN="{{ .Data.data.JWT_EXPIRES_MIN | default "" }}"
-          ACCESS_TOKEN_EXPIRE_MINUTES="{{ .Data.data.ACCESS_TOKEN_EXPIRE_MINUTES | default "" }}"
+          JWT_EXPIRES_MIN="{{ or .Data.data.JWT_EXPIRES_MIN "" }}"
+          ACCESS_TOKEN_EXPIRE_MINUTES="{{ or .Data.data.ACCESS_TOKEN_EXPIRE_MINUTES "" }}"
           {{- end }}
     spec:
       serviceAccountName: app-eventos
