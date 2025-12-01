@@ -36,7 +36,7 @@ spec:
           SCHEMA_PROVEEDORES="{{ .Data.data.SCHEMA_PROVEEDORES }}"
           SCHEMA_PAQUETES="{{ .Data.data.SCHEMA_PAQUETES }}"
           JWT_SECRET="{{ .Data.data.JWT_SECRET }}"
-          JWT_ALG="{{ default "HS256" .Data.data.JWT_ALG }}"
+          JWT_ALG="{{ .Data.data.JWT_ALG }}"
           ACCESS_TOKEN_EXPIRE_MINUTES="{{ .Data.data.ACCESS_TOKEN_EXPIRE_MINUTES }}"
           {{- end }}
     spec:
