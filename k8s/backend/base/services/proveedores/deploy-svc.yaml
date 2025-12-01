@@ -37,9 +37,6 @@ spec:
           SCHEMA_PAQUETES="{{ .Data.data.SCHEMA_PAQUETES }}"
           JWT_SECRET="{{ .Data.data.JWT_SECRET }}"
           JWT_ALG="{{ .Data.data.JWT_ALG }}"
-          # Provide both names for token expiry so services reading either
-          # `JWT_EXPIRES_MIN` (used in code) or `ACCESS_TOKEN_EXPIRE_MINUTES`
-          # (used in some env examples) will work.
           JWT_EXPIRES_MIN="{{ or .Data.data.JWT_EXPIRES_MIN "" }}"
           ACCESS_TOKEN_EXPIRE_MINUTES="{{ or .Data.data.ACCESS_TOKEN_EXPIRE_MINUTES "" }}"
           {{- end }}
