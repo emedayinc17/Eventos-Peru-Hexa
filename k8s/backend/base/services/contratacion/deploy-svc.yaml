@@ -37,7 +37,6 @@ spec:
           SCHEMA_PAQUETES="{{ .Data.data.SCHEMA_PAQUETES }}"
           JWT_SECRET="{{ .Data.data.JWT_SECRET }}"
           JWT_ALG="{{ .Data.data.JWT_ALG }}"
-          ACCESS_TOKEN_EXPIRE_MINUTES="{{ .Data.data.ACCESS_TOKEN_EXPIRE_MINUTES }}"
           JWT_EXPIRES_MIN="{{ or .Data.data.JWT_EXPIRES_MIN "" }}"
           ACCESS_TOKEN_EXPIRE_MINUTES="{{ or .Data.data.ACCESS_TOKEN_EXPIRE_MINUTES "" }}"
           {{- end }}
