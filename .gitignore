@@ -19,6 +19,7 @@ __pycache__/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.err
 
 # Archivos del sistema
 .DS_Store
@@ -71,3 +72,5 @@ Thumbs.db
 
 # Excluir todos los demás .txt
 *.txt
+# Tests / generated results
+frontend/test-results/

@@ -1,6 +1,2 @@
-INFO:     Loading environment from 'E:\eventos-peru-hexagonal\services\proveedores-service\.env'
-INFO:     Started server process [32132]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8030 (Press CTRL+C to quit)
-^C
+# Removed developer machine absolute paths from this log file.
+# This file is a generated local log; add it to .gitignore and avoid committing.
