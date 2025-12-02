@@ -4,6 +4,7 @@ from fastapi import Depends, HTTPException, Header, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError
 import logging
+import hashlib
 from ev_shared.config import Settings, load_settings
 from ev_shared.security import decode_jwt
 
@@ -33,8 +34,12 @@ def _decode_token(settings: Settings, token: str) -> Dict[str, Any]:
         s = load_settings(service_name="contratacion-service")
         js = getattr(s, "JWT_SECRET", None)
         if js:
-            # Log only non-sensitive metadata about secret
-            logger.debug("Contratacion JWT_SECRET loaded (len=%s)", len(js))
+            # Log a non-sensitive fingerprint of the JWT secret for cross-service comparison
+            try:
+                fp = hashlib.sha256(js.encode('utf-8')).hexdigest()[:12]
+                logger.debug("Contratacion JWT secret fingerprint=%s length=%s", fp, len(js))
+            except Exception:
+                logger.debug("Contratacion JWT_SECRET loaded (len=%s)", len(js))
         else:
             logger.debug("Contratacion JWT_SECRET is empty or not configured")
     except Exception:

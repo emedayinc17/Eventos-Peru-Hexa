@@ -2,6 +2,7 @@ from typing import Dict, Any, Optional
 from fastapi import HTTPException, status
 from sqlalchemy import text
 import logging
+import hashlib
 
 from ev_shared.db import session_scope
 from ev_shared.config import Settings
@@ -76,7 +77,12 @@ class AuthLoginUseCase:
             algorithm=alg,
         )
         try:
-            logger.debug("create_token used secret length=%s", len(secret) if secret is not None else 0)
+            # Log a non-sensitive fingerprint of the secret so we can compare across services
+            if secret:
+                fp = hashlib.sha256(secret.encode('utf-8')).hexdigest()[:12]
+                logger.info("create_token used JWT secret fingerprint=%s length=%s", fp, len(secret))
+            else:
+                logger.info("create_token used JWT secret: <empty>")
         except Exception:
             logger.debug("create_token used secret <unprintable>")
         return {

@@ -3,11 +3,14 @@ from typing import Any, Dict, Optional
 from fastapi import Depends, HTTPException, Header, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError
+import logging
+import hashlib
 from ev_shared.config import Settings
 from ev_shared.security import decode_jwt
 
 # auto_error=True hace que falte-> 403 inmediatamente
 bearer_scheme = HTTPBearer(auto_error=True)
+logger = logging.getLogger(__name__)
 
 def require_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
@@ -20,6 +23,17 @@ def require_user(
     token = credentials.credentials
     try:
         payload = decode_jwt(token)
+        # Log non-sensitive fingerprint of configured JWT secret to help debug mismatches
+        try:
+            s = Settings()
+            js = getattr(s, 'JWT_SECRET', None)
+            if js:
+                fp = hashlib.sha256(js.encode('utf-8')).hexdigest()[:12]
+                logger.debug("require_user JWT secret fingerprint=%s length=%s", fp, len(js))
+            else:
+                logger.debug("require_user JWT secret missing or empty")
+        except Exception:
+            logger.debug("require_user could not compute JWT secret fingerprint")
         return payload
     except JWTError:
         raise HTTPException(
